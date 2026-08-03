@@ -24,9 +24,11 @@
 window.SERVICES = [
   { id: "shrubdown", title: "Shrubdown (풀스윙)", emoji: "🌱", type: "game", status: "live", href: "https://nye-jun.itch.io/shrubdown", desc: "식물 오토배틀러", tag: "오토배틀러", thumb: "" },
   { id: "cat-survivors", title: "냥서바이버", emoji: "🐱", type: "game", status: "live", href: "./games/cat-survivors/index.html", desc: "고양이 vs 쥐떼 서바이버", tag: "서바이버", thumb: "" },
-  { id: "sentence-forms", title: "문장의 형식 Vol.1", emoji: "📘", type: "worksheet", status: "live", href: "./worksheets/sentence-forms/index.html", desc: "영문법 학습지 — 기본편 280제·실전편 340제", format: "WEB", thumb: "./worksheets/sentence-forms/images/cover-basic.png" },
-  { id: "nyajackpot", title: "냥잭팟", emoji: "🎰", type: "game", status: "soon", href: "", desc: "원-탭 고양이 가챠", tag: "가챠", thumb: "" },
-  { id: "regression", title: "그때도 이걸 알았더라면", emoji: "📈", type: "game", status: "soon", href: "", desc: "회귀 경제 시뮬", tag: "경제 시뮬레이션", thumb: "" },
-  { id: "bible-slot", title: "성경슬롯", emoji: "✨", type: "game", status: "soon", href: "", desc: "3릴 슬롯", tag: "슬롯", thumb: "" },
-  { id: "lowpoly-fc", title: "LOWPOLY FC", emoji: "⚽", type: "game", status: "soon", href: "", desc: "3v3 축구", tag: "3v3 스포츠", thumb: "" }
+  { id: "sentence-forms", title: "문장의 형식 Vol.1", emoji: "📘", type: "worksheet", status: "live", href: "./worksheets/sentence-forms/index.html", desc: "영문법 학습지 — 기본편 280제·실전편 340제", format: "WEB", thumb: "./worksheets/sentence-forms/images/cover-basic.png" }
+
+  // ── 웹에 올리면 아래 형식으로 한 줄씩 다시 추가하세요 (status: "live", href 채우기) ──
+  // { id: "nyajackpot", title: "냥잭팟", emoji: "🎰", type: "game", status: "live", href: "./games/nyajackpot/index.html", desc: "원-탭 고양이 가챠", tag: "가챠", thumb: "" },
+  // { id: "regression", title: "그때도 이걸 알았더라면", emoji: "📈", type: "game", status: "live", href: "./games/regression/index.html", desc: "회귀 경제 시뮬", tag: "경제 시뮬레이션", thumb: "" },
+  // { id: "bible-slot", title: "성경슬롯", emoji: "✨", type: "game", status: "live", href: "./games/bible-slot/index.html", desc: "3릴 슬롯", tag: "슬롯", thumb: "" },
+  // { id: "lowpoly-fc", title: "LOWPOLY FC", emoji: "⚽", type: "game", status: "live", href: "./games/lowpoly-fc/index.html", desc: "3v3 축구", tag: "3v3 스포츠", thumb: "" }
 ];
