@@ -262,6 +262,10 @@ var CONFIG = {
   }
 };
 
+/* 패시브를 적을 때 쓰는 고정 순서. CONFIG.passives 를 for...in 으로 돌면
+   엔진마다 순서가 달라져 같은 판이 다른 문자열로 기록된다. */
+var PASSIVE_ORDER = ['claws', 'tuna', 'bell', 'whisker', 'nap', 'clover'];
+
 /* ================================================================
    Vec — 입력 벡터 처리. out 객체를 재사용해 할당을 만들지 않는다.
    ================================================================ */
@@ -392,6 +396,7 @@ function World(config, metaLevels){
   var startHp = config.player.maxHp + this.metaMult.maxHpAdd;
   this.player = { x: 0, y: 0, hp: startHp, maxHp: startHp, invuln: 0 };
   this.rawInput = { x: 0, y: 0 };
+  this.nukesTaken = 0;             // 이 판에서 밟은 핵폭탄 수 (판 기록에 들어간다)
   this.moveDir = { x: 0, y: 0 };   // 재사용 (매 프레임 새로 만들지 않음)
   this.random = Math.random;       // 4단계 봇 시뮬이 씨드 난수로 교체한다
   this.enemies = new Pool(config.pools.enemies, function(){
@@ -757,6 +762,7 @@ World.prototype.reset = function(){
   this.player.hp = startHp;
   this.player.maxHp = startHp;
   this.rawInput.x = 0; this.rawInput.y = 0;
+  this.nukesTaken = 0;
   this.gameOver = false;
   this.cleared = false;
   this.elapsed = 0;
@@ -842,6 +848,7 @@ World.prototype.snapshot = function(){
     kills: this.kills,
     coins: this.coins,
     bossIndex: this.bossIndex,
+    nukesTaken: this.nukesTaken,
     pendingChoices: this.pendingChoices,
     rerollLeft: this.rerollLeft,   // 안 저장하면 멈췄다 이어하는 게 공짜 리롤이 된다
     hp: this.player.hp,
@@ -851,6 +858,36 @@ World.prototype.snapshot = function(){
     passives: passives,
     boss: (this.boss && this.boss.active)
             ? { typeId: this.boss.typeId, hp: this.boss.hp } : null
+  };
+};
+
+/* 끝난 판의 성적표. 네트워크·DOM 을 모른다 — shell 이 이걸 받아
+   기기 정보와 강화 단계를 붙여 보낸다. 판마다 한 번만 불리므로
+   배열·문자열을 만들어도 된다. */
+World.prototype.recordSummary = function(){
+  if (!this.gameOver && !this.cleared) return null;
+  var sec = Math.round(this.elapsed);
+  if (sec < this.config.runSave.minSec) return null;   // 실수로 켰다 끈 판은 안 보낸다
+  var i, id, w = [], p = [];
+  for (i = 0; i < this.weaponOrder.length; i++){
+    id = this.weaponOrder[i];
+    if (this.weapons[id] && this.weapons[id].level > 0)
+      w.push(id + this.weapons[id].level);
+  }
+  for (i = 0; i < PASSIVE_ORDER.length; i++){
+    id = PASSIVE_ORDER[i];
+    if (this.passives[id] > 0) p.push(id + this.passives[id]);
+  }
+  return {
+    sec: sec,
+    cleared: !!this.cleared,
+    level: this.level,
+    kills: this.kills,
+    coins: Math.floor(this.coins),
+    bossIndex: this.bossIndex,
+    nukes: this.nukesTaken,
+    weapons: w.join(' '),
+    passives: p.join(' ')
   };
 };
 
@@ -874,6 +911,7 @@ World.prototype.restore = function(s){
   this.kills   = safeInt(s.kills, 0, Number.MAX_SAFE_INTEGER || 9007199254740991, 0);
   this.coins   = safeNum(s.coins);
   this.bossIndex = safeInt(s.bossIndex, 0, this.config.bosses.length, 0);
+  this.nukesTaken = safeInt(s.nukesTaken, 0, 100, 0);
   this.pendingChoices = safeInt(s.pendingChoices, 0, this.level, 0);
   // 다시 뽑기: 이 기능이 없던 시절의 저장에는 필드 자체가 없다. 그때는 만석으로 준다.
   // 숫자로 들어 있으면 0 도 그대로 존중해야 한다 — 안 그러면 무한 리롤이 된다.
@@ -1688,6 +1726,7 @@ World.prototype.updateNukes = function(dt){
     if (dx * dx + dy * dy > eat * eat) continue;   // 안 밟았으면 그대로 둔다(아껴두기)
     this.blastAt(it.x, it.y, cfg.radius, cfg.damage, cfg.showSec, 'nuke');
     this.nukes.release(it);
+    this.nukesTaken++;
   }
 };
 
@@ -2246,13 +2285,74 @@ var RunSave = (function(){
   };
 })();
 
+/* 플레이어 이름과 고유번호. 고유번호는 이름을 바꿔도 같은 사람으로 묶기 위한
+   무작위 문자열이고 개인정보가 아니다. localStorage 가 막혀 있어도 게임은 돈다. */
+var Player = (function(){
+  var KEY = 'catSurvivor.player';
+  var mem = null;                       // localStorage 가 막혔을 때의 대체 보관소
+  function 새고유번호(){
+    var abc = 'abcdefghijklmnopqrstuvwxyz0123456789', s = '';
+    for (var i = 0; i < 10; i++) s += abc.charAt(Math.floor(Math.random() * abc.length));
+    return s;
+  }
+  function read(){
+    if (mem) return mem;
+    var o = null;
+    try { o = JSON.parse(window.localStorage.getItem(KEY)); } catch (e) { o = null; }
+    if (!o || typeof o !== 'object' || typeof o.id !== 'string' || !o.id)
+      o = { id: 새고유번호(), name: '', asked: false };
+    if (typeof o.name !== 'string') o.name = '';
+    o.asked = !!o.asked;
+    mem = o;
+    return o;
+  }
+  function write(){
+    try { window.localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) {}
+  }
+  return {
+    get: function(){ var o = read(); return { id: o.id, name: o.name }; },
+    needsName: function(){ return !read().asked; },
+    setName: function(s){
+      var o = read();
+      o.name = String(s == null ? '' : s).trim().slice(0, 20);
+      o.asked = true;
+      write();
+    }
+  };
+})();
+
 var overlayBtn = document.getElementById('overlayBtn');
 var rerollBtn = document.getElementById('rerollBtn');
 var shopBtn = document.getElementById('shopBtn');
 var paused = false;
 var runBanked = false;   // 이번 판의 코인을 이미 적립했는가
 var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작된 판인가 (최고 기록에 넣지 않는다)
+
+/* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
+var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
+var GAME_VERSION = '5169ec3';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var runUid = '';            // 판마다 새로 만든다. 같은 판이 두 번 저장되는 걸 막는다
+
+/* 새 판이 시작되는 지점마다 이 함수를 불러 runUid 를 새로 만든다.
+   시작 경로가 하나가 아니다 — "다시 하기" 버튼, 저장된 판이 없어 곧장 시작하는 첫 판,
+   이어하기 화면에서 "이어하기"/"새로 시작"을 고르는 경우까지 전부 각각 판의 시작이다.
+   이 중 하나라도 이 함수를 안 부르면 그 경로의 판은 runUid 가 빈 채로 서버에 가고,
+   서버는 형식이 안 맞는 runUid 를 가진 판 전체를 거부한다(계획/9-기록수집과-대시보드.md). */
+function 새판고유번호(){
+  return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+}
+
 var inShop = false;      // 지금 강화 상점 화면인가
+var askingName = false;  // 지금 이름을 묻는 화면인가 — 이 동안은 판이 진행되면 안 되고,
+                          // 다른 화면(일시정지·레벨업·게임오버)이 덮어써서도 안 된다
+
+// Player 이름처럼 사용자가 적은 문자열을 innerHTML 에 넣을 때 쓰는 최소 이스케이프.
+// Task 7 대시보드에서도 이 이름을 다시 그리므로 습관을 잡아둔다.
+function escapeHtml(s){
+  return String(s).replace(/[&<>"]/g, function(c){
+    return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;';
+  });
+}
 
 // 카드형 선택지는 실제 button 으로 만든다. 마우스·터치뿐 아니라 Tab/Enter 로도 고를 수 있다.
 function appendCard(html, onActivate, disabled){
@@ -2359,11 +2459,52 @@ function resumeFromPause(){
 
 // 일시정지 버튼·키가 부른다. 레벨업 카드·상점·결과 화면에서는 아무것도 하지 않는다.
 function togglePause(){
+  if (askingName) return;                                   // 이름 화면 중에는 아무것도 안 한다
   if (world.gameOver || world.cleared || inShop) return;
   if (pendingRun) return;                                   // 이어할지 고르는 중
   if (world.pendingChoices > 0 && !isPauseScreen) return;   // 카드를 고르는 중
   if (isPauseScreen) resumeFromPause();
   else { saveRun(); showPause(); }
+}
+
+var META_ORDER = ['power', 'maxHp', 'speed', 'magnet', 'xpGain'];
+
+/* 판이 끝나면 기록을 보낸다. 보내고 잊는다 — 실패해도 플레이어는 모른다.
+   알 필요가 없기 때문이다. */
+function sendRecord(){
+  try {
+    var run = world.recordSummary();
+    if (!run) return;                       // 안 끝났거나 15초 미만
+    // 안전장치: 새 판 시작 지점(다시 하기 버튼 / 첫 판 / 이어하기 화면)에서 전부
+    // runUid 를 만들도록 해뒀지만, 나중에 시작 경로가 하나 더 생겨 그중 하나를 놓치면
+    // 여기서라도 만들어 쓴다. 그래야 runUid 가 빈 채로 서버에 가서(서버가 판 전체를
+    // 거부한다) 기록이 조용히 사라지는 일이 없다.
+    if (!runUid) runUid = 새판고유번호();
+    var save = Save.get();
+    var meta = [];
+    for (var i = 0; i < META_ORDER.length; i++) meta.push(save.meta[META_ORDER[i]] || 0);
+    var body = {
+      v: 1,
+      version: GAME_VERSION,
+      runUid: runUid,
+      player: Player.get(),
+      run: run,
+      meta: meta.join(','),
+      device: {
+        touch: (navigator.maxTouchPoints || 0) > 0,
+        w: window.innerWidth, h: window.innerHeight,
+        viewHalfW: Math.round(world.viewHalfW),
+        viewHalfH: Math.round(world.viewHalfH),
+        spawnRing: Math.round(world.spawnRing())
+      }
+    };
+    fetch(RECORD_URL, {
+      method: 'POST',
+      keepalive: true,                      // 화면이 바뀌어도 전송이 안 끊기게
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).catch(function(){});                 // 실패는 조용히 삼킨다
+  } catch (e) {}                            // 여기서 터져도 게임은 계속된다
 }
 
 // 판의 결과를 저장소에 반영한다. 한 판에 한 번만.
@@ -2373,6 +2514,7 @@ function bankRun(cleared){
   RunSave.clear();                   // 끝난 판은 이어할 것이 없다
   Save.addCoins(world.coins);
   if (!runTainted) Save.recordRun(Math.floor(world.elapsed), world.level, cleared);
+  if (!runTainted) sendRecord();     // 치트 판은 데이터에 넣지 않는다
 }
 
 // 결과 화면 아래에 붙는 최고 기록 줄
@@ -2431,11 +2573,44 @@ function metaEffectText(key, step){
   return '+' + (step * m.add);
 }
 
+// 처음 한 번 이름을 묻는 화면. 끝나면 after() 를 불러 원래 흐름(시작/이어하기 물음)으로 이어간다.
+function showNameAsk(after){
+  askingName = true;
+  overlayTitle.textContent = '이름을 알려주세요';
+  overlayStat.innerHTML =
+    '<input id="nameInput" maxlength="20" placeholder="(안 적고 넘어가도 됩니다)" ' +
+    'style="font:inherit;padding:8px 10px;border-radius:8px;border:1px solid #666;' +
+    'background:#1a1a1a;color:inherit;width:220px;max-width:80%">' +
+    '<br><small>기록(버틴 시간·레벨·잡은 수)이 개발자에게 전송됩니다.</small>';
+  cardsEl.style.display = 'none';
+  rerollBtn.style.display = 'none';
+  shopBtn.style.display = 'none';
+  overlayBtn.style.display = 'block';
+  overlayBtn.textContent = '시작하기';
+  overlayBtn.onclick = function(){
+    var el = document.getElementById('nameInput');
+    Player.setName(el ? el.value : '');
+    overlayBtn.onclick = null;
+    askingName = false;
+    after();
+  };
+  overlay.classList.add('on');
+}
+
 // 강화 상점. 결과 화면에서 들어오고, 나가면 결과 화면으로 돌아간다.
 function showShop(){
   var d = Save.get();
   overlayTitle.textContent = '강화 상점';
   overlayStat.innerHTML = '\u{1FA99} 모은 코인 ' + d.coins;
+  overlayStat.innerHTML += '<br><small>이름: ' + escapeHtml(Player.get().name || '이름없음') +
+    ' <a href="#" id="renameLink" style="color:#8cf">바꾸기</a></small>';
+  var rl = document.getElementById('renameLink');
+  if (rl) rl.onclick = function(e){
+    e.preventDefault();
+    var v = window.prompt('새 이름 (20자까지)', Player.get().name);
+    if (v !== null){ Player.setName(v); showShop(); }
+    return false;
+  };
   cardsEl.style.display = 'flex';
   rerollBtn.style.display = 'none';
   cardsEl.innerHTML = '';
@@ -2483,6 +2658,7 @@ window.addEventListener('keydown', function(e){
    탭이 정리될 때 그 판이 통째로 사라진다 — 이 기능을 만든 이유가 이것이다.
    모바일에서 beforeunload 는 안 불리는 경우가 많아 쓰지 않는다. */
 function onLeaving(){
+  if (askingName) return;        // 이름 화면 중이면 그 화면을 그대로 둔다
   if (world.gameOver || world.cleared || inShop) return;
   if (pendingRun) return;        // 이어할지 묻는 중이면 그 물음을 그대로 둔다
   saveRun();
@@ -2511,6 +2687,7 @@ overlayBtn.addEventListener('click', function(){
   isPauseScreen = false;
   runBanked = false;
   runTainted = false;
+  runUid = 새판고유번호();
   overlay.classList.remove('on');
   paused = false;
   lastTime = 0;
@@ -2522,7 +2699,8 @@ function frame(now){
   var delta = now - lastTime;
   lastTime = now;
   applyInput();
-  if (!paused){
+  // 이름 화면 중에는 배경 진행(레벨업·게임오버 등으로의 화면 전환)이 이름 화면을 덮으면 안 된다
+  if (!paused && !askingName){
     if (world.cleared){ showCleared(); }
     else if (world.gameOver){ showGameOver(); }
     else if (world.pendingChoices > 0){ showLevelUp(); }
@@ -2530,7 +2708,8 @@ function frame(now){
   var steps = stepper.advance(delta);        // 정지 중에도 그대로 흘린다
   // 측정 중일 때만 계산/그리기 시간을 따로 잰다 (평소엔 시계를 읽지 않는다)
   var t0 = stressRecording ? performance.now() : 0;
-  for (var i = 0; i < (paused ? 0 : steps); i++){
+  // 이름 화면 중에는 판 자체가 진행되면 안 되므로 world.update 도 건너뛴다
+  for (var i = 0; i < ((paused || askingName) ? 0 : steps); i++){
     world.update(CONFIG.step.ms / 1000);
   }
   var t1 = stressRecording ? performance.now() : 0;
@@ -2540,53 +2719,64 @@ function frame(now){
 }
 
 /* 저장된 판이 있으면 시작하자마자 물어본다. 이어하기를 고르면 그 시점부터,
-   새로 시작을 고르면 저장을 버리고 처음부터. */
+   새로 시작을 고르면 저장을 버리고 처음부터.
+   이름 화면(showNameAsk) 뒤에 이어지는 원래 시작 흐름이라 이름을 붙여 함수로 뺐다 —
+   이름을 물을 필요가 없으면 이 함수가 바로 불린다. */
 var pendingRun = RunSave.load();
-if (pendingRun){
-  (function(){
-    var m = Math.floor((pendingRun.elapsed || 0) / 60);
-    var s = Math.floor((pendingRun.elapsed || 0) % 60);
-    var pendingLevel = (typeof pendingRun.level === 'number' && isFinite(pendingRun.level) &&
-                        pendingRun.level >= 1) ? Math.floor(pendingRun.level) : 1;
-    overlayTitle.textContent = '이어서 할까요?';
-    overlayStat.innerHTML = m + '분 ' + (s < 10 ? '0' : '') + s + '초 · Lv.' +
-      pendingLevel + ' 에서 멈췄습니다' +
-      '<br><small>이어하면 화면의 쥐는 새로 몰려옵니다</small>';
-    cardsEl.style.display = 'flex';
+function showTitleOrResume(){
+  // 저장된 판이 없으면 여기가 바로 "새로 판을 여는 자리" — 페이지를 새로 열고
+  // 곧장 시작하는 가장 흔한 경우라 여기서 runUid 를 안 만들면 첫 판 기록이 통째로 빠진다.
+  if (!pendingRun){ runUid = 새판고유번호(); overlay.classList.remove('on'); return; }   // 이어할 판이 없으면 그냥 시작
+  var m = Math.floor((pendingRun.elapsed || 0) / 60);
+  var s = Math.floor((pendingRun.elapsed || 0) % 60);
+  var pendingLevel = (typeof pendingRun.level === 'number' && isFinite(pendingRun.level) &&
+                      pendingRun.level >= 1) ? Math.floor(pendingRun.level) : 1;
+  overlayTitle.textContent = '이어서 할까요?';
+  overlayStat.innerHTML = m + '분 ' + (s < 10 ? '0' : '') + s + '초 · Lv.' +
+    pendingLevel + ' 에서 멈췄습니다' +
+    '<br><small>이어하면 화면의 쥐는 새로 몰려옵니다</small>';
+  cardsEl.style.display = 'flex';
+  cardsEl.innerHTML = '';
+  shopBtn.style.display = 'none';
+  rerollBtn.style.display = 'none';
+  overlayBtn.style.display = 'none';
+
+  function 고르기(이어할까){
+    // 이어하기든 새로 시작이든, 이 브라우저 세션에서는 아직 runUid 를 만든 적이 없다
+    // (여기 오는 길엔 "다시 하기" 버튼을 거치지 않는다). 여기서 만들지 않으면
+    // 이어받은 판이 끝났을 때 빈 runUid 로 전송돼 서버가 판 전체를 거부한다.
+    runUid = 새판고유번호();
+    RunSave.clear();
     cardsEl.innerHTML = '';
-    shopBtn.style.display = 'none';
-    rerollBtn.style.display = 'none';
-    overlayBtn.style.display = 'none';
+    cardsEl.style.display = 'none';
+    shopBtn.style.display = 'block';
+    overlayBtn.style.display = 'block';
+    overlay.classList.remove('on');
+    paused = false;
+    lastTime = 0;
+    if (이어할까 && !world.restore(pendingRun)) world.reset();   // 못 쓰면 새 판
+    pendingRun = null;
+  }
 
-    function 고르기(이어할까){
-      RunSave.clear();
-      cardsEl.innerHTML = '';
-      cardsEl.style.display = 'none';
-      shopBtn.style.display = 'block';
-      overlayBtn.style.display = 'block';
-      overlay.classList.remove('on');
-      paused = false;
-      lastTime = 0;
-      if (이어할까 && !world.restore(pendingRun)) world.reset();   // 못 쓰면 새 판
-      pendingRun = null;
-    }
-
-    var 항목 = [
-      { ico: '\u{25B6}️', nm: '이어하기', ds: m + '분 ' + s + '초부터', go: true },
-      { ico: '\u{1F504}', nm: '새로 시작', ds: '처음부터 다시', go: false }
-    ];
-    for (var i = 0; i < 항목.length; i++){
-      (function(c){
-        appendCard('<div class="ico">' + c.ico + '</div>' +
-                   '<div class="nm">' + c.nm + '</div>' +
-                   '<div class="ds">' + c.ds + '</div>',
-                   function(){ 고르기(c.go); }, false);
-      })(항목[i]);
-    }
-    overlay.classList.add('on');
-    paused = true;
-  })();
+  var 항목 = [
+    { ico: '\u{25B6}️', nm: '이어하기', ds: m + '분 ' + s + '초부터', go: true },
+    { ico: '\u{1F504}', nm: '새로 시작', ds: '처음부터 다시', go: false }
+  ];
+  for (var i = 0; i < 항목.length; i++){
+    (function(c){
+      appendCard('<div class="ico">' + c.ico + '</div>' +
+                 '<div class="nm">' + c.nm + '</div>' +
+                 '<div class="ds">' + c.ds + '</div>',
+                 function(){ 고르기(c.go); }, false);
+    })(항목[i]);
+  }
+  overlay.classList.add('on');
+  paused = true;
 }
+
+// 처음 한 번은 이름부터 묻는다. 다 물었으면 곧장 원래 시작 흐름(이어하기 물음)으로.
+if (Player.needsName()) showNameAsk(showTitleOrResume);
+else showTitleOrResume();
 
 
 
