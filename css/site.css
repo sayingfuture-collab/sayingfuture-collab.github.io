@@ -136,30 +136,83 @@ body {
     var(--bg-primary);
 }
 
-/* 은은한 별밭 (정적 — 별이 빠르게 움직이는 연출은 사용하지 않음) */
+/* 다층 별밭 (정적) — 멀리/중간/가까이 3단계 크기·밝기로 실제 밤하늘 밀도를 표현.
+   빠른 별 이동이나 강한 반짝임은 넣지 않는다 (지시서 13절 준수). */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: -3;
   pointer-events: none;
-  opacity: var(--deco-opacity);
   background-image:
-    radial-gradient(1.3px 1.3px at 8% 12%, rgba(255,255,255,0.5) 50%, transparent 51%),
-    radial-gradient(1.3px 1.3px at 22% 38%, rgba(255,255,255,0.36) 50%, transparent 51%),
-    radial-gradient(1.8px 1.8px at 68% 18%, rgba(255,255,255,0.45) 50%, transparent 51%),
-    radial-gradient(1.3px 1.3px at 84% 55%, rgba(255,255,255,0.32) 50%, transparent 51%),
-    radial-gradient(1.3px 1.3px at 42% 72%, rgba(255,255,255,0.36) 50%, transparent 51%),
-    radial-gradient(1.8px 1.8px at 91% 82%, rgba(255,255,255,0.28) 50%, transparent 51%),
-    radial-gradient(1.3px 1.3px at 58% 6%, rgba(255,255,255,0.36) 50%, transparent 51%),
-    radial-gradient(1.3px 1.3px at 12% 90%, rgba(255,255,255,0.28) 50%, transparent 51%);
+    /* 먼 별 (18개, 작고 흐리게) */
+    radial-gradient(1px 1px at 5% 6%, rgba(255,255,255,0.16) 50%, transparent 51%),
+    radial-gradient(1px 1px at 13% 22%, rgba(255,255,255,0.2) 50%, transparent 51%),
+    radial-gradient(1px 1px at 21% 9%, rgba(255,255,255,0.24) 50%, transparent 51%),
+    radial-gradient(1px 1px at 29% 41%, rgba(255,255,255,0.18) 50%, transparent 51%),
+    radial-gradient(1px 1px at 8% 55%, rgba(255,255,255,0.22) 50%, transparent 51%),
+    radial-gradient(1px 1px at 17% 71%, rgba(255,255,255,0.16) 50%, transparent 51%),
+    radial-gradient(1px 1px at 25% 84%, rgba(255,255,255,0.2) 50%, transparent 51%),
+    radial-gradient(1px 1px at 36% 12%, rgba(255,255,255,0.24) 50%, transparent 51%),
+    radial-gradient(1px 1px at 43% 48%, rgba(255,255,255,0.18) 50%, transparent 51%),
+    radial-gradient(1px 1px at 50% 73%, rgba(255,255,255,0.22) 50%, transparent 51%),
+    radial-gradient(1px 1px at 59% 7%, rgba(255,255,255,0.16) 50%, transparent 51%),
+    radial-gradient(1px 1px at 66% 35%, rgba(255,255,255,0.2) 50%, transparent 51%),
+    radial-gradient(1px 1px at 73% 60%, rgba(255,255,255,0.24) 50%, transparent 51%),
+    radial-gradient(1px 1px at 80% 21%, rgba(255,255,255,0.18) 50%, transparent 51%),
+    radial-gradient(1px 1px at 87% 46%, rgba(255,255,255,0.22) 50%, transparent 51%),
+    radial-gradient(1px 1px at 94% 74%, rgba(255,255,255,0.16) 50%, transparent 51%),
+    radial-gradient(1px 1px at 3% 90%, rgba(255,255,255,0.2) 50%, transparent 51%),
+    radial-gradient(1px 1px at 96% 15%, rgba(255,255,255,0.24) 50%, transparent 51%),
+    /* 중간 별 (12개) */
+    radial-gradient(1.5px 1.5px at 10% 17%, rgba(255,255,255,0.36) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 24% 47%, rgba(255,255,255,0.42) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 33% 74%, rgba(255,255,255,0.48) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 40% 6%, rgba(255,255,255,0.4) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 53% 57%, rgba(255,255,255,0.36) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 61% 84%, rgba(255,255,255,0.42) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 68% 14%, rgba(255,255,255,0.48) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 75% 42%, rgba(255,255,255,0.4) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 83% 67%, rgba(255,255,255,0.36) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 91% 30%, rgba(255,255,255,0.42) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 15% 80%, rgba(255,255,255,0.48) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 47% 35%, rgba(255,255,255,0.4) 50%, transparent 51%),
+    /* 가까운 별 (8개, 크고 밝게) */
+    radial-gradient(2.2px 2.2px at 19% 14%, rgba(255,255,255,0.65) 50%, transparent 51%),
+    radial-gradient(2.2px 2.2px at 38% 64%, rgba(255,255,255,0.75) 50%, transparent 51%),
+    radial-gradient(2.2px 2.2px at 56% 22%, rgba(255,255,255,0.85) 50%, transparent 51%),
+    radial-gradient(2.2px 2.2px at 70% 77%, rgba(255,255,255,0.7) 50%, transparent 51%),
+    radial-gradient(2.2px 2.2px at 82% 12%, rgba(255,255,255,0.65) 50%, transparent 51%),
+    radial-gradient(2.2px 2.2px at 88% 54%, rgba(255,255,255,0.75) 50%, transparent 51%),
+    radial-gradient(2.2px 2.2px at 11% 62%, rgba(255,255,255,0.85) 50%, transparent 51%),
+    radial-gradient(2.2px 2.2px at 63% 42%, rgba(255,255,255,0.7) 50%, transparent 51%);
   background-repeat: no-repeat;
+}
+
+/* 우주 사진(하늘) — 페이지 상단에 고정 배치되어 스크롤해도 그 자리에 "떠 있고",
+   아래로 갈수록 --bg-primary 로 자연스럽게 페이드아웃한다. 경계가 보이는 사각
+   패널이 아니라 사이트 전체가 이 하늘 위에 떠 있는 느낌을 만드는 것이 목적. */
+body::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: min(760px, 78vh);
+  z-index: -2;
+  pointer-events: none;
+  background-image:
+    linear-gradient(180deg, rgba(7, 11, 20, 0.3) 0%, rgba(7, 11, 20, 0.45) 35%, var(--bg-primary) 72%),
+    url("../assets/hero-space.jpg");
+  background-size: cover, cover;
+  background-position: center top, center top;
+  background-repeat: no-repeat, no-repeat;
 }
 
 /* 배경 성운 — 사이트에서 유일하게 "계속 움직이는" 장식, 아주 느리게 드리프트 */
 .nebula {
   position: fixed;
-  z-index: 0;
+  z-index: -1;
   pointer-events: none;
   top: -140px;
   right: -100px;
@@ -202,7 +255,10 @@ a { color: inherit; }
 .site-header {
   position: relative;
   z-index: 2;
-  border-bottom: 1px solid rgba(180, 205, 255, 0.08);
+  background: rgba(7, 11, 20, 0.55);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border-bottom: 1px solid rgba(180, 205, 255, 0.1);
 }
 
 .site-header__inner {
@@ -288,15 +344,18 @@ a { color: inherit; }
 .hero-section {
   position: relative;
   z-index: 1;
+  min-height: min(82vh, 720px);
+  display: flex;
+  align-items: center;
   padding: var(--section-gap-desktop) 0 calc(var(--section-gap-desktop) * 0.6);
 }
 
 .hero {
-  min-height: 560px;
-  display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
-  align-items: center;
-  gap: 64px;
+  width: 100%;
+}
+
+.hero__content {
+  max-width: 640px;
 }
 
 .hero__eyebrow {
@@ -320,7 +379,6 @@ a { color: inherit; }
   line-height: 1.12;
   letter-spacing: -0.035em;
   font-weight: 800;
-  max-width: 14ch;
 }
 
 .hero-title em {
@@ -403,42 +461,9 @@ a { color: inherit; }
   font-size: 13px;
 }
 
-.hero-visual {
-  position: relative;
-  aspect-ratio: 4 / 3;
-  border-radius: var(--radius-visual);
-  overflow: hidden;
-  border: 1px solid rgba(125, 195, 255, 0.18);
-  box-shadow:
-    0 32px 80px rgba(0, 0, 0, 0.45),
-    0 0 80px rgba(79, 209, 255, 0.08);
-}
-
-.hero-visual__img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.hero-visual__overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(7, 11, 20, 0.04), rgba(7, 11, 20, 0.55));
-}
-
 @media (max-width: 767px) {
-  .hero {
-    grid-template-columns: 1fr;
-    min-height: auto;
-    gap: 32px;
-  }
-  .hero-visual {
-    order: -1;
-    aspect-ratio: 16 / 10;
-    border-radius: 20px;
-  }
-  .hero-title { font-size: 40px; max-width: none; }
+  .hero-section { min-height: min(70vh, 560px); }
+  .hero-title { font-size: 40px; }
 }
 
 /* -------------------------------------------------------------------------
@@ -562,6 +587,8 @@ a { color: inherit; }
   height: 100%;
   overflow: hidden;
   background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-card);
   text-decoration: none;
@@ -576,6 +603,10 @@ a.project-card:focus-visible {
   transform: translateY(-4px);
   border-color: rgba(85, 214, 255, 0.38);
   box-shadow: 0 22px 50px rgba(0, 0, 0, 0.35), 0 0 36px rgba(85, 214, 255, 0.06);
+}
+
+a.project-card:active {
+  transform: translateY(-2px) scale(0.98);
 }
 
 a.project-card:focus-visible {
@@ -750,13 +781,15 @@ a.project-card:focus-visible {
   gap: 18px;
   padding: 20px;
   background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-card);
   text-decoration: none;
   color: var(--text-primary);
   box-shadow: var(--shadow-sm);
   transition: border-color var(--motion-fast) ease, background-color var(--motion-default) ease,
-    box-shadow var(--motion-default) ease;
+    box-shadow var(--motion-default) ease, transform var(--motion-fast) ease;
 }
 
 a.worksheet-card:hover,
@@ -764,6 +797,10 @@ a.worksheet-card:focus-visible {
   border-color: var(--worksheet-accent);
   background: rgba(147, 129, 255, 0.05);
   box-shadow: 0 22px 50px rgba(0, 0, 0, 0.3), 0 0 32px rgba(147, 129, 255, 0.08);
+}
+
+a.worksheet-card:active {
+  transform: scale(0.99);
 }
 
 a.worksheet-card:focus-visible {
