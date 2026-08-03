@@ -3,20 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NYEJUN — 제가 만든 게임과 학습지가 모이는 기지</title>
-<meta name="description" content="1인 개발자 예준이 만든 게임과 학습지를 한곳에 모아둔 허브 페이지입니다.">
-<meta property="og:title" content="NYEJUN — 제가 만든 게임과 학습지가 모이는 기지">
-<meta property="og:description" content="1인 개발자 예준이 만든 게임과 학습지를 한곳에 모아둔 허브 페이지입니다.">
+<title>NYEJUN — 게임과 배움을 만드는 개인 개발 기지</title>
+<meta name="description" content="혼자 기획하고 개발한 게임과 학습 콘텐츠를 하나씩 기록하고 공개하는 개인 개발 기지입니다.">
+<meta property="og:title" content="NYEJUN — 게임과 배움을 만드는 개인 개발 기지">
+<meta property="og:description" content="혼자 기획하고 개발한 게임과 학습 콘텐츠를 하나씩 기록하고 공개하는 개인 개발 기지입니다.">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://nyejun.com/">
+<meta property="og:site_name" content="NYEJUN">
 <meta property="og:image" content="https://nyejun.com/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="NYEJUN">
+<meta name="twitter:description" content="게임과 학습 콘텐츠를 만드는 개인 개발 기지">
 <link rel="icon" type="image/png" href="./assets/logo.png">
 <link rel="apple-touch-icon" href="./assets/logo.png">
 <link rel="stylesheet" href="./css/site.css">
 </head>
 <body>
+
+<div class="nebula" aria-hidden="true"></div>
 
 <noscript>
   <div class="noscript-banner">
@@ -26,52 +32,79 @@
   </div>
 </noscript>
 
-<div class="wrap">
-
-  <header class="site-header">
-    <div class="site-header__row">
-      <a class="brand" href="./index.html" aria-label="NYEJUN 홈으로">
-        <span class="brand__mark" aria-hidden="true">
-          <img src="./assets/logo.png" alt="" class="brand__mark-img">
-        </span>
-        <span class="brand__name">NYEJUN</span>
+<header class="site-header">
+  <div class="wrapper site-header__inner">
+    <a class="brand" href="./index.html" aria-label="NYEJUN 홈으로">
+      <span class="brand__mark"><img src="./assets/logo.png" alt="" class="brand__mark-img"></span>
+      <span class="brand__name">NYEJUN</span>
+    </a>
+    <nav class="site-nav" aria-label="주요 메뉴">
+      <a class="site-nav__link" href="#game-heading">Games</a>
+      <a class="site-nav__link" href="#worksheet-heading">Worksheets</a>
+      <a class="site-nav__icon" href="https://github.com/sayingfuture-collab" target="_blank" rel="noopener" aria-label="GitHub">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       </a>
-    </div>
-    <p class="brand__tagline">제가 만든 게임과 학습지가 모이는 기지예요</p>
-  </header>
+    </nav>
+  </div>
+</header>
 
-  <section class="hero">
-    <span class="hero__eyebrow">예준 · 개인 개발 기지</span>
-    <h1 class="hero__title">제가 만들고 있는 것들의<br><em>기지</em>예요</h1>
-    <p class="hero__desc">혼자 기획하고 만드는 게임과 학습지를 이곳에 모아둡니다. 완성된 것도, 아직 만드는 중인 것도 함께 있어요.</p>
-    <div class="hero__stats">
-      <span class="stat-chip"><strong id="stat-games">0</strong><span>개 게임 공개</span></span>
-      <span class="stat-chip"><strong id="stat-worksheets">0</strong><span>개 학습지 공개</span></span>
+<main>
+
+  <section class="hero-section">
+    <div class="wrapper">
+      <div class="hero">
+        <div class="hero__content">
+          <span class="hero__eyebrow">예준 · 개인 개발 기지</span>
+          <h1 class="hero-title">게임과 배움을 만드는<br><em>개인 개발 기지</em></h1>
+          <p class="hero-description">혼자 기획하고 개발한 게임과 학습 콘텐츠를 하나씩 기록하고 공개합니다.</p>
+          <div class="hero__cta">
+            <a class="button-primary" href="#game-heading">게임 둘러보기</a>
+            <a class="button-secondary" href="#worksheet-heading">학습지 보기</a>
+          </div>
+          <div class="hero-stats">
+            <div class="hero-stat"><span class="stat-number" id="stat-games">—</span><span class="stat-label">Games</span></div>
+            <div class="hero-stat"><span class="stat-number" id="stat-worksheets">—</span><span class="stat-label">Worksheets</span></div>
+          </div>
+        </div>
+        <div class="hero-visual">
+          <img src="./assets/hero-space.jpg" alt="" class="hero-visual__img">
+          <div class="hero-visual__overlay" aria-hidden="true"></div>
+        </div>
+      </div>
     </div>
   </section>
 
   <section class="section section--game" aria-labelledby="game-heading">
-    <div class="section__head">
-      <h2 class="section__title" id="game-heading">🎮 게임</h2>
-      <span class="section__count" id="game-count">0개</span>
+    <div class="wrapper">
+      <div class="section__head">
+        <span class="section-eyebrow">PLAYABLE PROJECTS</span>
+        <h2 class="section-title" id="game-heading">게임</h2>
+      </div>
+      <ul class="project-grid" id="game-grid" role="list"></ul>
     </div>
-    <ul class="card-grid" id="game-grid" role="list"></ul>
   </section>
 
   <section class="section section--worksheet" aria-labelledby="worksheet-heading">
-    <div class="section__head">
-      <h2 class="section__title" id="worksheet-heading">📚 학습지</h2>
-      <span class="section__count" id="worksheet-count">0개</span>
+    <div class="wrapper">
+      <div class="section__head">
+        <span class="section-eyebrow section-eyebrow--worksheet">LEARNING RESOURCES</span>
+        <h2 class="section-title" id="worksheet-heading">학습지</h2>
+      </div>
+      <ul class="worksheet-list" id="worksheet-grid" role="list"></ul>
     </div>
-    <ul class="card-grid" id="worksheet-grid" role="list"></ul>
   </section>
 
-  <footer class="site-footer">
-    <p>© 2026 NYEJUN</p>
-    <p>하나씩, 꾸준히 만들어가고 있어요</p>
-  </footer>
+</main>
 
-</div>
+<footer class="site-footer">
+  <div class="wrapper site-footer__inner">
+    <p class="site-footer__copy">© 2026 NYEJUN</p>
+    <div class="site-footer__links">
+      <a href="https://github.com/sayingfuture-collab" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://nye-jun.itch.io" target="_blank" rel="noopener">itch.io</a>
+    </div>
+  </div>
+</footer>
 
 <script src="./data/services.js"></script>
 <script src="./js/site.js"></script>
