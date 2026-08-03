@@ -344,7 +344,9 @@ a { color: inherit; }
   font-size: 12px;
   letter-spacing: 0.14em;
   color: var(--accent-cyan);
-  background: var(--accent-soft);
+  /* 하늘 배경 위에 놓이므로 뒤가 무엇이든 대비가 보장되도록 불투명 바탕을 깔고
+     그 위에 액센트 틴트를 얹는다 (틴트만 쓰면 하늘 밝기에 대비가 좌우됨) */
+  background: linear-gradient(var(--accent-soft), var(--accent-soft)), rgba(7, 11, 20, 0.82);
   border: 1px solid rgba(85, 214, 255, 0.22);
   padding: 6px 12px;
   border-radius: var(--radius-pill);
@@ -435,7 +437,9 @@ a { color: inherit; }
 }
 
 .stat-label {
-  color: #7d89a3;
+  /* 하늘 배경 위에 직접 놓이므로 --text-tertiary 계열(#7d89a3)로는 WCAG AA(4.5)를
+     만족할 수 없다(순수 검정 위에서도 최대 4.95). 한 단계 밝은 색을 쓴다. */
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -520,7 +524,8 @@ a { color: inherit; }
 
 .empty-state__desc {
   margin: 0;
-  color: var(--text-tertiary);
+  /* 섹션이 비면 하늘 영역에 걸칠 수 있어 한 단계 밝은 색 */
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -972,7 +977,8 @@ a.worksheet-card:focus-visible {
 
 .not-found__code {
   font-family: var(--font-mono);
-  color: var(--text-tertiary);
+  /* 하늘 배경 위 — .stat-label 과 같은 이유로 한 단계 밝은 색 */
+  color: var(--text-secondary);
   letter-spacing: 0.14em;
   font-size: 13px;
   margin: 0 0 6px;
