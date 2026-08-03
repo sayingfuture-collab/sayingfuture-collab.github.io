@@ -51,20 +51,16 @@ html[data-theme="space"] {
   --game-accent: var(--accent-cyan);
   --worksheet-accent: var(--accent-violet);
 
-  /* 레거시 별칭 — worksheets/sentence-forms/index.html 등 하위 페이지가
-     참조하는 변수명. 이름은 유지하고 값만 새 토큰에 맞춰 갱신한다. */
+  /* 하위 페이지 별칭 — worksheets/sentence-forms/index.html 의 인라인 스타일이
+     참조하는 변수명. 이름은 유지하고 값만 새 토큰에 맞춰 갱신한다.
+     (하위 페이지가 실제로 쓰는 것만 남김 — 새로 추가할 땐 실사용 확인 후) */
   --text: var(--text-primary);
   --text-muted: var(--text-secondary);
   --text-faint: var(--text-tertiary);
   --surface: var(--surface-primary);
-  --surface-hover: var(--surface-secondary);
   --border: var(--border-default);
   --border-strong: rgba(180, 205, 255, 0.22);
-  --accent: var(--accent-cyan);
-  --accent-2: var(--accent-blue);
   --accent-contrast: #06101b;
-  --bg: var(--bg-primary);
-  --bg-alt: var(--bg-secondary);
 
   --shadow-color: 3, 6, 14;
   --shadow-sm: 0 2px 10px rgba(var(--shadow-color), 0.45);
@@ -74,7 +70,6 @@ html[data-theme="space"] {
   --glass-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018));
 
   --radius-card: 20px;
-  --radius-visual: 28px;
   --radius-button: 12px;
   --radius-pill: 999px;
   --radius-sm: 10px;
@@ -94,8 +89,6 @@ html[data-theme="space"] {
   --motion-fast: 180ms;
   --motion-default: 260ms;
   --motion-slow: 900ms;
-
-  --deco-opacity: 0.7;
 }
 
 /* -------------------------------------------------------------------------
@@ -317,21 +310,6 @@ a { color: inherit; }
 
 .site-nav__link:hover,
 .site-nav__link:focus-visible { color: var(--text-primary); }
-
-.site-nav__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  color: var(--text-secondary);
-  transition: color var(--motion-fast) ease;
-}
-
-.site-nav__icon:hover,
-.site-nav__icon:focus-visible { color: var(--accent-cyan); }
-
-.site-nav__icon svg { width: 19px; height: 19px; fill: currentColor; }
 
 @media (max-width: 767px) {
   /* 모바일: 로고만 노출, 메뉴는 숨김 */
