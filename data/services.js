@@ -22,7 +22,7 @@
 // 로드됩니다. import/export, fetch 등은 사용하지 마세요 (file:// 더블클릭 지원용).
 // -----------------------------------------------------------------------
 window.SERVICES = [
-  { id: "shrubdown", title: "Shrubdown (풀스윙)", emoji: "🌱", type: "game", status: "live", href: "https://nye-jun.itch.io/shrubdown", desc: "식물 오토배틀러", tag: "오토배틀러", thumb: "" },
+  { id: "shrubdown", title: "Shrubdown (풀스윙)", emoji: "🌱", type: "game", status: "live", href: "./games/shrubdown/index.html", desc: "식물 오토배틀러", tag: "오토배틀러", thumb: "" },
   { id: "cat-survivors", title: "냥서바이버", emoji: "🐱", type: "game", status: "live", href: "./games/cat-survivors/index.html", desc: "고양이 vs 쥐떼 서바이버", tag: "서바이버", thumb: "" },
   { id: "sentence-forms", title: "문장의 형식 Vol.1", emoji: "📘", type: "worksheet", status: "live", href: "./worksheets/sentence-forms/index.html", desc: "영문법 학습지 — 기본편 280제·실전편 340제", format: "WEB", thumb: "./worksheets/sentence-forms/images/cover-basic.png" }
 
