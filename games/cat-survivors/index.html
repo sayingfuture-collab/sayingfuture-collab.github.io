@@ -1,0 +1,2607 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<title>냥서바이버</title>
+<meta property="og:title" content="냥서바이버">
+<meta property="og:description" content="고양이 한 마리가 15분 동안 쥐떼를 버텨내는 게임">
+<meta property="og:type" content="website">
+<meta name="description" content="고양이 한 마리가 15분 동안 쥐떼를 버텨내는 게임">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#1b2416}
+body{touch-action:none;user-select:none;-webkit-user-select:none}
+#game{display:block;width:100%;height:100%}
+#stick{
+  position:fixed; width:120px; height:120px; margin:-60px 0 0 -60px;
+  border-radius:50%; border:2px solid rgba(255,255,255,.25);
+  background:rgba(255,255,255,.06); pointer-events:none;
+  display:none; z-index:10;
+}
+#stickKnob{
+  position:absolute; left:50%; top:50%; width:52px; height:52px;
+  margin:-26px 0 0 -26px; border-radius:50%;
+  background:rgba(255,255,255,.35);
+}
+#overlay{
+  position:fixed; inset:0; z-index:20; display:none;
+  background:rgba(10,14,8,.82); backdrop-filter:blur(2px);
+  /* 내용이 화면보다 길면 justify-content:center 는 위로 넘친 부분을 스크롤로
+     도달할 수 없게 만든다(scrollTop 이 0 아래로 안 감). flex-start 면
+     길 땐 위부터 스크롤된다. */
+  align-items:center; justify-content:flex-start; flex-direction:column; gap:14px;
+  padding:36px 20px; color:#f7efd8; font-family:system-ui,sans-serif;
+  overflow-y:auto;
+}
+#overlay.on{display:flex}
+#overlayTitle{font-size:clamp(20px,6vmin,32px); font-weight:800; letter-spacing:.05em}
+#cards{display:flex; gap:12px; flex-wrap:wrap; justify-content:center; width:100%; max-width:640px}
+.card{
+  flex:1 1 170px; max-width:200px; cursor:pointer;
+  background:linear-gradient(170deg,#3a4a2c,#26331d);
+  border:2px solid #7a8f5c; border-radius:14px; padding:16px 12px; text-align:center;
+  color:inherit; font:inherit; appearance:none; -webkit-appearance:none;
+}
+.card:active{transform:scale(.97)}
+.card:focus-visible{outline:3px solid #f7efd8; outline-offset:3px}
+.card .ico{font-size:38px; line-height:1.2}
+.card .nm{font-weight:800; margin-top:6px}
+.card .lv{font-size:12px; opacity:.75; margin-top:2px}
+.card .ds{font-size:13px; opacity:.9; margin-top:8px; line-height:1.4}
+.card.off{ opacity:.45; cursor:default }
+/* 일시정지 버튼 — 폰 엄지로 닿아야 하므로 최소 44px */
+#pauseBtn{
+  position: fixed; top: 10px; right: 10px; z-index: 5;
+  width: 44px; height: 44px; border: 0; border-radius: 10px;
+  background: rgba(0,0,0,0.45); color: #f7efd8;
+  font-size: 20px; line-height: 44px; text-align: center;
+  cursor: pointer; padding: 0;
+}
+#pauseBtn:active{ background: rgba(0,0,0,0.7); }
+/* 다시 뽑기 — 레벨업 카드 아래에만 나온다. 폰 엄지로 닿아야 하므로 세로 44px 이상 */
+#rerollBtn{
+  display:none; min-height:44px; padding:12px 22px;
+  font-size:15px; font-weight:800; cursor:pointer;
+  background:#5a4a6a; color:#f0e8f8; border:none; border-radius:12px;
+}
+#rerollBtn:active{ transform:scale(.97) }
+#overlayBtn, #shopBtn{
+  padding:14px 28px; font-size:17px; font-weight:800; cursor:pointer;
+  background:#7a8f5c; color:#12180d; border:none; border-radius:12px;
+}
+#shopBtn{ background:#3b4a5a; color:#e8eef4; margin-top:8px }
+#overlayStat{font-size:15px; opacity:.9; text-align:center; line-height:1.7}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+  <button id="pauseBtn" aria-label="일시정지">⏸</button>
+<div id="stick"><div id="stickKnob"></div></div>
+<div id="overlay">
+  <div id="overlayTitle"></div>
+  <div id="overlayStat"></div>
+  <div id="cards"></div>
+  <button id="rerollBtn"></button>
+  <button id="overlayBtn"></button>
+  <button id="shopBtn">강화 상점</button>
+</div>
+
+<script id="core">
+(function(global){
+'use strict';
+
+/* ================================================================
+   CONFIG — 모든 밸런스·튜닝 수치는 여기에만 둔다
+   ================================================================ */
+var CONFIG = {
+  step:   { ms: 1000 / 60, maxSteps: 5, maxAccumMs: 250 },
+  player: { maxHp: 100, speed: 180, radius: 12, pickupRange: 45 },
+  grid:   { cellSize: 64, cols: 40, rows: 30 },
+  pools:  { enemies: 400, projectiles: 300, gems: 600, particles: 200, fields: 12, warns: 24, nukes: 8,
+            companions: 2 },   // 고양이 친구는 한 마리지만 풀 규칙을 그대로 따른다
+  input:  { stickMax: 45 },                          // 조이스틱 최대 밀기 거리(px)
+  render: { cullMargin: 40, maxDpr: 2 },             // 화면 밖 여유, 픽셀비 상한
+  // 판 도중 저장: 이보다 짧게 한 판(그리고 아직 1레벨)은 저장하지 않는다.
+  // 이어할 것이 없는데 "0분 00초에서 멈췄습니다"를 묻게 되기 때문이다.
+  runSave: { minSec: 15 },
+  combat:  { contactCooldownMs: 500,   // 같은 적에게 다시 맞기까지의 간격
+             // 한 번 맞으면 이만큼 전부에게 무적. 이게 없으면 둘러싸인 순간
+             // "닿은 마릿수 × 피해"가 한꺼번에 들어와 손쓸 새 없이 죽는다.
+             invulnSec: 0.5,
+             bossAimRange: 520 },   // 보스가 이 안에 있으면 자동 조준이 보스를 먼저 본다
+  spawn:   { marginPx: 60, maxAlive: 240,
+             recycleDist: 1400,   // 이보다 멀어진 적은 반대편 화면 밖으로 옮긴다
+             recycleRingMult: 1.5,   // 단, 회수 거리는 스폰 링의 이 배수보다 가까울 수 없다
+             hpPerMin: 0.22,   // 1분마다 적 체력 +22%
+             bossSpawnMult: 0.25,   // 보스전 동안 일반 스폰을 줄여 1대1에 가깝게 둔다
+             // 분 단위 "분당 마릿수" 표. 사이 시간은 직선 보간, 표 끝을 넘으면 마지막 값 유지.
+             // 0분 170은 3-A 플레이테스트에서 "좀 쉽다"고 한 지금 값 그대로다 — 여기서 올려 간다.
+             // 5단계 측정: 보스 직후 6~7분에 131→293마리로 불어나 거기서 판이 끝났다.
+             // 후반을 눕혀 플레이어의 성장 속도와 보조를 맞춘다.
+             perMinute: [170, 185, 200, 220, 240, 255, 270, 285,
+                         295, 305, 315, 320, 325, 330, 335, 335] },
+  gem:     { radius: 6, attractSpeed: 320, size: 10 },
+  // ☢️ 핵폭탄 — 무기가 아니라 맵에서 줍는 물건이다.
+  // 무기로 넣었더니 반경 600 짜리 화면 청소가 8~12초마다 돌아 명백히 과했다.
+  // 균형 테스트는 단일 대상 화력만 재기 때문에 이 과함을 못 잡는다.
+  nukeItem: { emoji: '\u{2622}\u{FE0F}', everySec: 90,   // 이 간격마다 하나 떨어진다
+              damage: 600, radius: 600,              // 사실상 화면 전체
+              nearMin: 160, nearMax: 380,            // 플레이어로부터 이 거리에 떨어진다
+              pickupRadius: 26, size: 30,
+              maxAlive: 3,                           // 무한히 쌓아두지 못하게
+              showSec: 0.45 },                       // 폭발 잔상 길이
+  enemies: {
+    mouse: { emoji: '\u{1F401}', hp: 10, speed: 48, radius: 9,  contact: 6,  xp: 1, size: 20,
+             color: '#8a6a4a', fromMin: 0, coin: 1 },
+    rat:   { emoji: '\u{1F400}', hp: 16, speed: 88, radius: 10, contact: 8,  xp: 2, size: 22,
+             color: '#6f7f8f', fromMin: 3, coin: 2 },   // 빠른 적 — 무리에서 먼저 도착한다
+    fat:   { emoji: '\u{1F42D}', hp: 60, speed: 32, radius: 16, contact: 14, xp: 5, size: 34,
+             color: '#a8683f', fromMin: 5, coin: 5 },   // 느리지만 단단하고 아프다
+    mole:  { emoji: '\u{1F43E}', hp: 30, speed: 0, radius: 13, contact: 12, xp: 3, size: 26,
+             color: '#7a5a3a', fromMin: 6, coin: 3,
+             viaWarn: true,       // 화면 밖 링이 아니라 예고를 거쳐서만 나온다
+             warnSec: 0.6,        // 흙더미 예고 시간 — 피할 틈을 준다
+             nearMin: 80, nearMax: 200,   // 플레이어로부터 이 거리 안에서 솟는다
+             perSec: 0.5 },       // 초당 예고 수
+    // 보스 3종 — fromMin 이 없으므로 일반 링 스폰(pickSpawnType)에는 절대 섞이지 않는다.
+    // 속도는 기획안의 0.8배 (설계 결정 ①).
+    king1: { emoji: '\u{1F42D}', hp: 1500,  speed: 56, radius: 34, contact: 20, xp: 60,  size: 72,
+             color: '#c0724a', boss: true, coin: 150 },
+    king2: { emoji: '\u{1F42D}', hp: 2000,  speed: 72, radius: 40, contact: 25, xp: 120, size: 84,
+             color: '#b05a6a', boss: true, coin: 300 },
+    king3: { emoji: '\u{1F451}', hp: 4500, speed: 64, radius: 48, contact: 30, xp: 300, size: 96,
+             color: '#d4af37', boss: true, coin: 700 }
+  },
+  weapons: {
+    claw: { kind: 'claw', name: '앞발 할퀴기', emoji: '\u{1F43E}', maxLevel: 5,
+            damage: 14, cooldownMs: 1000, radius: 60, arcDeg: 90,
+            radiusPerLv: 10,  // 레벨당 사거리 증가
+            swingMs: 150 },   // 스윙 이펙트 표시 시간
+    yarn: { kind: 'projectile', name: '털뭉치', emoji: '\u{1F9F6}', maxLevel: 5,
+            damage: 8, cooldownMs: 800, speed: 320, radius: 8, lifeSec: 2.0,
+            counts: [1, 1, 2, 2, 3],   // 레벨별 동시 발사 수
+            spreadDeg: 14, pierce: 1 },
+    bone: { kind: 'projectile', name: '생선뼈', emoji: '\u{1F41F}', maxLevel: 5,
+            damage: 15, cooldownMs: 2000, speed: 300, radius: 11, lifeSec: 1.8,
+            counts: [1, 1, 1, 2, 2],
+            spreadDeg: 26, pierce: 999,   // 사실상 무한 관통
+            boomerang: true },            // 수명 절반에서 방향을 뒤집는다
+    laser: { kind: 'beam', name: '레이저 포인터', emoji: '\u{1F534}', maxLevel: 5,
+             damage: 30, cooldownMs: 2000, length: 400, lengthPerLv: 60,
+             width: 16, showMs: 140 },
+    catnip: { kind: 'blast', name: '캣닢 폭발', emoji: '\u{1F33F}', maxLevel: 5,
+              damage: 42, cooldownMs: 3000, radius: 70, radiusPerLv: 10,
+              showMs: 260 },
+    milk: { kind: 'field', name: '우유 웅덩이', emoji: '\u{1F95B}', maxLevel: 5,
+            damage: 14,           // 초당 피해 (다른 무기는 1회 피해)
+            // 지속 2.5초 / 쿨 5초 = 가동률 50% (낮잠 0 기준, 낮잠 만렙이면 71%).
+            // 75% 였을 때는 꼬리 회전과 겹쳐 빈틈없는 살상 고리가 되어
+            // 가만히 서 있는 게 정답이 됐다.
+            cooldownMs: 5000, radius: 60, radiusPerLv: 8,
+            durationSec: 2.5, slowPct: 40, tickSec: 0.5 },
+    tail: { kind: 'orbit', name: '꼬리 회전', emoji: '\u{1F300}', maxLevel: 5,
+            damage: 8, cooldownMs: 0,     // 상시 발동 (재타격 간격은 적마다 따로)
+            orbitRadius: 70, orbitRadiusPerLv: 6, ballRadius: 18,
+            rotSpeed: 3.0,                // 초당 회전 각도(라디안)
+            hitCooldownMs: 650 },         // 같은 적 재타격 간격 — 상시 고리를 얇게 유지한다
+    tornado: { kind: 'projectile', name: '토네이도', emoji: '\u{1F32A}\u{FE0F}', maxLevel: 5,
+               // 굴러가며 반경 안의 적을 끌어당기고, 회오리 안에 머무는 동안 계속 때린다.
+               // 만렙 단일 DPS 는 발사 쿨타임이 아니라 **재타격 간격**으로 센다:
+               //   18 × 2.0 ÷ 1.2 = 30.0
+               // (끌어당기기만 하고 안 때리면 적이 회오리 안에 갇힌 채 무사해서 고장으로 보인다.
+               //  꼬리 회전이 쓰는 hitCooldownMs 패턴을 그대로 따랐다.)
+               damage: 18, cooldownMs: 2500, speed: 150, radius: 26, lifeSec: 3.0,
+               counts: [1, 1, 1, 2, 2],   // 만렙 2발이 동시에 나간다
+               spreadDeg: 30, pierce: 999,
+               pullRadius: 120,      // 이 안의 적을 끌어당긴다
+               pullSpeed: 90,        // 초당 이만큼 중심 쪽으로 당긴다
+               hitCooldownMs: 1200 },// 같은 적 재타격 간격 — DPS 를 정하는 값이다
+    zap: { kind: 'chain', name: '정전기', emoji: '\u{26A1}', maxLevel: 5,
+           // 맞은 적에서 근처 적으로 튄다. 만렙 단일 DPS 26.7 (첫 대상 기준).
+           // 연쇄로 들어가는 추가 피해는 "여러 마리일 때의 보너스" 라서 단일 대상
+           // 균형 계산에는 넣지 않는다 — 1대1 보스전에서는 첫 방뿐이기 때문이다.
+           damage: 20, cooldownMs: 1500,
+           radius: 0, radiusPerLv: 0,   // 첫 대상은 자동 조준이 고른다 (사거리 제한 없음)
+           chainCount: 3,        // 첫 대상 뒤로 몇 번 더 튀는가
+           chainRange: 140,      // 다음 대상까지 이 거리 안이어야 튄다
+           chainFalloff: 0.7,    // 연쇄 한 번마다 피해 배수
+           showMs: 200 },
+    friend: { kind: 'companion', name: '고양이 친구', emoji: '\u{1F408}', maxLevel: 5,
+              // 따라다니다 가장 가까운 적 하나에게 달려가 물고 돌아온다.
+              // 만렙 단일 DPS 33.3. 상시 발동이지만 한 번에 한 마리만 물기 때문에
+              // 우유+꼬리 같은 "빈틈없는 살상 원" 이 안 생긴다 — AC-7 로 실측 검증한다.
+              damage: 20, cooldownMs: 1200,
+              followDist: 46,    // 플레이어 뒤 이 거리에 붙어 다닌다
+              moveSpeed: 300,    // 달려들 때·돌아올 때 속도 (플레이어 180보다 빠르다)
+              seekRange: 260,    // 이 안에 적이 있을 때만 달려든다
+              biteRadius: 16 },  // 이만큼 가까워지면 문다
+  },
+  passives: {
+    claws:   { name: '발톱갈이', emoji: '\u{1F52A}', maxLevel: 5, damagePct: 8 },
+    tuna:    { name: '참치캔',   emoji: '\u{1F96B}', maxLevel: 5, maxHpAdd: 15 },
+    bell:    { name: '방울',     emoji: '\u{1F514}', maxLevel: 5, speedPct: 6 },
+    whisker: { name: '수염',     emoji: '\u{3030}️', maxLevel: 5, pickupPct: 20 },
+    nap:     { name: '낮잠',     emoji: '\u{1F4A4}', maxLevel: 5, cooldownPct: 6,
+               minMult: 0.7 },  // 5레벨 만렙에서도 원래 쿨타임의 70% 아래로는 안 내려간다
+    clover:  { name: '네잎클로버', emoji: '\u{1F340}', maxLevel: 5, coinPct: 15 }
+  },
+  level:   { slotsWeapon: 4, slotsPassive: 4, healAmount: 30, damagePerLvPct: 25,
+             // 레벨업마다 최대 체력의 이만큼 회복. 이게 없으면 회복 수단이 사실상
+             // 없어서 9분쯤엔 반피로 굳고, 보스전을 화력이 아니라 남은 체력이 가른다.
+             healPerLvPct: 6,
+             // 무기 슬롯에 빈 칸이 있는 동안 3택 중 이만큼을 "아직 없는 무기" 로 채운다.
+             // 무기 종류를 늘려도 난이도가 안 내려가는 이유는 균형 규칙 때문인데,
+             // 실제로 난이도를 푸는 건 이 보정이다 — 4슬롯이 빨리 차면 화력이 일찍 붙는다.
+             newWeaponPicks: 2,
+             // 판당 다시 뽑기 횟수. 아껴 쓰는 자원이라 선택의 맛이 생긴다.
+             rerollPerRun: 1 },
+  bosses: [
+    { atMin: 5,  typeId: 'king1', name: '대왕쥐' },
+    { atMin: 10, typeId: 'king2', name: '쥐떼 우두머리' },
+    { atMin: 15, typeId: 'king3', name: '쥐왕' }
+  ],
+  // 영구 강화 (판이 끝나도 남는다). costs[i] = i+1단계로 올리는 비용
+  // costs 의 칸 수는 maxStep 과 반드시 같아야 한다 (짧으면 마지막 단계가 공짜가 되고
+  // 잔액이 NaN 이 된다). 테스트 '강화: 비용표 길이가 최대 단계와 정확히 같다' 가 지킨다.
+  //
+  // 5종 전부 10단계까지 156,250 코인 (5단계 시절 총액 16,250 의 9.6배).
+  // ⚠️ 이 표를 정할 때 근거로 삼은 수입은 "강화0 한 판 중앙 4,100" 이었는데,
+  // 같은 작업의 우유·꼬리 너프가 그 값을 2,342 로 43% 깎았다. 즉 그라인드 9.6배와
+  // 초보 수입 -43% 가 한꺼번에 들어갔고, 둘을 묶어서 재본 적이 없다.
+  // 사용자 플레이 확인 후 조정 대상 — 계획/6-강화-10단계-측정결과.md 참고.
+  // 1~5단계 비용은 손대지 않았으므로 첫 두세 판 체험은 그대로다.
+  meta: {
+    costs: [100, 250, 500, 900, 1500, 2400, 3600, 5200, 7200, 9600],
+    maxStep: 10,
+    power:     { name: '날카로운 발톱', emoji: '\u{1F43E}', pct: 6,  desc: '공격이 더 아프게 들어갑니다' },
+    maxHp:     { name: '튼튼한 몸',     emoji: '\u{2764}️', add: 12, desc: '체력이 더 많아집니다' },
+    speed:     { name: '날쌘 발',       emoji: '\u{1F4A8}', pct: 4,  desc: '더 빨리 움직입니다' },
+    magnet:    { name: '예민한 코',     emoji: '\u{1F43D}', pct: 12, desc: '젬을 더 멀리서 줍습니다' },
+    xpGain:    { name: '영리한 사냥',   emoji: '\u{1F9E0}', pct: 8,  desc: '경험치를 더 많이 받아 빨리 강해집니다' }
+  }
+};
+
+/* ================================================================
+   Vec — 입력 벡터 처리. out 객체를 재사용해 할당을 만들지 않는다.
+   ================================================================ */
+var Vec = {
+  // 길이가 1을 넘으면 1로 줄인다. 1 이하면 그대로 (조이스틱 아날로그 감도 유지).
+  clampToUnit: function(x, y, out){
+    var lenSq = x * x + y * y;
+    if (lenSq === 0){ out.x = 0; out.y = 0; return out; }
+    if (lenSq <= 1){ out.x = x; out.y = y; return out; }
+    var len = Math.sqrt(lenSq);
+    out.x = x / len;
+    out.y = y / len;
+    return out;
+  }
+};
+
+/* ================================================================
+   Pool — 미리 만들어 두고 켜고 끄기만 한다 (생성/파괴 없음)
+   빈자리 색인을 스택으로 관리해 spawn/release 가 O(1)
+   ================================================================ */
+function Pool(size, factory){
+  this.size = size;
+  this.items = new Array(size);
+  this.free = new Array(size);
+  this.freeCount = size;
+  this.activeCount = 0;
+  for (var i = 0; i < size; i++){
+    var o = factory();
+    o.active = false;
+    o._i = i;
+    this.items[i] = o;
+    this.free[i] = i;
+  }
+}
+Pool.prototype.spawn = function(){
+  if (this.freeCount === 0) return null;
+  this.freeCount--;
+  var o = this.items[this.free[this.freeCount]];
+  o.active = true;
+  this.activeCount++;
+  return o;
+};
+Pool.prototype.release = function(o){
+  // null 방어 + 이 풀 소속인지 확인 (다른 풀의 객체를 넣으면 free 배열이 조용히 오염된다)
+  if (!o || this.items[o._i] !== o || !o.active) return;
+  o.active = false;
+  this.activeCount--;
+  this.free[this.freeCount] = o._i;
+  this.freeCount++;
+};
+Pool.prototype.releaseAll = function(){
+  for (var i = 0; i < this.items.length; i++) this.release(this.items[i]);
+};
+
+/* ================================================================
+   Grid — 균일 격자. 충돌 "후보"만 좁힌다(정확한 거리 검사는 호출자 몫).
+   카메라를 따라다니는 고정 크기 판이며, 매 프레임 reset 으로 비운다.
+   ================================================================ */
+function Grid(cellSize, cols, rows){
+  this.cellSize = cellSize;
+  this.cols = cols;
+  this.rows = rows;
+  this.originX = 0;
+  this.originY = 0;
+  this.cells = new Array(cols * rows);
+  for (var i = 0; i < this.cells.length; i++) this.cells[i] = [];
+}
+Grid.prototype.reset = function(originX, originY){
+  this.originX = originX;
+  this.originY = originY;
+  for (var i = 0; i < this.cells.length; i++) this.cells[i].length = 0; // 배열 재사용
+};
+Grid.prototype.insert = function(item){
+  var cx = Math.floor((item.x - this.originX) / this.cellSize);
+  var cy = Math.floor((item.y - this.originY) / this.cellSize);
+  if (cx < 0 || cy < 0 || cx >= this.cols || cy >= this.rows) return false;
+  this.cells[cy * this.cols + cx].push(item);
+  return true;
+};
+Grid.prototype.forEachNear = function(x, y, radius, fn){
+  var cs = this.cellSize;
+  var minCx = Math.floor((x - radius - this.originX) / cs);
+  var maxCx = Math.floor((x + radius - this.originX) / cs);
+  var minCy = Math.floor((y - radius - this.originY) / cs);
+  var maxCy = Math.floor((y + radius - this.originY) / cs);
+  if (minCx < 0) minCx = 0;
+  if (minCy < 0) minCy = 0;
+  if (maxCx >= this.cols) maxCx = this.cols - 1;
+  if (maxCy >= this.rows) maxCy = this.rows - 1;
+  for (var cy = minCy; cy <= maxCy; cy++){
+    var rowBase = cy * this.cols;
+    for (var cx = minCx; cx <= maxCx; cx++){
+      var cell = this.cells[rowBase + cx];
+      for (var i = 0; i < cell.length; i++) fn(cell[i]);
+    }
+  }
+};
+
+/* ================================================================
+   Stepper — 고정 시간 간격. 프레임이 흔들려도 게임 속도는 일정하게.
+   ================================================================ */
+function Stepper(stepMs, maxSteps, maxAccumMs){
+  this.stepMs = stepMs;
+  this.maxSteps = maxSteps;
+  this.maxAccumMs = maxAccumMs;
+  this.accum = 0;
+}
+Stepper.prototype.advance = function(deltaMs){
+  if (deltaMs > this.maxAccumMs) deltaMs = this.maxAccumMs; // 탭 전환 폭주 방지
+  this.accum += deltaMs;
+  var steps = 0;
+  while (this.accum >= this.stepMs && steps < this.maxSteps){
+    this.accum -= this.stepMs;
+    steps++;
+  }
+  if (steps === this.maxSteps) this.accum = 0; // 밀린 시간은 버린다
+  return steps;
+};
+
+/* ================================================================
+   World — 게임 상태 전체. DOM 을 모르므로 Node 에서도 그대로 돈다.
+   ================================================================ */
+function World(config, metaLevels){
+  this.config = config;
+  // 영구 강화 단계 → 배수·가산값을 한 번만 계산한다 (매 프레임 다시 곱하지 않는다)
+  this.metaMult = { damage: 1, maxHpAdd: 0, speed: 1, pickup: 1, xp: 1 };
+  this.applyMeta(metaLevels);
+  var startHp = config.player.maxHp + this.metaMult.maxHpAdd;
+  this.player = { x: 0, y: 0, hp: startHp, maxHp: startHp, invuln: 0 };
+  this.rawInput = { x: 0, y: 0 };
+  this.moveDir = { x: 0, y: 0 };   // 재사용 (매 프레임 새로 만들지 않음)
+  this.random = Math.random;       // 4단계 봇 시뮬이 씨드 난수로 교체한다
+  this.enemies = new Pool(config.pools.enemies, function(){
+    // 필드를 늘리면 spawnEnemy 도 반드시 같이 고칠 것 (풀 잔존값).
+    return { x: 0, y: 0, hp: 0, maxHp: 0, typeId: '', speed: 0,
+             radius: 0, contact: 0, xp: 0, hitFlash: 0, contactCd: 0,
+             lastProjStamp: 0, slowT: 0, slowPct: 0, orbitCd: 0,
+             tornadoCd: 0, chainStamp: 0, stamp: 0 };
+  });
+  this.gems = new Pool(config.pools.gems, function(){
+    return { x: 0, y: 0, xp: 0 };
+  });
+  this.projectiles = new Pool(config.pools.projectiles, function(){
+    // 필드를 늘리면 spawnProjectile 도 반드시 같이 고칠 것.
+    // 풀이 객체를 재활용하므로 한쪽만 고치면 이전 투사체의 값이 샌다.
+    return { x: 0, y: 0, vx: 0, vy: 0, dmg: 0, radius: 0,
+             life: 0, pierce: 0, stamp: 0, weaponId: '', turnAt: 0,
+             pullRadius: 0, pullSpeed: 0, hitCd: 0 };
+  });
+  this.fields = new Pool(config.pools.fields, function(){
+    return { x: 0, y: 0, radius: 0, tickDmg: 0, life: 0,
+             tickLeft: 0, slowPct: 0, slowDur: 0, weaponId: '' };
+  });
+  this.warns = new Pool(config.pools.warns, function(){
+    return { x: 0, y: 0, left: 0, typeId: '' };
+  });
+  /* 고양이 친구 —
+     state 0 = 플레이어를 따라감, 1 = 목표에게 달려듦.
+     target 참조만 붙들면 그 적이 죽어 풀로 돌아가고 같은 슬롯에 새 적이 스폰될 때
+     엉뚱한 적을 물러 간다. 그래서 targetStamp 를 같이 들고 다니며 대조한다. */
+  this.companions = new Pool(config.pools.companions, function(){
+    return { x: 0, y: 0, state: 0, target: null, targetStamp: 0,
+             weaponId: '', dmg: 0 };
+  });
+  this.companion = null;   // 지금 살아 있는 동료 (없으면 null)
+  this.enemyStamp = 0;     // 적 스폰 일련번호
+  this.warnAcc = 0;
+  this.nukes = new Pool(config.pools.nukes, function(){
+    return { x: 0, y: 0 };
+  });
+  this.nukeAcc = 0;   // ☢️ 맵 아이템 낙하 누적 시간(초)
+  this.projStamp = 0;   // 투사체마다 주는 고유 번호 (같은 적을 두 번 때리지 않게)
+  this.xp = 0;
+  this.grid = new Grid(config.grid.cellSize, config.grid.cols, config.grid.rows);
+  this.gameOver = false;
+  this.cleared = false;   // 마지막 보스를 잡았는가
+  this.elapsed = 0;      // 판 시작부터의 누적 시간(초)
+  this.viewHalfW = 640;    // ensureGridCovers 가 실제 화면 크기로 갱신한다
+  this.viewHalfH = 400;
+  this.spawnAcc = 0;
+  this.bossIndex = 0;   // 다음에 나올 보스 번호
+  this.boss = null;     // 지금 살아 있는 보스 (없으면 null)
+  this.benchMode = false;   // 성능 측정 도구가 켰을 때: 스폰·접촉피해를 끈다 (순수 부하만 측정)
+
+  // 매 프레임 콜백을 새로 만들지 않도록 생성자에서 한 번만 만든다.
+  // 호출마다 바뀌는 값은 _contactCd 로 전달한다.
+  var self = this;
+  this._contactCd = 0;
+  this._onContactCandidate = function(e){
+    if (!e.active) return;              // 이번 프레임에 죽은 적은 건너뛴다
+    var p = self.player;
+    if (p.invuln > 0) return;           // 무적 중에는 몇 마리에 닿아도 안 맞는다
+    if (e.contactCd > 0) return;
+    var dx = p.x - e.x, dy = p.y - e.y;
+    var reach = self.config.player.radius + e.radius;
+    if (dx * dx + dy * dy > reach * reach) return;
+    p.hp -= e.contact;
+    e.contactCd = self._contactCd;
+    p.invuln = self.config.combat.invulnSec;
+    if (p.hp <= 0){ p.hp = 0; self.gameOver = true; }
+  };
+
+  this.facing = { x: 1, y: 0 };   // 마지막 이동 방향. 멈춰도 유지된다.
+  this.aimDir = { x: 1, y: 0 };   // 이번 공격이 향한 방향 (자동 조준 결과)
+  this.weapons = { claw: { level: 1, cdLeft: 0 } };
+  this.weaponOrder = ['claw'];   // 발동 순서 고정 (for-in 은 순서가 엔진 마음이라 봇 시뮬 재현성이 깨진다)
+  this.swingTimer = 0;   // 할퀴기 스윙 이펙트 남은 시간(초) — 렌더 전용, 판정과 무관
+  this.swingRadius = 0;  // 그 스윙의 반경. _hitRadius 는 무기들이 돌려쓰는 판정용이라 렌더가 읽으면 안 된다
+  this.swingDir = { x: 1, y: 0 };   // 그 스윙이 향한 방향. aimDir 는 다른 무기가 덮어쓴다
+  this.beamTimer = 0;                 // 빔 잔상 남은 시간(초) — 렌더 전용
+  this.beamDir = { x: 1, y: 0 };      // 쏜 순간의 방향 (그 뒤 조준이 바뀌어도 잔상은 유지)
+  this.beamLen = 0;
+  this.beamHalfW = 0;
+  this.blastTimer = 0;   // 폭발 이펙트 남은 시간(초) — 렌더 전용
+  this.blastX = 0;
+  this.blastY = 0;
+  this.blastR = 0;
+  // 폭발 무기가 둘(캣닢·핵폭탄)이 됐다. 렌더가 어느 무기의 폭발인지 알아야
+  // 잔상 길이와 색을 맞출 수 있다. 판정용 _hitRadius 는 무기들이 돌려쓰므로
+  // 렌더가 읽으면 안 된다 — 그래서 연출용으로 따로 둔다.
+  this.blastShow = 0;        // 이번 폭발의 연출 길이(초)
+  this.blastWeaponId = '';   // 이번 폭발을 낸 무기 id
+  this.orbitAngle = 0;   // 꼬리 공의 현재 각도(라디안)
+  this.orbitX = 0;
+  this.orbitY = 0;
+  this.orbitR = 0;
+  this._orbitCd = 0;
+  /* 정전기 연쇄 —
+     대상 고르기는 격자 순회로, 때리기는 순회가 전부 끝난 뒤에 한다.
+     격자 콜백 안에서 damageEnemy 를 부르면 죽은 적이 풀로 돌아가며 바깥 순회가
+     보던 셀 배열이 흔들려 나머지 적이 조용히 안 맞는다(재진입 함정).
+     버퍼는 여기서 한 번만 만들고 발동할 때마다 length 만 0 으로 되돌린다 —
+     매번 [] 를 만들면 루프 안 할당 금지 규칙을 어긴다. */
+  this._chainBuf = [];
+  this.chainStamp = 0;      // 발동 일련번호. 같은 적을 두 번 고르지 않게 도장을 찍는다.
+  this._chainFrom = null;   // 지금 어느 적에서 튀는 중인가
+  this._chainBest = null;   // 그 적에서 가장 가까운 다음 대상
+  this._chainBestSq = 0;
+  this._onChainCandidate = function(e){
+    if (!e.active) return;
+    if (e.chainStamp === self.chainStamp) return;   // 이번 발동에 이미 골랐다
+    var f = self._chainFrom;
+    if (f === null || e === f) return;
+    var dx = e.x - f.x, dy = e.y - f.y;
+    var d2 = dx * dx + dy * dy;
+    if (d2 >= self._chainBestSq) return;
+    self._chainBestSq = d2;
+    self._chainBest = e;
+  };
+  // 연출 전용 — 판정용 _hitDmg·_hitRadius 는 무기들이 돌려쓰므로 렌더가 읽으면 안 된다.
+  this.chainTimer = 0;   // 번개 잔상 남은 시간(초)
+  this.chainShow = 0;    // 이번 잔상의 전체 길이(초)
+  this.chainN = 0;       // 이번에 맞은 대상 수
+  var zapCfg = config.weapons.zap;
+  var zapMax = zapCfg ? zapCfg.chainCount + 1 : 1;   // 첫 대상 + 연쇄 횟수
+  this.chainX = new Float64Array(zapMax);
+  this.chainY = new Float64Array(zapMax);
+
+  // 격자에서 충돌 후보를 고를 때 쓰는 여유 반경. 가장 큰 적의 반경을 CONFIG 에서 구한다.
+  this.maxEnemyR = 0;
+  for (var eid in config.enemies){
+    if (config.enemies[eid].radius > this.maxEnemyR) this.maxEnemyR = config.enemies[eid].radius;
+  }
+  this.kills = 0;
+  this.coins = 0;    // 이번 판에 번 코인 (영구 잔액은 shell 이 관리한다)
+  this.level = 1;
+  this.pendingChoices = 0;
+  this.rerollLeft = config.level.rerollPerRun;   // 판당 다시 뽑기 남은 횟수
+  this.passives = { claws: 0, tuna: 0, bell: 0, whisker: 0, nap: 0, clover: 0 };
+
+  // 범위 판정용 공용 필드 — 호출마다 값을 채우고 콜백이 읽는다 (콜백은 여기서 한 번만 만든다)
+  this._hitDmg = 0;
+  this._hitRadius = 0;
+  this._hitCosHalf = 0;
+  this._onArcCandidate = function(e){
+    if (!e.active) return;                 // 이번 프레임에 이미 죽은 적
+    var p = self.player, f = self.aimDir;
+    var dx = e.x - p.x, dy = e.y - p.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > self._hitRadius + e.radius) return;
+    if (dist < 1e-6){ self.damageEnemy(e, self._hitDmg); return; }   // 겹쳐 있으면 무조건 맞음
+    if ((dx / dist) * f.x + (dy / dist) * f.y < self._hitCosHalf) return;
+    self.damageEnemy(e, self._hitDmg);
+  };
+
+  // 빔 판정 콜백 — 후보 원 안의 적을 선분까지의 정확한 거리(사영+수직)로 거른다
+  this._onBeamCandidate = function(e){
+    if (!e.active) return;
+    var p = self.player, d = self.beamDir;
+    var ex = e.x - p.x, ey = e.y - p.y;
+    var along = ex * d.x + ey * d.y;                 // 빔 방향으로 얼마나 갔나
+    if (along < 0 || along > self.beamLen) return;   // 뒤쪽이거나 사거리 밖
+    var perp = ex * d.y - ey * d.x;                  // 빔 축에서 옆으로 벗어난 거리
+    if (perp < 0) perp = -perp;
+    if (perp > self.beamHalfW + e.radius) return;
+    self.damageEnemy(e, self._hitDmg);
+  };
+
+  // 폭발 판정 콜백 — 폭발 중심에서 원형 반경 안의 적을 거른다
+  this._onBlastCandidate = function(e){
+    if (!e.active) return;
+    var dx = e.x - self.blastX, dy = e.y - self.blastY;
+    var r = self._hitRadius + e.radius;
+    if (dx * dx + dy * dy > r * r) return;
+    self.damageEnemy(e, self._hitDmg);
+  };
+
+  // 장판 판정 콜백 — 검사 중인 장판은 _field 로 전달한다. 안에 있으면 둔화를 걸고 때린다.
+  this._field = null;
+  this._onFieldCandidate = function(e){
+    var f = self._field;
+    if (f === null || !e.active) return;
+    var dx = e.x - f.x, dy = e.y - f.y;
+    var r = f.radius + e.radius;
+    if (dx * dx + dy * dy > r * r) return;
+    e.slowT = f.slowDur;
+    e.slowPct = f.slowPct;
+    self.damageEnemy(e, f.tickDmg);
+  };
+
+  // 꼬리 회전 판정 콜백 — 공 반경 안의 적을 때리고 적마다 재타격 간격을 건다
+  this._onOrbitCandidate = function(e){
+    if (!e.active || e.orbitCd > 0) return;
+    var dx = e.x - self.orbitX, dy = e.y - self.orbitY;
+    var r = self._hitRadius + e.radius;
+    if (dx * dx + dy * dy > r * r) return;
+    e.orbitCd = self._orbitCd;
+    self.damageEnemy(e, self._hitDmg);
+  };
+
+  /* 토네이도 끌어당김 콜백 — 피해를 주지 않고 좌표만 옮긴다.
+     damageEnemy 를 부르지 않으므로 격자 콜백 재진입 함정에 걸리지 않는다.
+     검사 중인 투사체는 _proj, 이번 프레임의 dt 는 _pullDt 로 전달한다. */
+  this._pullDt = 0;
+  this._onPullCandidate = function(e){
+    var p = self._proj;
+    if (p === null || !p.active || !e.active) return;
+    if (p.pullRadius <= 0) return;
+    var dx = p.x - e.x, dy = p.y - e.y;
+    var d2 = dx * dx + dy * dy;
+    if (d2 > p.pullRadius * p.pullRadius || d2 < 1e-6) return;
+    var d = Math.sqrt(d2);
+    var step = p.pullSpeed * self._pullDt;
+    if (step > d) step = d;          // 중심을 지나쳐 튕기지 않게
+    e.x += dx / d * step;
+    e.y += dy / d * step;
+  };
+
+  // 투사체 충돌 판정 콜백 — 검사 중인 투사체는 _proj 로 전달한다
+  this._proj = null;
+  this._onProjCandidate = function(e){
+    var p = self._proj;
+    if (p === null || !p.active || p.pierce <= 0) return;
+    if (!e.active) return;
+    /* 두 갈래다.
+       ① 재타격형(토네이도, hitCd > 0): 회오리 안에 머무는 동안 간격마다 다시 때린다.
+          lastProjStamp 는 "한 투사체가 같은 적을 두 번 안 때린다" 는 규칙이라
+          재타격과 정면으로 충돌하므로 여기서는 쓰지 않는다.
+          pierce 도 깎지 않는다 — 재타격마다 깎으면 회오리가 도중에 사라진다.
+       ② 보통 투사체(털뭉치·생선뼈): 예전 그대로 도장 하나에 한 번. */
+    if (p.hitCd > 0){
+      if (e.tornadoCd > 0) return;             // 아직 재타격 간격 안이다
+    } else {
+      if (e.lastProjStamp === p.stamp) return; // 이 투사체에는 이미 맞았다
+    }
+    var dx = e.x - p.x, dy = e.y - p.y;
+    var r = p.radius + e.radius;
+    if (dx * dx + dy * dy > r * r) return;
+    if (p.hitCd > 0){
+      e.tornadoCd = p.hitCd;
+    } else {
+      e.lastProjStamp = p.stamp;
+      p.pierce--;
+    }
+    self.damageEnemy(e, p.dmg);
+  };
+}
+World.prototype.setRandom = function(fn){ this.random = fn; };
+World.prototype.setInput = function(x, y){
+  this.rawInput.x = x;
+  this.rawInput.y = y;
+};
+World.prototype.step = function(dt){
+  Vec.clampToUnit(this.rawInput.x, this.rawInput.y, this.moveDir);
+  var speed = this.config.player.speed * this.metaMult.speed *
+              (1 + this.passives.bell * this.config.passives.bell.speedPct / 100);
+  this.player.x += this.moveDir.x * speed * dt;
+  this.player.y += this.moveDir.y * speed * dt;
+  // 움직인 프레임에만 정면을 갱신한다 (멈추면 마지막 방향 유지)
+  var mx = this.moveDir.x, my = this.moveDir.y;
+  var len = Math.sqrt(mx * mx + my * my);
+  if (len > 1e-6){ this.facing.x = mx / len; this.facing.y = my / len; }
+};
+// 경과 시간에 따른 적 체력 배수. 속도·피해에는 걸지 않는다(후반이 감당 불가가 된다).
+World.prototype.hpScale = function(){
+  return 1 + (this.elapsed / 60) * this.config.spawn.hpPerMin;
+};
+// 적을 켠다. 풀이 객체를 재사용하므로 여기서 모든 필드를 빠짐없이 덮어쓴다.
+// (필드를 새로 추가하면 반드시 이 함수도 같이 고칠 것 — 안 그러면 이전 적의 값이 샌다)
+World.prototype.spawnEnemy = function(typeId, x, y){
+  var t = this.config.enemies[typeId];
+  if (!t) return null;
+  var e = this.enemies.spawn();
+  if (!e) return null;
+  // 보스 체력은 표에 적힌 값이 최종값이다. 시간 배율까지 곱하면 15분 보스가 78,000이 되어
+  // 4슬롯 빌드의 최대 화력(초당 200~286)으로는 몇 분을 때려야 하는 수치가 된다.
+  var scaledHp = t.boss ? t.hp : t.hp * this.hpScale();
+  e.x = x;            e.y = y;
+  e.typeId = typeId;  e.hp = scaledHp;  e.maxHp = scaledHp;
+  e.speed = t.speed;  e.radius = t.radius;
+  e.contact = t.contact;                e.xp = t.xp;
+  e.hitFlash = 0;     e.contactCd = 0;
+  e.lastProjStamp = 0;
+  e.slowT = 0;        e.slowPct = 0;
+  e.orbitCd = 0;
+  e.tornadoCd = 0;    // 토네이도 재타격 간격 (꼬리 회전의 orbitCd 와 같은 방식)
+  e.chainStamp = 0;   // 정전기 연쇄가 "이번 발동에 이미 골랐다" 를 찍는 자리
+  // 스폰마다 오르는 일련번호. 동료가 목표를 붙잡을 때 "이 슬롯이 아직 그 적인가"를
+  // 이걸로 확인한다. 참조만 붙들면 죽은 목표의 자리에 스폰된 새 적을 쫓아간다.
+  e.stamp = ++this.enemyStamp;
+  return e;
+};
+// 격자를 플레이어 중심으로 다시 놓고 활성 적을 담는다.
+World.prototype.rebuildGrid = function(){
+  var g = this.grid;
+  var halfW = g.cols * g.cellSize / 2;
+  var halfH = g.rows * g.cellSize / 2;
+  g.reset(this.player.x - halfW, this.player.y - halfH);
+  var items = this.enemies.items;
+  for (var i = 0; i < items.length; i++){
+    if (items[i].active) g.insert(items[i]);
+  }
+};
+// 활성 적을 전부 플레이어 쪽으로 옮긴다.
+World.prototype.moveEnemies = function(dt){
+  var px = this.player.x, py = this.player.y;
+  var items = this.enemies.items;
+  for (var i = 0; i < items.length; i++){
+    var e = items[i];
+    if (!e.active) continue;
+    if (e.hitFlash > 0) e.hitFlash -= dt;
+    if (e.orbitCd > 0) e.orbitCd -= dt;
+    if (e.tornadoCd > 0) e.tornadoCd -= dt;
+    var sp = e.speed;
+    if (e.slowT > 0){
+      e.slowT -= dt;
+      sp *= (1 - e.slowPct / 100);
+    }
+    var dx = px - e.x, dy = py - e.y;
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1e-6) continue;            // 겹쳐 있으면 0으로 나누지 않는다
+    var step = sp * dt;
+    if (step > len) step = len;          // 지나쳐서 플레이어 주위를 진동하지 않게
+    e.x += dx / len * step;
+    e.y += dy / len * step;
+  }
+};
+// 플레이어에 닿은 적이 피해를 준다.
+// 적마다 재적용 간격을 따로 센다(여러 마리에게 둘러싸이면 그만큼 아프다).
+World.prototype.resolveContacts = function(dt){
+  if (this.gameOver || this.benchMode) return;
+  var p = this.player;
+  if (p.invuln > 0) p.invuln -= dt;
+  var pr = this.config.player.radius;
+  var items = this.enemies.items;
+  var i;
+  // 쿨타임은 활성 적 전부에 대해 흐른다 (격자 후보만이 아니라)
+  for (i = 0; i < items.length; i++){
+    if (items[i].active && items[i].contactCd > 0) items[i].contactCd -= dt;
+  }
+  this._contactCd = this.config.combat.contactCooldownMs / 1000;
+  var maxR = pr + this.maxEnemyR;   // 격자 후보 반경 — 가장 큰 적이 닿을 수 있는 최대 거리
+  this.grid.forEachNear(p.x, p.y, maxR, this._onContactCandidate);
+};
+
+// 영구 강화 단계를 갈아끼운다(상점에서 산 뒤 다음 판에 반영). reset 이 뒤따라야 한다.
+World.prototype.applyMeta = function(metaLevels){
+  var ml = metaLevels || {};
+  var mc = this.config.meta;
+  this.metaMult.damage    = 1 + (ml.power  || 0) * mc.power.pct / 100;
+  this.metaMult.maxHpAdd  =     (ml.maxHp  || 0) * mc.maxHp.add;
+  this.metaMult.speed     = 1 + (ml.speed  || 0) * mc.speed.pct / 100;
+  this.metaMult.pickup    = 1 + (ml.magnet || 0) * mc.magnet.pct / 100;
+  this.metaMult.xp        = 1 + (ml.xpGain || 0) * mc.xpGain.pct / 100;
+};
+
+// 판을 처음 상태로 되돌린다.
+World.prototype.reset = function(){
+  this.enemies.releaseAll();
+  this.player.x = 0; this.player.y = 0;
+  this.player.invuln = 0;
+  var startHp = this.config.player.maxHp + this.metaMult.maxHpAdd;
+  this.player.hp = startHp;
+  this.player.maxHp = startHp;
+  this.rawInput.x = 0; this.rawInput.y = 0;
+  this.gameOver = false;
+  this.cleared = false;
+  this.elapsed = 0;
+  this.spawnAcc = 0;
+  this.bossIndex = 0;
+  this.boss = null;
+  this.facing.x = 1; this.facing.y = 0;
+  this.aimDir.x = 1; this.aimDir.y = 0;
+  this.weapons.claw.level = 1;
+  this.weapons.claw.cdLeft = 0;
+  this.swingTimer = 0;
+  this.swingRadius = 0;
+  this.swingDir.x = 1; this.swingDir.y = 0;
+  this.beamTimer = 0;
+  this.blastTimer = 0;
+  this.blastShow = 0;
+  this.blastWeaponId = '';
+  this.orbitAngle = 0;
+  this.orbitX = 0; this.orbitY = 0; this.orbitR = 0;
+  this.chainTimer = 0;
+  this.chainShow = 0;
+  this.chainN = 0;
+  this.chainStamp = 0;
+  this._chainBuf.length = 0;
+  this.kills = 0;
+  this.gems.releaseAll();
+  this.projectiles.releaseAll();
+  this.fields.releaseAll();
+  this.warns.releaseAll();
+  var citems = this.companions.items;
+  for (var cj = 0; cj < citems.length; cj++) citems[cj].target = null;
+  this.companions.releaseAll();
+  this.companion = null;
+  this.enemyStamp = 0;
+  this.warnAcc = 0;
+  this.nukes.releaseAll();
+  this.nukeAcc = 0;
+  this.projStamp = 0;
+  this.xp = 0;
+  this.level = 1;
+  this.pendingChoices = 0;
+  this.rerollLeft = this.config.level.rerollPerRun;   // 새 판이면 다시 뽑기도 새로
+  this.passives.claws = 0; this.passives.tuna = 0; this.passives.bell = 0;
+  this.passives.whisker = 0; this.passives.nap = 0; this.passives.clover = 0;
+  this.coins = 0;
+  for (var wid in this.weapons) if (wid !== 'claw') delete this.weapons[wid];
+  this.weaponOrder.length = 1;   // ['claw'] 만 남긴다
+  this.benchMode = false;
+  this.rebuildGrid();
+};
+
+// 저장에서 읽은 값을 믿을 수 있는 숫자로 만든다. 숫자가 아니거나 음수면 0.
+function safeNum(v){
+  return (typeof v === 'number' && isFinite(v) && v > 0) ? v : 0;
+}
+function safeInt(v, min, max, fallback){
+  if (typeof v !== 'number' || !isFinite(v)) return fallback;
+  v = Math.floor(v);
+  if (v < min) return min;
+  if (v > max) return max;
+  return v;
+}
+
+/* ── 판 도중 저장 ──────────────────────────────────────────────
+   평평한 값만 뽑는다. 적·투사체·젬·장판은 매 프레임 바뀌는 풀 객체 수백 개라
+   저장하지 않고, 이어할 때 스폰이 다시 채우게 둔다.
+   보스는 예외로 남은 체력까지 뽑는다 — 안 그러면 보스전 도중에 나갔다 오는 것이
+   보스를 만피로 되돌리는 회피 수단이 된다. */
+World.prototype.snapshot = function(){
+  if (this.gameOver || this.cleared) return null;   // 끝난 판은 이어할 것이 없다
+  var weapons = {}, id;
+  for (var i = 0; i < this.weaponOrder.length; i++){
+    id = this.weaponOrder[i];
+    weapons[id] = this.weapons[id].level;
+  }
+  var passives = {};
+  for (id in this.passives) passives[id] = this.passives[id];
+  return {
+    v: 1,
+    elapsed: this.elapsed,
+    level: this.level,
+    xp: this.xp,
+    kills: this.kills,
+    coins: this.coins,
+    bossIndex: this.bossIndex,
+    pendingChoices: this.pendingChoices,
+    rerollLeft: this.rerollLeft,   // 안 저장하면 멈췄다 이어하는 게 공짜 리롤이 된다
+    hp: this.player.hp,
+    maxHp: this.player.maxHp,
+    weaponOrder: this.weaponOrder.slice(),
+    weapons: weapons,
+    passives: passives,
+    boss: (this.boss && this.boss.active)
+            ? { typeId: this.boss.typeId, hp: this.boss.hp } : null
+  };
+};
+
+// 스냅샷으로 판을 되돌린다. 못 쓸 스냅샷이면 아무것도 안 하고 false.
+World.prototype.restore = function(s){
+  if (!s || typeof s !== 'object' || s.v !== 1) return false;
+  if (typeof s.elapsed !== 'number' || !isFinite(s.elapsed) || s.elapsed < 0) return false;
+  if (typeof s.level !== 'number' || !isFinite(s.level) || s.level < 1) return false;
+  if (!Array.isArray(s.weaponOrder) || !s.weaponOrder.length ||
+      !s.weapons || typeof s.weapons !== 'object' ||
+      !s.passives || typeof s.passives !== 'object') return false;
+  if (typeof s.hp !== 'number' || !isFinite(s.hp) || s.hp <= 0) return false;
+  if (typeof s.maxHp !== 'number' || !isFinite(s.maxHp) || s.maxHp <= 0) return false;
+
+  this.reset();          // 풀·타이머를 전부 비우고 시작한다
+  this.elapsed = s.elapsed;
+  this.level   = Math.floor(s.level);
+  // 손댄 저장 데이터가 숫자 아닌 값을 밀어 넣어도 판이 조용히 망가지지 않게 한다.
+  // 예: xp 가 문자열이면 이후 xp += 가 문자열 이어붙이기가 되어 레벨이 영영 안 오른다.
+  this.xp      = safeNum(s.xp);
+  this.kills   = safeInt(s.kills, 0, Number.MAX_SAFE_INTEGER || 9007199254740991, 0);
+  this.coins   = safeNum(s.coins);
+  this.bossIndex = safeInt(s.bossIndex, 0, this.config.bosses.length, 0);
+  this.pendingChoices = safeInt(s.pendingChoices, 0, this.level, 0);
+  // 다시 뽑기: 이 기능이 없던 시절의 저장에는 필드 자체가 없다. 그때는 만석으로 준다.
+  // 숫자로 들어 있으면 0 도 그대로 존중해야 한다 — 안 그러면 무한 리롤이 된다.
+  var rr = s.rerollLeft;
+  if (typeof rr !== 'number' || !isFinite(rr) || rr < 0) rr = this.config.level.rerollPerRun;
+  if (rr > this.config.level.rerollPerRun) rr = this.config.level.rerollPerRun;
+  this.rerollLeft = Math.floor(rr);
+
+  var id, i;
+  for (id in this.passives) this.passives[id] = 0;
+  for (id in s.passives){
+    var passiveCfg = this.config.passives[id];
+    if (passiveCfg)
+      this.passives[id] = safeInt(s.passives[id], 0, passiveCfg.maxLevel, 0);
+  }
+
+  this.weapons = {};
+  this.weaponOrder.length = 0;
+  var restoredWeapons = Object.create(null);
+  for (i = 0; i < s.weaponOrder.length &&
+              this.weaponOrder.length < this.config.level.slotsWeapon; i++){
+    id = s.weaponOrder[i];
+    var weaponCfg = this.config.weapons[id];
+    if (!weaponCfg || restoredWeapons[id]) continue;   // 없어진 무기·중복 항목은 건너뛴다
+    restoredWeapons[id] = true;
+    this.weapons[id] = {
+      level: safeInt(s.weapons[id], 1, weaponCfg.maxLevel, 1),
+      cdLeft: 0
+    };
+    this.weaponOrder.push(id);
+  }
+  if (!this.weaponOrder.length){                 // 무기가 하나도 안 남으면 시작 무기라도
+    this.weapons.claw = { level: 1, cdLeft: 0 };
+    this.weaponOrder.push('claw');
+  }
+
+  // 최대 체력은 저장값을 그대로 믿는다. 참치캔·영구강화가 이미 반영된 값이라
+  // 여기서 다시 더하면 이중으로 붙는다.
+  this.player.maxHp = s.maxHp;
+  this.player.hp    = s.hp > s.maxHp ? s.maxHp : s.hp;
+
+  var savedBossCfg = s.boss && this.config.enemies[s.boss.typeId];
+  if (savedBossCfg && savedBossCfg.boss &&
+      typeof s.boss.hp === 'number' && isFinite(s.boss.hp) && s.boss.hp > 0){
+    var ring = this.spawnRing();
+    var b = this.spawnEnemy(s.boss.typeId, this.player.x + ring, this.player.y);
+    if (b){ b.hp = s.boss.hp > b.maxHp ? b.maxHp : s.boss.hp; this.boss = b; }
+  }
+  return true;
+};
+
+// 이 적을 잡았을 때 들어오는 코인. 네잎클로버 패시브가 곱해진다.
+World.prototype.coinGain = function(typeId){
+  var t = this.config.enemies[typeId];
+  if (!t) return 0;
+  var base = t.coin || 0;          // coin 을 빠뜨린 적이 저장을 망가뜨리지 않게
+  var cl = this.config.passives.clover;
+  return base * (1 + this.passives.clover * cl.coinPct / 100);
+};
+
+// 적에게 피해를 준다. 죽으면 풀로 돌려보내고 true 를 반환한다.
+World.prototype.damageEnemy = function(e, amount){
+  e.hp -= amount;
+  e.hitFlash = 0.12;                  // 렌더가 흰색으로 번쩍이는 데 쓴다(초)
+  if (e.hp > 0) return false;
+  this.kills++;
+  this.coins += this.coinGain(e.typeId);
+  this.dropGem(e.x, e.y, e.xp);
+  this.enemies.release(e);
+  return true;
+};
+
+// 젬을 떨군다. 풀이 꽉 찼으면 조용히 넘어간다(게임이 멈추면 안 된다).
+World.prototype.dropGem = function(x, y, xp){
+  var g = this.gems.spawn();
+  if (!g) return null;
+  g.x = x; g.y = y; g.xp = xp;
+  return g;
+};
+
+// 흡수 범위 안의 젬을 끌어당기고, 닿으면 먹는다.
+World.prototype.updateGems = function(dt){
+  var p = this.player;
+  var range = this.pickupRange();
+  var cfg = this.config.gem;
+  var eat = cfg.radius + this.config.player.radius;
+  var items = this.gems.items;
+  for (var i = 0; i < items.length; i++){
+    var g = items[i];
+    if (!g.active) continue;
+    var dx = p.x - g.x, dy = p.y - g.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= eat){
+      this.xp += g.xp * this.metaMult.xp;
+      this.gems.release(g);
+      continue;
+    }
+    if (dist > range) continue;              // 범위 밖이면 가만히
+    var step = cfg.attractSpeed * dt;
+    if (step > dist) step = dist;
+    g.x += dx / dist * step;
+    g.y += dy / dist * step;
+  }
+  this.checkLevelUp();
+};
+
+// 무기의 최종 피해량. 발톱갈이 패시브 배수가 곱해진다.
+World.prototype.weaponDamage = function(id){
+  var w = this.config.weapons[id];
+  var lv = this.weapons[id].level;
+  var base = w.damage * (1 + (lv - 1) * this.config.level.damagePerLvPct / 100);
+  var pct = this.passives.claws * this.config.passives.claws.damagePct;
+  return base * (1 + pct / 100) * this.metaMult.damage;
+};
+
+// 젬 흡수 범위. 수염 패시브가 곱해진다.
+World.prototype.pickupRange = function(){
+  var wh = this.config.passives.whisker;
+  return this.config.player.pickupRange * this.metaMult.pickup *
+         (1 + this.passives.whisker * wh.pickupPct / 100);
+};
+
+// 무기의 현재 사거리. 레벨당 radiusPerLv 만큼 늘어난다.
+World.prototype.weaponRadius = function(id){
+  var w = this.config.weapons[id];
+  return w.radius + (this.weapons[id].level - 1) * (w.radiusPerLv || 0);
+};
+
+// 가장 가까운 살아있는 적 쪽으로 aimDir 를 맞춘다. 적이 없으면 이동 방향을 쓴다.
+// 반환값은 조준한 적(없으면 null) — 폭발처럼 "적 위치"가 필요한 무기가 쓴다.
+World.prototype.aimAtNearest = function(){
+  var items = this.enemies.items;
+  var best = null, bestSq = Infinity, bx = 0, by = 0;
+  // 보스가 가까이 있으면 보스를 먼저 본다. 이게 없으면 잡졸이 항상 더 가까워서
+  // 공격이 전부 잡졸에게 가고 보스는 체력이 거의 안 깎인다 (5분 보스가 안 죽던 원인).
+  if (this.boss && this.boss.active){
+    var bdx = this.boss.x - this.player.x, bdy = this.boss.y - this.player.y;
+    var bd2 = bdx * bdx + bdy * bdy;
+    var range = this.config.combat.bossAimRange;
+    if (bd2 <= range * range){
+      if (bd2 > 1e-12){
+        var bd = Math.sqrt(bd2);
+        this.aimDir.x = bdx / bd;
+        this.aimDir.y = bdy / bd;
+      }
+      return this.boss;
+    }
+  }
+  for (var i = 0; i < items.length; i++){
+    var e = items[i];
+    if (!e.active) continue;
+    var dx = e.x - this.player.x, dy = e.y - this.player.y;
+    var d2 = dx * dx + dy * dy;
+    if (d2 < bestSq){ bestSq = d2; bx = dx; by = dy; best = e; }
+  }
+  if (best === null){
+    this.aimDir.x = this.facing.x;
+    this.aimDir.y = this.facing.y;
+  } else if (bestSq > 1e-12){
+    var d = Math.sqrt(bestSq);
+    this.aimDir.x = bx / d;
+    this.aimDir.y = by / d;
+  }
+  return best;   // 완전히 겹쳐 있으면(bestSq≈0) 직전 조준 방향을 유지한다
+};
+
+// 무기 쿨타임을 흘리고, 다 찬 무기를 순서대로 발동한다.
+World.prototype.fireWeapons = function(dt){
+  if (this.swingTimer > 0) this.swingTimer -= dt;
+  if (this.beamTimer > 0) this.beamTimer -= dt;
+  if (this.blastTimer > 0) this.blastTimer -= dt;
+  if (this.chainTimer > 0) this.chainTimer -= dt;
+  // 측정 중엔 무기도 멈춘다 — 적을 잡으면 부하가 줄고, 젬·레벨업 카드가 측정을 끊는다
+  if (this.benchMode) return;
+  var order = this.weaponOrder;
+  for (var i = 0; i < order.length; i++){
+    var id = order[i];
+    var st = this.weapons[id];
+    st.cdLeft -= dt;
+    if (st.cdLeft > 0) continue;
+    st.cdLeft = this.weaponCooldown(id);
+    this.fireWeapon(id, dt);
+  }
+};
+
+// 무기의 재사용 대기 시간(초). 패시브 보정은 여기 한 곳에서만 건다.
+World.prototype.weaponCooldown = function(id){
+  var np = this.config.passives.nap;
+  var mult = 1 - this.passives.nap * np.cooldownPct / 100;
+  if (mult < np.minMult) mult = np.minMult;
+  return this.config.weapons[id].cooldownMs / 1000 * mult;
+};
+
+// 종류에 따라 실제 발동 함수로 넘긴다. 무기를 추가하면 여기에 한 줄이 붙는다.
+World.prototype.fireWeapon = function(id, dt){
+  var kind = this.config.weapons[id].kind;
+  if (kind === 'claw') this.fireClaw(id);
+  else if (kind === 'projectile') this.fireProjectile(id);
+  else if (kind === 'beam') this.fireBeam(id);
+  else if (kind === 'blast') this.fireBlast(id);
+  else if (kind === 'field') this.fireField(id);
+  else if (kind === 'orbit') this.fireOrbit(id, dt);
+  else if (kind === 'chain') this.fireChain(id);
+  else if (kind === 'companion') this.fireCompanion(id);
+};
+
+// 부채꼴 안의 적을 전부 때린다. 방향은 자동 조준: 가장 가까운 적, 없으면 이동 방향.
+World.prototype.fireClaw = function(id){
+  var cfg = this.config.weapons[id];
+  this.swingTimer = cfg.swingMs / 1000;
+  this._hitDmg = this.weaponDamage(id);
+  this._hitRadius = this.weaponRadius(id);
+  this.swingRadius = this._hitRadius;   // 렌더용으로 따로 보관
+  this.aimAtNearest();
+  this.swingDir.x = this.aimDir.x;
+  this.swingDir.y = this.aimDir.y;
+  // 부채꼴 판정: 조준 방향과 이루는 각이 절반각 이내인가 → 내적으로 비교
+  this._hitCosHalf = Math.cos(cfg.arcDeg * Math.PI / 180 / 2);
+  this.grid.forEachNear(this.player.x, this.player.y,
+                        this._hitRadius + this.maxEnemyR, this._onArcCandidate);
+};
+
+// 조준 방향으로 투사체를 count 발 부채꼴로 뿌린다.
+World.prototype.fireProjectile = function(id){
+  var cfg = this.config.weapons[id];
+  var lv = this.weapons[id].level;
+  var n = cfg.counts[Math.min(lv, cfg.counts.length) - 1];
+  var dmg = this.weaponDamage(id);
+  this.aimAtNearest();
+  var baseAng = Math.atan2(this.aimDir.y, this.aimDir.x);
+  var spread = cfg.spreadDeg * Math.PI / 180;
+  for (var k = 0; k < n; k++){
+    var a = baseAng + (n === 1 ? 0 : (k - (n - 1) / 2) * spread);
+    this.spawnProjectile(id, Math.cos(a) * cfg.speed, Math.sin(a) * cfg.speed, dmg, cfg);
+  }
+};
+
+// 조준 방향으로 뻗은 선분 위의 적을 전부 때린다 (즉시 판정, 관통).
+World.prototype.fireBeam = function(id){
+  var cfg = this.config.weapons[id];
+  var lv = this.weapons[id].level;
+  this.aimAtNearest();
+  this.beamDir.x = this.aimDir.x;
+  this.beamDir.y = this.aimDir.y;
+  this.beamLen = cfg.length + (lv - 1) * cfg.lengthPerLv;
+  this.beamHalfW = cfg.width / 2;
+  this.beamTimer = cfg.showMs / 1000;
+  this._hitDmg = this.weaponDamage(id);
+  // 선분 전체를 감싸는 원으로 후보를 좁힌 뒤, 콜백이 선분까지의 거리를 정확히 잰다
+  var midX = this.player.x + this.beamDir.x * this.beamLen / 2;
+  var midY = this.player.y + this.beamDir.y * this.beamLen / 2;
+  this.grid.forEachNear(midX, midY, this.beamLen / 2 + this.maxEnemyR, this._onBeamCandidate);
+};
+
+// 가장 가까운 적의 자리에서 원형 폭발. 적이 없으면 발밑에서 터진다.
+World.prototype.fireBlast = function(id){
+  var cfg = this.config.weapons[id];
+  var target = this.aimAtNearest();
+  var x = target ? target.x : this.player.x;
+  var y = target ? target.y : this.player.y;
+  this.blastAt(x, y, this.weaponRadius(id), this.weaponDamage(id), cfg.showMs / 1000, id);
+};
+
+// 폭발 판정 + 연출 정보를 한 곳에 모은다. 무기(캣닢, fireBlast)든 맵 아이템
+// (☢️ 핵폭탄, updateNukes)이든 터뜨릴 땐 반드시 여기를 거친다 — 폭발 로직이
+// 두 벌로 갈라지지 않게 하기 위함. colorKey 는 shell 의 BLAST_COLOR 표 키.
+World.prototype.blastAt = function(x, y, radius, damage, showSec, colorKey){
+  this.blastX = x;
+  this.blastY = y;
+  this.blastR = radius;
+  this.blastTimer = showSec;
+  this.blastShow = showSec;      // 렌더가 잔상 비율을 낼 때 쓴다
+  this.blastWeaponId = colorKey; // 새 문자열이 아니라 CONFIG 키(또는 'nuke')의 참조다
+  this._hitDmg = damage;
+  this._hitRadius = radius;
+  // 알려진 한계: 핵폭탄처럼 반경이 격자 탐색 한계보다 크면 forEachNear 가
+  // 격자 가장자리에서 후보를 잘라낼 수 있다. 계획서에서 알고도 그대로 두기로
+  // 했다 — 화면 밖 끄트머리 적 몇 마리를 놓치는 정도라 체감이 없다.
+  this.grid.forEachNear(this.blastX, this.blastY,
+                        this.blastR + this.maxEnemyR, this._onBlastCandidate);
+};
+
+// 발밑에 장판을 깐다.
+World.prototype.fireField = function(id){
+  var cfg = this.config.weapons[id];
+  var f = this.fields.spawn();
+  if (!f) return null;              // 풀이 꽉 찼으면 조용히 넘어간다
+  f.x = this.player.x;  f.y = this.player.y;
+  f.radius = this.weaponRadius(id);
+  f.tickDmg = this.weaponDamage(id) * cfg.tickSec;   // 초당 피해 × 간격
+  f.life = cfg.durationSec;
+  f.tickLeft = 0;                   // 깔리자마자 한 번 때린다
+  f.slowPct = cfg.slowPct;
+  f.slowDur = cfg.tickSec + 0.1;    // 다음 판정까지 둔화가 끊기지 않게 조금 길게
+  f.weaponId = id;
+  return f;
+};
+
+// 내 주위를 도는 공. 쿨타임이 0이라 매 프레임 불리고, 대신 적마다 재타격 간격을 센다.
+World.prototype.fireOrbit = function(id, dt){
+  var cfg = this.config.weapons[id];
+  var lv = this.weapons[id].level;
+  this.orbitAngle += cfg.rotSpeed * dt;
+  if (this.orbitAngle > Math.PI * 2) this.orbitAngle -= Math.PI * 2;
+  this.orbitR = cfg.orbitRadius + (lv - 1) * cfg.orbitRadiusPerLv;
+  this.orbitX = this.player.x + Math.cos(this.orbitAngle) * this.orbitR;
+  this.orbitY = this.player.y + Math.sin(this.orbitAngle) * this.orbitR;
+  this._hitDmg = this.weaponDamage(id);
+  this._hitRadius = cfg.ballRadius;
+  this._orbitCd = cfg.hitCooldownMs / 1000;
+  this.grid.forEachNear(this.orbitX, this.orbitY,
+                        cfg.ballRadius + this.maxEnemyR, this._onOrbitCandidate);
+};
+
+/* 정전기 — 첫 대상을 맞히고 근처 적으로 튄다.
+   ① 대상을 전부 모으고 ② 격자 순회가 끝난 뒤에 때린다. 이 순서를 바꾸면
+   연쇄 도중에 죽은 적이 풀로 돌아가면서 바깥 순회의 피해가 망가진다. */
+World.prototype.fireChain = function(id){
+  var cfg = this.config.weapons[id];
+  var first = this.aimAtNearest();
+  if (!first || !first.active) return;   // 때릴 적이 없다 — 직전 번개 잔상(chainN)을 지우지 않는다
+  this.chainN = 0;
+
+  this.chainStamp++;
+  var buf = this._chainBuf;
+  buf.length = 0;
+  buf.push(first);
+  first.chainStamp = this.chainStamp;
+
+  // ① 대상 고르기 — 여기서는 절대 때리지 않는다
+  var cur = first, i;
+  for (i = 0; i < cfg.chainCount; i++){
+    this._chainFrom = cur;
+    this._chainBest = null;
+    this._chainBestSq = cfg.chainRange * cfg.chainRange;
+    this.grid.forEachNear(cur.x, cur.y, cfg.chainRange + this.maxEnemyR,
+                          this._onChainCandidate);
+    if (this._chainBest === null) break;   // 더 튈 곳이 없다
+    cur = this._chainBest;
+    cur.chainStamp = this.chainStamp;
+    buf.push(cur);
+  }
+  this._chainFrom = null;
+  this._chainBest = null;
+
+  // 연출용 좌표를 먼저 적어 둔다 (때리면 죽은 적이 풀로 돌아간다)
+  this.chainN = buf.length;
+  for (i = 0; i < buf.length; i++){
+    this.chainX[i] = buf[i].x;
+    this.chainY[i] = buf[i].y;
+  }
+  this.chainTimer = cfg.showMs / 1000;
+  this.chainShow  = cfg.showMs / 1000;
+
+  // ② 이제 때린다 — 격자 순회 밖이라 재진입이 아니다
+  var dmg = this.weaponDamage(id);
+  for (i = 0; i < buf.length; i++){
+    this.damageEnemy(buf[i], dmg);
+    dmg *= cfg.chainFalloff;
+  }
+  buf.length = 0;   // 죽은 적 참조를 붙잡고 있지 않게 비운다
+};
+
+/* 고양이 친구 — 쿨타임이 찰 때마다 목표를 하나 잡는다.
+   동료가 없으면 이때 한 마리 불러낸다(무기를 얻자마자 화면에 나타난다). */
+World.prototype.fireCompanion = function(id){
+  var cfg = this.config.weapons[id];
+  var c = this.companion;
+  if (c === null || !c.active){
+    c = this.companions.spawn();
+    if (!c) return;                 // 풀이 꽉 찼으면 조용히 넘어간다
+    // 풀이 객체를 재활용하므로 여기서 모든 필드를 빠짐없이 덮어쓴다
+    c.x = this.player.x;  c.y = this.player.y;
+    c.state = 0;          c.target = null;   c.targetStamp = 0;
+    c.weaponId = id;      c.dmg = 0;
+    this.companion = c;
+  }
+  c.weaponId = id;
+  c.dmg = this.weaponDamage(id);    // 발톱갈이·영구강화가 이 시점 값으로 반영된다
+  if (c.state === 1) return;        // 이미 달려드는 중이면 목표를 바꾸지 않는다
+
+  // 가장 가까운 적 **하나**만 고른다 — 한 번에 한 마리다(AC-4).
+  // 격자가 아니라 선형 훑기다: 쿨타임 1.2초에 한 번뿐이고 aimAtNearest 도 같은 방식이다.
+  var best = null, bestSq = cfg.seekRange * cfg.seekRange;
+  var items = this.enemies.items;
+  for (var i = 0; i < items.length; i++){
+    var e = items[i];
+    if (!e.active) continue;
+    var dx = e.x - c.x, dy = e.y - c.y;
+    var d2 = dx * dx + dy * dy;
+    if (d2 < bestSq){ bestSq = d2; best = e; }
+  }
+  if (best === null) return;        // 사거리 안에 적이 없다 — 계속 따라다닌다
+  c.state = 1;
+  c.target = best;
+  c.targetStamp = best.stamp;
+};
+
+/* 동료를 옮기고, 목표에 닿으면 문다.
+   damageEnemy 를 격자 콜백 밖에서 부르므로 재진입 함정에 걸리지 않는다. */
+World.prototype.updateCompanions = function(dt){
+  var items = this.companions.items;
+  for (var i = 0; i < items.length; i++){
+    var c = items[i];
+    if (!c.active) continue;
+    var cfg = this.config.weapons[c.weaponId];
+    if (!cfg) continue;
+    var dx, dy, d, step;
+    if (c.state === 1){
+      var t = c.target;
+      // 목표가 죽었거나 그 슬롯을 다른 적이 물려받았으면 따라가기로 돌아온다
+      if (t === null || !t.active || t.stamp !== c.targetStamp){
+        c.state = 0;  c.target = null;  c.targetStamp = 0;
+      } else {
+        dx = t.x - c.x;  dy = t.y - c.y;
+        d = Math.sqrt(dx * dx + dy * dy);
+        if (d <= cfg.biteRadius + t.radius){
+          this.damageEnemy(t, c.dmg);          // 한 마리만 문다
+          c.state = 0;  c.target = null;  c.targetStamp = 0;
+        } else {
+          step = cfg.moveSpeed * dt;
+          if (step > d) step = d;
+          c.x += dx / d * step;
+          c.y += dy / d * step;
+        }
+        continue;
+      }
+    }
+    // 따라가기 — 플레이어 뒤쪽 자리에 붙는다
+    dx = (this.player.x - this.facing.x * cfg.followDist) - c.x;
+    dy = (this.player.y - this.facing.y * cfg.followDist) - c.y;
+    d = Math.sqrt(dx * dx + dy * dy);
+    if (d < 1e-6) continue;
+    step = cfg.moveSpeed * dt;
+    if (step > d) step = d;
+    c.x += dx / d * step;
+    c.y += dy / d * step;
+  }
+};
+
+// 장판 수명을 흘리고, 간격마다 안에 있는 적을 때린다.
+World.prototype.updateFields = function(dt){
+  var items = this.fields.items;
+  for (var i = 0; i < items.length; i++){
+    var f = items[i];
+    if (!f.active) continue;
+    f.life -= dt;
+    if (f.life <= 0){ this.fields.release(f); continue; }
+    f.tickLeft -= dt;
+    if (f.tickLeft > 0) continue;
+    f.tickLeft = this.config.weapons[f.weaponId].tickSec;
+    this._field = f;
+    this.grid.forEachNear(f.x, f.y, f.radius + this.maxEnemyR, this._onFieldCandidate);
+  }
+  this._field = null;
+};
+
+// 투사체 하나를 켠다. 풀이 꽉 찼으면 조용히 넘어간다(게임이 멈추면 안 된다).
+World.prototype.spawnProjectile = function(id, vx, vy, dmg, cfg){
+  var p = this.projectiles.spawn();
+  if (!p) return null;
+  this.projStamp++;
+  p.x = this.player.x;  p.y = this.player.y;
+  p.vx = vx;            p.vy = vy;
+  p.dmg = dmg;          p.radius = cfg.radius;
+  p.life = cfg.lifeSec; p.pierce = cfg.pierce;
+  p.stamp = this.projStamp;
+  p.weaponId = id;
+  p.turnAt = cfg.boomerang ? cfg.lifeSec / 2 : 0;   // 0이면 직진만
+  // 끌어당김·재타격이 없는 무기는 반드시 0 으로 덮어쓴다. 안 그러면 토네이도가 쓰던
+  // 슬롯을 물려받은 털뭉치가 적을 빨아들이고 무한히 재타격한다(풀 잔존값).
+  p.pullRadius = cfg.pullRadius || 0;
+  p.pullSpeed  = cfg.pullSpeed  || 0;
+  p.hitCd = cfg.hitCooldownMs ? cfg.hitCooldownMs / 1000 : 0;   // 0 이면 lastProjStamp 방식
+  return p;
+};
+
+// 투사체를 옮기고, 수명이 끝나거나 관통을 다 쓰면 회수한다.
+World.prototype.updateProjectiles = function(dt){
+  var items = this.projectiles.items;
+  for (var i = 0; i < items.length; i++){
+    var p = items[i];
+    if (!p.active) continue;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt;
+    if (p.turnAt > 0 && p.life <= p.turnAt){
+      p.vx = -p.vx;
+      p.vy = -p.vy;
+      p.turnAt = 0;     // 한 번만 뒤집는다
+    }
+    if (p.life <= 0){ this.projectiles.release(p); continue; }
+    this._proj = p;
+    // 끌어당김을 먼저 하고 그 다음에 때린다 — 당겨진 자리로 충돌을 판정한다.
+    if (p.pullRadius > 0){
+      this._pullDt = dt;
+      this.grid.forEachNear(p.x, p.y, p.pullRadius + this.maxEnemyR, this._onPullCandidate);
+    }
+    this.grid.forEachNear(p.x, p.y, p.radius + this.maxEnemyR, this._onProjCandidate);
+    if (p.pierce <= 0) this.projectiles.release(p);
+  }
+  this._proj = null;
+};
+
+// 기획안 §3.7 곡선: 10레벨까지 5 + 레벨×4, 이후 레벨×9
+World.prototype.xpToNext = function(){
+  return this.level <= 10 ? 5 + this.level * 4 : this.level * 9;
+};
+
+World.prototype.checkLevelUp = function(){
+  var guard = 0;
+  while (this.xp >= this.xpToNext() && guard++ < 1000){
+    this.xp -= this.xpToNext();
+    this.level++;
+    this.pendingChoices++;
+    var p = this.player;
+    p.hp += p.maxHp * this.config.level.healPerLvPct / 100;
+    if (p.hp > p.maxHp) p.hp = p.maxHp;
+  }
+};
+
+// 레벨업 후보 3개. 슬롯이 꽉 찼으면 강화만, 만렙은 제외, 다 만렙이면 회복.
+World.prototype.rollChoices = function(){
+  var cfg = this.config;
+  var pool = [];
+  var id;
+  // 무기 (2단계는 claw 하나뿐 — 3단계에서 6종이 더 붙는다)
+  for (id in cfg.weapons){
+    var wst = this.weapons[id];
+    var owned = !!wst;
+    var lv = owned ? wst.level : 0;
+    if (owned && lv >= cfg.weapons[id].maxLevel) continue;
+    if (!owned && this.weaponSlotsUsed() >= cfg.level.slotsWeapon) continue;
+    pool.push({ kind: 'weapon', id: id, name: cfg.weapons[id].name,
+                emoji: cfg.weapons[id].emoji, level: lv + 1,
+                desc: owned ? '공격력과 범위가 올라갑니다' : '새 무기를 얻습니다' });
+  }
+  // 패시브
+  for (id in cfg.passives){
+    var plv = this.passives[id];
+    if (plv >= cfg.passives[id].maxLevel) continue;
+    if (plv === 0 && this.passiveSlotsUsed() >= cfg.level.slotsPassive) continue;
+    pool.push({ kind: 'passive', id: id, name: cfg.passives[id].name,
+                emoji: cfg.passives[id].emoji, level: plv + 1,
+                desc: this.passiveDesc(id) });
+  }
+  // 무작위로 3개 뽑기 (모자라면 회복으로 채운다)
+  var out = [];
+  var i;
+
+  /* ① 초반 미보유 우선 —
+     무기 슬롯에 빈 칸이 있는 동안 3택 중 newWeaponPicks 장을 "아직 없는 무기" 로
+     채운다(가능한 만큼). 슬롯이 차면 pool 자체에 미보유 무기가 안 들어오므로
+     이 블록은 저절로 꺼진다. */
+  if (this.weaponSlotsUsed() < cfg.level.slotsWeapon){
+    var newIdx = [];
+    for (i = 0; i < pool.length; i++)
+      if (pool[i].kind === 'weapon' && !this.weapons[pool[i].id]) newIdx.push(i);
+    while (out.length < cfg.level.newWeaponPicks && newIdx.length > 0){
+      var nk = Math.floor(this.random() * newIdx.length);
+      if (nk >= newIdx.length) nk = newIdx.length - 1;
+      out.push(pool[newIdx[nk]]);      // pool 색인이 흔들리지 않게 지금은 빼지 않는다
+      newIdx.splice(nk, 1);
+    }
+    for (i = 0; i < out.length; i++){
+      var pi = pool.indexOf(out[i]);
+      if (pi >= 0) pool.splice(pi, 1);
+    }
+  }
+
+  /* ② 미보유 우선이 한 장도 못 채웠으면(슬롯이 찼거나 새 무기가 없다)
+     기존 규칙대로 최소 1장은 무기를 보장한다. */
+  if (out.length === 0){
+    var wIdx = [];
+    for (i = 0; i < pool.length; i++) if (pool[i].kind === 'weapon') wIdx.push(i);
+    if (wIdx.length > 0){
+      var wk = Math.floor(this.random() * wIdx.length);
+      if (wk >= wIdx.length) wk = wIdx.length - 1;
+      out.push(pool.splice(wIdx[wk], 1)[0]);
+    }
+  }
+  while (out.length < 3 && pool.length > 0){
+    var k = Math.floor(this.random() * pool.length);
+    if (k >= pool.length) k = pool.length - 1;
+    out.push(pool.splice(k, 1)[0]);
+  }
+  while (out.length < 3){
+    out.push({ kind: 'heal', id: 'heal' + out.length, name: '고양이 캔',
+               emoji: '\u{1F41F}', level: 0,
+               desc: '체력을 ' + cfg.level.healAmount + ' 회복합니다' });
+  }
+  return out;
+};
+
+/* 3택을 통째로 다시 만든다. 판당 CONFIG.level.rerollPerRun 회.
+   남은 횟수가 없으면 null 을 돌려주고 아무것도 바꾸지 않는다. */
+World.prototype.reroll = function(){
+  if (this.rerollLeft <= 0) return null;
+  this.rerollLeft--;
+  return this.rollChoices();
+};
+
+World.prototype.weaponSlotsUsed = function(){
+  var n = 0, id;
+  for (id in this.weapons) n++;
+  return n;
+};
+World.prototype.passiveSlotsUsed = function(){
+  var n = 0, id;
+  for (id in this.passives) if (this.passives[id] > 0) n++;
+  return n;
+};
+World.prototype.passiveDesc = function(id){
+  var p = this.config.passives[id];
+  if (id === 'claws')   return '공격력 +' + p.damagePct + '%';
+  if (id === 'tuna')    return '최대 체력 +' + p.maxHpAdd;
+  if (id === 'bell')    return '이동 속도 +' + p.speedPct + '%';
+  if (id === 'whisker') return '젬을 더 멀리서 줍습니다';
+  if (id === 'clover')  return '코인을 더 많이 받습니다';
+  return '공격이 더 자주 나갑니다';
+};
+
+// 고른 것을 반영한다.
+World.prototype.applyChoice = function(choice){
+  if (choice.kind === 'weapon'){
+    if (this.weapons[choice.id]){
+      this.weapons[choice.id].level++;
+    } else {
+      this.weapons[choice.id] = { level: 1, cdLeft: 0 };
+      this.weaponOrder.push(choice.id);   // 얻은 순서가 곧 발동 순서
+    }
+  } else if (choice.kind === 'passive'){
+    this.passives[choice.id]++;
+    if (choice.id === 'tuna'){
+      var add = this.config.passives.tuna.maxHpAdd;
+      this.player.maxHp += add;
+      this.player.hp += add;            // 올린 만큼 바로 채워준다
+    }
+  } else {
+    this.player.hp += this.config.level.healAmount;
+    if (this.player.hp > this.player.maxHp) this.player.hp = this.player.maxHp;
+  }
+  if (this.pendingChoices > 0) this.pendingChoices--;
+};
+
+// 보스 등장·퇴장을 관리한다. 화면 밖 링에서 걸어 들어온다.
+World.prototype.bossTick = function(){
+  if (this.benchMode) return;
+  // 죽은 보스 정리 (damageEnemy 가 풀로 돌려보내면 active 가 false 가 된다)
+  if (this.boss && !this.boss.active){
+    this.boss = null;
+    this.bossIndex++;
+    if (this.bossIndex >= this.config.bosses.length) this.cleared = true;
+  }
+  if (this.boss) return;                          // 이미 싸우는 중
+  var list = this.config.bosses;
+  if (this.bossIndex >= list.length) return;      // 다 잡았다
+  var next = list[this.bossIndex];
+  if (this.elapsed / 60 < next.atMin) return;
+  // 보스가 들어올 때 화면을 비운다. 쌓여 있던 잡졸을 그대로 두면 보스가 어디
+  // 있는지도 안 보이고, 보스전이 "잡졸에 둘러싸인 채 죽는 구간"이 된다.
+  var old = this.enemies.items;
+  for (var oi = 0; oi < old.length; oi++){
+    if (old[oi].active) this.enemies.release(old[oi]);
+  }
+  var ring = this.spawnRing();
+  var ang = this.random() * Math.PI * 2;
+  this.boss = this.spawnEnemy(next.typeId,
+    this.player.x + Math.cos(ang) * ring,
+    this.player.y + Math.sin(ang) * ring);
+};
+
+// 지금 시점의 초당 스폰 수. 분 단위 표를 직선 보간한다.
+World.prototype.spawnRate = function(){
+  var table = this.config.spawn.perMinute;
+  var minutes = this.elapsed / 60;
+  var rate;
+  var i = Math.floor(minutes);
+  if (i >= table.length - 1){
+    rate = table[table.length - 1];
+  } else {
+    var f = minutes - i;
+    rate = table[i] + (table[i + 1] - table[i]) * f;
+  }
+  if (this.boss) rate *= this.config.spawn.bossSpawnMult;   // 보스전에는 잡졸을 줄인다
+  return rate / 60;
+};
+
+// 지금 나올 수 있는 종류 중 하나를 고른다. 늦게 등장하는 종류일수록 드물게 나온다.
+World.prototype.pickSpawnType = function(){
+  var types = this.config.enemies;
+  var minutes = this.elapsed / 60;
+  // 후보 수를 먼저 센다 (배열을 만들지 않기 위해 두 번 훑는다)
+  var n = 0, id;
+  for (id in types){
+    if (types[id].viaWarn) continue;                       // 예고를 거쳐서만 나오는 종류
+    if (types[id].fromMin !== undefined && minutes >= types[id].fromMin) n++;
+  }
+  if (n === 0) return 'mouse';
+  var k = Math.floor(this.random() * n);
+  if (k >= n) k = n - 1;
+  var seen = 0;
+  for (id in types){
+    if (types[id].viaWarn) continue;
+    if (types[id].fromMin === undefined || minutes < types[id].fromMin) continue;
+    if (seen === k) return id;
+    seen++;
+  }
+  return 'mouse';
+};
+
+// 적이 나타나는(그리고 회수되어 되돌아가는) 화면 밖 링의 반지름.
+World.prototype.spawnRing = function(){
+  return Math.sqrt(this.viewHalfW * this.viewHalfW +
+                   this.viewHalfH * this.viewHalfH) + this.config.spawn.marginPx;
+};
+// 너무 멀어진 적을 화면 밖 링의 다른 자리로 옮긴다.
+// (죽이지 않는다 — 죽이면 젬이 떨어지고 처치 수가 오른다. 옮기는 것뿐이다.)
+// 접촉 쿨타임(contactCd)은 건드리지 않는다. 초기화하면 방금 때린 적이 순간이동해 곧바로 또 때린다.
+World.prototype.recycleFarEnemies = function(){
+  var cfg = this.config.spawn;
+  var ring = this.spawnRing();
+  // 회수 거리는 스폰 링보다 반드시 넉넉히 멀어야 한다. 큰 화면에서는 링이 CONFIG 값을
+  // 넘어서, 갓 스폰된 적이 곧바로 회수 대상이 되는 무한 왕복이 생긴다.
+  var far = cfg.recycleDist;
+  var minFar = ring * cfg.recycleRingMult;
+  if (far < minFar) far = minFar;
+  var far2 = far * far;
+  var items = this.enemies.items;
+  for (var i = 0; i < items.length; i++){
+    var e = items[i];
+    if (!e.active) continue;
+    var dx = e.x - this.player.x, dy = e.y - this.player.y;
+    if (dx * dx + dy * dy < far2) continue;
+    // 스스로 못 움직이는 적(두더지)은 옮겨봐야 그 자리에 굳는다. 화면 밖을 맴돌며
+    // 동시 상한만 차지하므로 조용히 걷어낸다(젬·처치 수는 주지 않는다).
+    if (e.speed === 0){ this.enemies.release(e); continue; }
+    var ang = this.random() * Math.PI * 2;
+    e.x = this.player.x + Math.cos(ang) * ring;
+    e.y = this.player.y + Math.sin(ang) * ring;
+  }
+};
+// 두더지 예고를 띄운다. 예고는 적이 아니므로 어떤 판정에도 걸리지 않는다.
+World.prototype.warnTick = function(dt){
+  if (this.gameOver || this.benchMode) return;
+  var t = this.config.enemies.mole;
+  if (this.elapsed / 60 < t.fromMin) return;
+  this.warnAcc += dt * t.perSec;
+  var guard = 0;
+  while (this.warnAcc >= 1 && guard++ < 100){
+    this.warnAcc -= 1;
+    var wn = this.warns.spawn();
+    if (!wn) continue;                     // 예고 풀이 꽉 찼으면 조용히 넘어간다
+    var ang = this.random() * Math.PI * 2;
+    var dist = t.nearMin + this.random() * (t.nearMax - t.nearMin);
+    wn.x = this.player.x + Math.cos(ang) * dist;
+    wn.y = this.player.y + Math.sin(ang) * dist;
+    wn.left = t.warnSec;
+    wn.typeId = 'mole';
+  }
+};
+
+// 예고 시간이 다 된 자리에서 적을 켠다.
+World.prototype.updateWarns = function(dt){
+  if (this.benchMode) return;   // 측정 중엔 대기 중이던 예고도 터지지 않는다 (순수 부하만 잰다)
+  var items = this.warns.items;
+  var max = this.config.spawn.maxAlive;
+  for (var i = 0; i < items.length; i++){
+    var wn = items[i];
+    if (!wn.active) continue;
+    wn.left -= dt;
+    if (wn.left > 0) continue;
+    // 동시 상한은 링 스폰과 똑같이 지킨다. 꽉 찼으면 예고만 조용히 걷는다.
+    if (this.enemies.activeCount < max) this.spawnEnemy(wn.typeId, wn.x, wn.y);
+    this.warns.release(wn);
+  }
+};
+
+// ☢️ 핵폭탄 아이템을 플레이어 주변에 떨어뜨린다. 무기가 아니라 맵 아이템이므로
+// 쿨타임이 아니라 "떨어져 있나"로 존재한다 — 안 밟고 놔두면 아껴두는 것이 된다.
+World.prototype.nukeTick = function(dt){
+  // 성능 측정 중에 아이템이 떨어지면 측정이 오염된다(이 프로젝트에서 네 번 사고 났다).
+  if (this.benchMode) return;
+  if (this.gameOver || this.cleared) return;
+  var cfg = this.config.nukeItem;
+  this.nukeAcc += dt;
+  var guard = 0;
+  // 부동소수 오차로 딱 경계에서 근소하게 못 미칠 수 있어 아주 작은 여유를 둔다.
+  while (this.nukeAcc >= cfg.everySec - 1e-9 && guard++ < 100){
+    this.nukeAcc -= cfg.everySec;
+    if (this.nukes.activeCount >= cfg.maxAlive) continue;   // 꽉 찼으면 이번 몫은 흘려보낸다
+    var it = this.nukes.spawn();
+    if (!it) continue;
+    var ang = this.random() * Math.PI * 2;
+    var dist = cfg.nearMin + this.random() * (cfg.nearMax - cfg.nearMin);
+    it.x = this.player.x + Math.cos(ang) * dist;
+    it.y = this.player.y + Math.sin(ang) * dist;
+  }
+};
+
+// ☢️ 핵폭탄 아이템을 밟았는지 검사한다. 밟으면 즉시 blastAt 으로 터뜨리고 회수한다.
+World.prototype.updateNukes = function(dt){
+  if (this.benchMode) return;
+  var cfg = this.config.nukeItem;
+  var p = this.player;
+  var eat = cfg.pickupRadius + this.config.player.radius;
+  var items = this.nukes.items;
+  for (var i = 0; i < items.length; i++){
+    var it = items[i];
+    if (!it.active) continue;
+    var dx = p.x - it.x, dy = p.y - it.y;
+    if (dx * dx + dy * dy > eat * eat) continue;   // 안 밟았으면 그대로 둔다(아껴두기)
+    this.blastAt(it.x, it.y, cfg.radius, cfg.damage, cfg.showSec, 'nuke');
+    this.nukes.release(it);
+  }
+};
+
+// 화면 밖 링에서 적을 생성한다. 초당 수는 spawnRate 곡선이 정한다.
+World.prototype.spawnTick = function(dt){
+  if (this.gameOver || this.benchMode) return;
+  var cfg = this.config.spawn;
+  this.spawnAcc += dt * this.spawnRate();
+  var ring = this.spawnRing();
+  var guard = 0;
+  while (this.spawnAcc >= 1 && guard++ < 1000){
+    this.spawnAcc -= 1;
+    if (this.enemies.activeCount >= cfg.maxAlive) continue;
+    var ang = this.random() * Math.PI * 2;
+    this.spawnEnemy(this.pickSpawnType(),
+      this.player.x + Math.cos(ang) * ring,
+      this.player.y + Math.sin(ang) * ring);
+  }
+};
+// 한 스텝 진행 — 실제 게임과 봇 시뮬이 반드시 이 함수 하나를 공유한다.
+// 2단계에서 늘어나는 단계(적 이동·무기 발사·충돌·드롭 등)도 전부 여기에 넣는다.
+World.prototype.update = function(dt){
+  if (this.gameOver || this.cleared) return;
+  this.elapsed += dt;
+  this.step(dt);
+  this.moveEnemies(dt);
+  this.rebuildGrid();
+  this.fireWeapons(dt);
+  this.updateProjectiles(dt);
+  this.updateCompanions(dt);
+  this.updateFields(dt);
+  this.resolveContacts(dt);
+  this.updateGems(dt);
+  this.recycleFarEnemies();
+  this.bossTick();
+  this.spawnTick(dt);
+  this.warnTick(dt);
+  this.updateWarns(dt);
+  this.nukeTick(dt);
+  this.updateNukes(dt);
+};
+// 화면 크기에 맞춰 격자를 키운다. CONFIG 의 cols/rows 는 최소값으로 쓴다.
+// (격자가 화면보다 좁으면 화면 가장자리의 적이 충돌 후보에서 조용히 빠진다)
+World.prototype.ensureGridCovers = function(viewW, viewH){
+  this.viewHalfW = viewW / 2;
+  this.viewHalfH = viewH / 2;
+  var cs = this.config.grid.cellSize;
+  var cols = Math.ceil(viewW / cs) + 4;   // 좌우 2칸씩 여유
+  var rows = Math.ceil(viewH / cs) + 4;
+  if (cols < this.config.grid.cols) cols = this.config.grid.cols;
+  if (rows < this.config.grid.rows) rows = this.config.grid.rows;
+  if (cols === this.grid.cols && rows === this.grid.rows) return false;
+  this.grid = new Grid(cs, cols, rows);
+  return true;
+};
+
+global.CatCore = {
+  CONFIG: CONFIG,
+  Vec: Vec,
+  Pool: Pool,
+  Grid: Grid,
+  Stepper: Stepper,
+  World: World
+};
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+
+<script id="shell">
+(function(){
+'use strict';
+var CONFIG = window.CatCore.CONFIG;
+var canvas = document.getElementById('game');
+var ctx = canvas.getContext('2d', { alpha: false });
+
+function safeStoredInt(value, max){
+  if (typeof value !== 'number' || !isFinite(value) || value <= 0) return 0;
+  value = Math.floor(value);
+  return value > max ? max : value;
+}
+
+/* 저장 — localStorage 가 막혀 있어도(사파리 프라이빗, file:// 정책) 게임은 돌아가야 한다.
+   실패하면 이번 판만 유효한 메모리 저장소로 조용히 대체한다. */
+var Save = (function(){
+  var KEY = 'catSurvivor.save';
+  var mem = null;              // localStorage 가 막혔을 때 쓰는 대체 저장소
+  var data = null;
+
+  function fresh(){
+    return { coins: 0, meta: { power: 0, maxHp: 0, speed: 0, magnet: 0, xpGain: 0 },
+             best: { sec: 0, level: 0, clears: 0 } };
+  }
+  function read(){
+    try {
+      var raw = window.localStorage.getItem(KEY);
+      if (!raw) return fresh();
+      var o = JSON.parse(raw);
+      if (!o || typeof o !== 'object') return fresh();
+      var f = fresh();
+      f.coins = safeStoredInt(o.coins, Number.MAX_SAFE_INTEGER || 9007199254740991);
+      // 손으로 고친 저장 데이터가 게임을 못 빠져나오는 상태로 만들지 않게 범위를 자른다
+      if (o.meta) for (var k in f.meta){
+        if (typeof o.meta[k] !== 'number' || !isFinite(o.meta[k])) continue;
+        var step = Math.floor(o.meta[k]);
+        if (step < 0) step = 0;
+        if (step > CONFIG.meta.maxStep) step = CONFIG.meta.maxStep;
+        f.meta[k] = step;
+      }
+      if (o.best && typeof o.best === 'object') for (var b in f.best)
+        f.best[b] = safeStoredInt(o.best[b], Number.MAX_SAFE_INTEGER || 9007199254740991);
+      return f;
+    } catch (e){
+      return mem || fresh();
+    }
+  }
+  function write(){
+    try {
+      window.localStorage.setItem(KEY, JSON.stringify(data));
+    } catch (e){
+      mem = data;              // 저장이 막혔다 — 이번 판 동안만 기억한다
+    }
+  }
+  return {
+    load: function(){ data = read(); return data; },
+    get: function(){ return data || this.load(); },
+    addCoins: function(n){
+      if (!isFinite(n) || n <= 0) return;   // NaN 하나가 잔액을 통째로 날리는 걸 막는다
+      this.get().coins += Math.floor(n);
+      write();
+    },
+    recordRun: function(sec, level, cleared){
+      var b = this.get().best;
+      if (sec > b.sec) b.sec = sec;
+      if (level > b.level) b.level = level;
+      if (cleared) b.clears++;
+      write();
+    },
+    // 살 수 있으면 사고 true, 못 사면 false
+    buy: function(key){
+      var d = this.get(), cfg = CONFIG.meta;
+      var step = d.meta[key];
+      if (step === undefined || step >= cfg.maxStep) return false;
+      var cost = cfg.costs[step];
+      if (d.coins < cost) return false;
+      d.coins -= cost;
+      d.meta[key] = step + 1;
+      write();
+      return true;
+    },
+    costOf: function(key){
+      var d = this.get(), cfg = CONFIG.meta;
+      var step = d.meta[key];
+      return step >= cfg.maxStep ? null : cfg.costs[step];
+    },
+    // 개발자용: 전부 만렙 + 코인 지급. 밸런스 판단이 아니라 후반 확인용이다.
+    maxOut: function(coins){
+      var d = this.get(), k;
+      for (k in d.meta) d.meta[k] = CONFIG.meta.maxStep;
+      d.coins += (coins === undefined ? 5000 : coins);
+      write();
+      return d;
+    },
+    // 개발자용: 저장을 통째로 지운다(처음부터 확인하고 싶을 때)
+    wipe: function(){
+      try { window.localStorage.removeItem(KEY); } catch (e){}
+      data = null;
+      return this.load();
+    }
+  };
+})();
+Save.load();
+
+var world = new window.CatCore.World(CONFIG, Save.get().meta);
+var stepper = new window.CatCore.Stepper(CONFIG.step.ms, CONFIG.step.maxSteps, CONFIG.step.maxAccumMs);
+
+
+var dpr = 1, viewW = 0, viewH = 0;
+function resize(){
+  dpr = Math.min(window.devicePixelRatio || 1, CONFIG.render.maxDpr); // 고해상도 기기에서 과부하 방지
+  viewW = window.innerWidth;
+  viewH = window.innerHeight;
+  canvas.width = Math.floor(viewW * dpr);
+  canvas.height = Math.floor(viewH * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // 캔버스 크기를 바꾸면 컨텍스트 상태가 초기화된다. 변하지 않는 글자 설정은 여기서 한 번만.
+  ctx.font = '32px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  world.ensureGridCovers(viewW, viewH);
+}
+window.addEventListener('resize', resize);
+resize();
+
+var TILE = CONFIG.grid.cellSize;
+function drawBackground(camX, camY){
+  ctx.fillStyle = '#1b2416';
+  ctx.fillRect(0, 0, viewW, viewH);
+  // 카메라 위치에 맞춰 격자무늬를 반복해 그린다(무한 평면 느낌)
+  var offX = -(camX % TILE);
+  var offY = -(camY % TILE);
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (var x = offX; x < viewW; x += TILE){
+    ctx.moveTo(x, 0); ctx.lineTo(x, viewH);
+  }
+  for (var y = offY; y < viewH; y += TILE){
+    ctx.moveTo(0, y); ctx.lineTo(viewW, y);
+  }
+  ctx.stroke();
+}
+
+var CULL = CONFIG.render.cullMargin;
+var GEM_HALF = CONFIG.gem.size / 2;
+var PROJ_COLOR = { yarn: '#e88ac0', bone: '#f2ead6', tornado: '#b8d4e8' };
+// 폭발 무기별 고리 색. 없는 id 는 흰색으로 떨어진다.
+var BLAST_COLOR = { catnip: '#9ae86a', nuke: '#ffcf5a' };
+// ☢️ 핵폭탄 아이템 글자 크기 — render() 마다 문자열을 새로 이어붙이지 않도록 한 번만 만든다.
+var NUKE_FONT = CONFIG.nukeItem.size + 'px serif';
+function render(){
+  var camX = world.player.x - viewW / 2;
+  var camY = world.player.y - viewH / 2;
+  drawBackground(camX, camY);
+
+  // 우유 웅덩이 (바닥에 깔리므로 가장 먼저 그린다)
+  var fitems = world.fields.items;
+  for (var fi = 0; fi < fitems.length; fi++){
+    var fd = fitems[fi];
+    if (!fd.active) continue;
+    var fx = fd.x - camX, fy = fd.y - camY;
+    if (fx < -CULL || fy < -CULL || fx > viewW + CULL || fy > viewH + CULL) continue;
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#eef3ff';
+    ctx.beginPath();
+    ctx.arc(fx, fy, fd.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // 두더지 예고 — 흙더미가 부풀다가 터진다
+  var witems = world.warns.items;
+  for (var wi2 = 0; wi2 < witems.length; wi2++){
+    var wn2 = witems[wi2];
+    if (!wn2.active) continue;
+    var wx = wn2.x - camX, wy = wn2.y - camY;
+    if (wx < -CULL || wy < -CULL || wx > viewW + CULL || wy > viewH + CULL) continue;
+    var grow = 1 - wn2.left / CONFIG.enemies.mole.warnSec;   // 0 → 1
+    ctx.globalAlpha = 0.3 + 0.5 * grow;
+    ctx.fillStyle = '#6b4b2a';
+    ctx.beginPath();
+    ctx.arc(wx, wy, CONFIG.enemies.mole.radius * (0.6 + 0.8 * grow), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // 젬 (적보다 먼저 그려 아래에 깔리게)
+  ctx.fillStyle = '#5ad1e8';
+  var gitems = world.gems.items;
+  for (var gi = 0; gi < gitems.length; gi++){
+    var g = gitems[gi];
+    if (!g.active) continue;
+    var gx = g.x - camX, gy = g.y - camY;
+    if (gx < -CULL || gy < -CULL || gx > viewW + CULL || gy > viewH + CULL) continue;
+    ctx.fillRect(gx - GEM_HALF, gy - GEM_HALF, CONFIG.gem.size, CONFIG.gem.size);
+  }
+
+  // ☢️ 핵폭탄 아이템 — 젬 바로 다음에 그린다. 밟으면 터지고, 안 밟으면 아껴둔 것이다.
+  ctx.font = NUKE_FONT;
+  var nitems = world.nukes.items;
+  for (var ni = 0; ni < nitems.length; ni++){
+    var nk = nitems[ni];
+    if (!nk.active) continue;
+    var nx = nk.x - camX, ny = nk.y - camY;
+    if (nx < -CULL || ny < -CULL || nx > viewW + CULL || ny > viewH + CULL) continue;
+    ctx.fillText(CONFIG.nukeItem.emoji, nx, ny);
+  }
+  ctx.font = '32px serif';   // 고양이·다른 그림이 쓰는 기본 크기로 되돌린다
+
+  // 적 — 맞은 직후에는 흰색으로 번쩍인다
+  var items = world.enemies.items;
+  for (var i = 0; i < items.length; i++){
+    var e = items[i];
+    if (!e.active) continue;
+    var sx = e.x - camX, sy = e.y - camY;
+    if (sx < -CULL || sy < -CULL || sx > viewW + CULL || sy > viewH + CULL) continue;
+    var etype = CONFIG.enemies[e.typeId];
+    var half = etype.size / 2;
+    ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : etype.color;
+    ctx.fillRect(sx - half, sy - half, half * 2, half * 2);
+  }
+
+  // 투사체
+  var pitems = world.projectiles.items;
+  for (var pi = 0; pi < pitems.length; pi++){
+    var pj = pitems[pi];
+    if (!pj.active) continue;
+    var ppx = pj.x - camX, ppy = pj.y - camY;
+    if (ppx < -CULL || ppy < -CULL || ppx > viewW + CULL || ppy > viewH + CULL) continue;
+    ctx.fillStyle = PROJ_COLOR[pj.weaponId] || '#ffffff';
+    ctx.beginPath();
+    ctx.arc(ppx, ppy, pj.radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 할퀴기 스윙 — 공격 리듬이 보여야 "언제 다가갈지"를 판단할 수 있다
+  if (world.swingTimer > 0){
+    var swingT = world.swingTimer / (CONFIG.weapons.claw.swingMs / 1000);  // 1 → 0
+    var ang = Math.atan2(world.swingDir.y, world.swingDir.x);
+    var half = CONFIG.weapons.claw.arcDeg * Math.PI / 180 / 2;
+    ctx.globalAlpha = 0.35 * swingT;
+    ctx.fillStyle = '#ffe9a8';
+    ctx.beginPath();
+    ctx.moveTo(viewW / 2, viewH / 2);
+    ctx.arc(viewW / 2, viewH / 2, world.swingRadius, ang - half, ang + half);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // 레이저 잔상
+  if (world.beamTimer > 0){
+    var beamT = world.beamTimer / (CONFIG.weapons.laser.showMs / 1000);   // 1 → 0
+    ctx.save();
+    ctx.translate(viewW / 2, viewH / 2);
+    ctx.rotate(Math.atan2(world.beamDir.y, world.beamDir.x));
+    ctx.globalAlpha = 0.75 * beamT;
+    ctx.fillStyle = '#ff5a5a';
+    ctx.fillRect(0, -world.beamHalfW, world.beamLen, world.beamHalfW * 2);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // 폭발 고리 (캣닢·핵폭탄) — 어느 무기가 터뜨렸는지는 core 가 알려준다.
+  // 캣닢의 showMs 를 박아 두면 핵폭탄 잔상이 1 을 넘어 이상해진다.
+  if (world.blastTimer > 0 && world.blastShow > 0){
+    var blastT = world.blastTimer / world.blastShow;   // 1 → 0
+    var bx = world.blastX - camX, by = world.blastY - camY;
+    ctx.globalAlpha = 0.55 * blastT;
+    ctx.strokeStyle = BLAST_COLOR[world.blastWeaponId] || '#ffffff';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(bx, by, world.blastR * (1.15 - 0.15 * blastT), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
+  // 정전기 번개 — core 가 적어 준 연출용 좌표(chainX·chainY)만 읽는다.
+  // 판정용 스크래치(_hitDmg·_hitRadius)는 무기들이 돌려쓰므로 여기서 읽으면 안 된다.
+  if (world.chainTimer > 0 && world.chainShow > 0 && world.chainN > 1){
+    var chainT = world.chainTimer / world.chainShow;   // 1 → 0
+    ctx.globalAlpha = 0.9 * chainT;
+    ctx.strokeStyle = '#ffe66a';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(world.chainX[0] - camX, world.chainY[0] - camY);
+    for (var ci = 1; ci < world.chainN; ci++){
+      ctx.lineTo(world.chainX[ci] - camX, world.chainY[ci] - camY);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
+  // 꼬리 회전 공
+  if (world.weapons.tail){
+    ctx.fillStyle = '#c9b4ff';
+    ctx.beginPath();
+    ctx.arc(world.orbitX - camX, world.orbitY - camY,
+            CONFIG.weapons.tail.ballRadius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 고양이 친구 — 플레이어보다 먼저 그려 뒤에 깔린다
+  var citems = world.companions.items;
+  for (var cmi = 0; cmi < citems.length; cmi++){
+    var cm = citems[cmi];
+    if (!cm.active) continue;
+    var cmx = cm.x - camX, cmy = cm.y - camY;
+    if (cmx < -CULL || cmy < -CULL || cmx > viewW + CULL || cmy > viewH + CULL) continue;
+    ctx.font = '24px serif';
+    ctx.fillStyle = '#f7efd8';
+    ctx.fillText(CONFIG.weapons.friend.emoji, cmx, cmy);
+    ctx.font = '32px serif';   // 플레이어 고양이용 설정으로 되돌린다
+  }
+
+  // 고양이 (아트 교체 지점)
+  // 맞은 직후 무적인 동안은 깜빡인다 — 왜 안 맞는지가 보여야 한다.
+  var inv = world.player.invuln;
+  if (inv > 0) ctx.globalAlpha = (Math.floor(inv * 20) % 2) ? 0.35 : 1;
+  ctx.fillStyle = '#f7efd8';
+  ctx.fillText('\u{1F431}', viewW / 2, viewH / 2);
+  ctx.globalAlpha = 1;
+
+  drawHud();
+}
+
+function drawHud(){
+  // 우상단 일시정지 버튼(44px + 여백 10px) 자리를 비워 두고 바를 그린다.
+  // 안 그러면 체력·경험치 바의 오른쪽 끝이 버튼에 가려 얼마나 남았는지 안 보인다.
+  var pad = 12, barW = viewW - pad * 2 - 52;
+
+  // 체력 바
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(pad, pad, barW, 14);
+  ctx.fillStyle = '#e05252';
+  ctx.fillRect(pad, pad, barW * Math.max(0, world.player.hp / world.player.maxHp), 14);
+
+  // 경험치 바
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(pad, pad + 18, barW, 8);
+  ctx.fillStyle = '#5ad1e8';
+  ctx.fillRect(pad, pad + 18, barW * Math.min(1, world.xp / world.xpToNext()), 8);
+
+  // 글자 (경과 시간 · 레벨 · 처치 수)
+  var total = Math.floor(world.elapsed);
+  var mm = Math.floor(total / 60), ss = total % 60;
+  ctx.font = '16px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#f7efd8';
+  ctx.fillText('Lv.' + world.level + '   ' + mm + ':' + (ss < 10 ? '0' : '') + ss +
+               '   잡은 쥐 ' + world.kills +
+               '   \u{1FA99} ' + Math.floor(world.coins), pad, pad + 44);
+  // 보스 체력바 (보스가 있을 때만)
+  // 글자 줄(baseline pad+44, 16px 가운데 정렬 → 아래끝 pad+52) 아래에 둔다.
+  // 폰 세로 화면에서 겹치면 보스전 내내 레벨·시간이 안 읽힌다.
+  if (world.boss && world.boss.active){
+    var bw = viewW - pad * 2;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(pad, pad + 56, bw, 10);
+    ctx.fillStyle = '#d46a6a';
+    ctx.fillRect(pad, pad + 56, bw * Math.max(0, world.boss.hp / world.boss.maxHp), 10);
+  }
+  // 보유 무기 아이콘 (좌하단)
+  ctx.textAlign = 'left';
+  ctx.font = '22px serif';
+  var order = world.weaponOrder;
+  for (var wi = 0; wi < order.length; wi++){
+    ctx.fillText(CONFIG.weapons[order[wi]].emoji, 12 + wi * 30, viewH - 26);
+  }
+  // 고양이 그리기용 설정으로 되돌린다
+  ctx.font = '32px serif';
+  ctx.textAlign = 'center';
+}
+
+
+
+/* ---------------- 입력: 키보드 ---------------- */
+var keys = Object.create(null);
+window.addEventListener('keydown', function(e){ keys[e.key.toLowerCase()] = true; });
+window.addEventListener('keyup',   function(e){ keys[e.key.toLowerCase()] = false; });
+// 창을 벗어나면 키·포인터 스틱 모두 해제 (고착 방지)
+window.addEventListener('blur', function(){
+  for (var k in keys) keys[k] = false;
+  if (stickId !== null) stickEnd();
+});
+
+function keyboardVec(out){
+  var x = 0, y = 0;
+  if (keys['a'] || keys['arrowleft'])  x -= 1;
+  if (keys['d'] || keys['arrowright']) x += 1;
+  if (keys['w'] || keys['arrowup'])    y -= 1;
+  if (keys['s'] || keys['arrowdown'])  y += 1;
+  out.x = x; out.y = y;
+  return out;
+}
+
+/* ---------------- 입력: 가상 조이스틱 ---------------- */
+var STICK_MAX = CONFIG.input.stickMax; // 이 거리에서 최대 속도
+var stickEl = document.getElementById('stick');
+var knobEl = document.getElementById('stickKnob');
+var stickId = null, stickOX = 0, stickOY = 0;
+var touchVec = { x: 0, y: 0 };
+
+function stickStart(id, x, y){
+  stickId = id; stickOX = x; stickOY = y;
+  stickEl.style.left = x + 'px';
+  stickEl.style.top = y + 'px';
+  stickEl.style.display = 'block';
+}
+function stickMove(x, y){
+  var dx = x - stickOX, dy = y - stickOY;
+  var len = Math.sqrt(dx * dx + dy * dy);
+  if (len > STICK_MAX){ dx = dx / len * STICK_MAX; dy = dy / len * STICK_MAX; }
+  knobEl.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  touchVec.x = dx / STICK_MAX;
+  touchVec.y = dy / STICK_MAX;
+}
+function stickEnd(){
+  stickId = null;
+  touchVec.x = 0; touchVec.y = 0;
+  stickEl.style.display = 'none';
+  knobEl.style.transform = 'translate(0,0)';
+}
+
+/* 터치·펜·마우스를 Pointer Events 하나로 처리한다. 캔버스에서 시작한 포인터를
+   캡처하므로 화면 밖으로 밀었다가 놓아도 조이스틱이 고착되지 않는다. */
+canvas.addEventListener('pointerdown', function(e){
+  if (stickId !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  stickStart(e.pointerId, e.clientX, e.clientY);
+  canvas.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+
+canvas.addEventListener('pointermove', function(e){
+  if (e.pointerId !== stickId) return;
+  stickMove(e.clientX, e.clientY);
+  e.preventDefault();
+});
+
+function onPointerGone(e){
+  if (e.pointerId !== stickId) return;
+  stickEnd();
+}
+canvas.addEventListener('pointerup', onPointerGone);
+canvas.addEventListener('pointercancel', onPointerGone);   // 알림 등으로 입력이 끊겨도 멈추게
+/* 캔버스 것만으로는 부족하다. setPointerCapture 가 걸리면 손 뗀 이벤트가 캔버스로
+   되돌아오지만, 캡처가 실패하거나 도중에 풀리면 그 이벤트는 다른 곳으로 가버리고
+   조이스틱이 눌린 채로 굳는다(고양이가 계속 달린다). window 에도 같은 감지를 둬서
+   어디서 놓든 반드시 풀리게 한다. 캡처가 정상일 때는 캔버스 쪽이 먼저 처리하고
+   여기서는 stickId 가 이미 null 이라 그냥 지나간다. */
+window.addEventListener('pointerup', onPointerGone);
+window.addEventListener('pointercancel', onPointerGone);
+
+var kbVec = { x: 0, y: 0 };
+function applyInput(){
+  keyboardVec(kbVec);
+  world.setInput(kbVec.x + touchVec.x, kbVec.y + touchVec.y);
+}
+
+/* ---------------- 오버레이: 레벨업 3택 · 게임오버 ---------------- */
+var overlay = document.getElementById('overlay');
+var overlayTitle = document.getElementById('overlayTitle');
+var overlayStat = document.getElementById('overlayStat');
+var cardsEl = document.getElementById('cards');
+/* 판 도중 저장. 강화 저장(catSurvivor.save)과 키를 나눈다 —
+   판 저장이 깨져도 모은 코인과 영구 강화는 영향을 받으면 안 된다. */
+var RunSave = (function(){
+  var KEY = 'catSurvivor.run';
+  return {
+    save: function(snap){
+      if (!snap) return false;
+      try { window.localStorage.setItem(KEY, JSON.stringify(snap)); return true; }
+      catch (e){ return false; }
+    },
+    load: function(){
+      try {
+        var raw = window.localStorage.getItem(KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+      } catch (e){ return null; }
+    },
+    clear: function(){
+      try { window.localStorage.removeItem(KEY); } catch (e){}
+    }
+  };
+})();
+
+var overlayBtn = document.getElementById('overlayBtn');
+var rerollBtn = document.getElementById('rerollBtn');
+var shopBtn = document.getElementById('shopBtn');
+var paused = false;
+var runBanked = false;   // 이번 판의 코인을 이미 적립했는가
+var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작된 판인가 (최고 기록에 넣지 않는다)
+var inShop = false;      // 지금 강화 상점 화면인가
+
+// 카드형 선택지는 실제 button 으로 만든다. 마우스·터치뿐 아니라 Tab/Enter 로도 고를 수 있다.
+function appendCard(html, onActivate, disabled){
+  var el = document.createElement('button');
+  el.type = 'button';
+  el.className = disabled ? 'card off' : 'card';
+  el.disabled = !!disabled;
+  el.innerHTML = html;
+  if (onActivate && !disabled) el.addEventListener('click', onActivate);
+  cardsEl.appendChild(el);
+  return el;
+}
+
+// 3택 카드를 그린다. 다시 뽑기가 같은 자리를 새 카드로 갈아 끼울 때도 이걸 쓴다.
+function renderChoices(choices){
+  cardsEl.innerHTML = '';
+  for (var i = 0; i < choices.length; i++){
+    (function(c){
+      appendCard('<div class="ico">' + c.emoji + '</div>' +
+                 '<div class="nm">' + c.name + '</div>' +
+                 '<div class="lv">' + (c.level ? 'Lv.' + c.level : '') + '</div>' +
+                 '<div class="ds">' + c.desc + '</div>',
+                 function(){ pick(c); }, false);
+    })(choices[i]);
+  }
+}
+
+// 남은 다시 뽑기 횟수를 버튼에 반영한다. 0 이면 버튼 자체가 사라진다.
+function updateRerollBtn(){
+  if (world.rerollLeft > 0){
+    rerollBtn.style.display = 'block';
+    rerollBtn.textContent = '\u{1F3B2} 다시 뽑기 (' + world.rerollLeft + '번 남음)';
+  } else {
+    rerollBtn.style.display = 'none';
+  }
+}
+
+function showLevelUp(){
+  overlayTitle.textContent = '레벨 ' + world.level + ' 달성!';
+  overlayStat.textContent = '하나를 고르세요';
+  overlayBtn.style.display = 'none';
+  shopBtn.style.display = 'none';
+  cardsEl.style.display = 'flex';
+  renderChoices(world.rollChoices());
+  updateRerollBtn();
+  overlay.classList.add('on');
+  paused = true;
+}
+
+rerollBtn.addEventListener('click', function(e){
+  e.preventDefault();
+  var cs = world.reroll();
+  if (!cs) return;              // 이미 다 썼다
+  renderChoices(cs);
+  updateRerollBtn();
+});
+
+function pick(c){
+  world.applyChoice(c);
+  rerollBtn.style.display = 'none';
+  overlay.classList.remove('on');
+  paused = false;
+  lastTime = 0;                 // 정지한 동안 쌓인 시간을 버린다
+  if (world.pendingChoices > 0) showLevelUp();
+}
+
+var isPauseScreen = false;   // 지금 오버레이가 일시정지 화면인가
+
+/* 지금 판을 저장한다. 끝난 판·측정 중·조작한 판은 저장하지 않는다.
+   "이어서 할까요?"를 묻는 중(pendingRun)에도 저장하면 안 된다 — 그 시점의 world 는
+   아직 아무것도 안 한 빈 판이라, 저장해 둔 진행을 빈 판으로 덮어써 날려버린다. */
+function saveRun(force){
+  if (world.gameOver || world.cleared || world.benchMode || runTainted) return;
+  if (pendingRun) return;
+  // 막 시작한 판은 저장하지 않는다. 안 그러면 게임을 열자마자 나갈 때마다
+  // "0분 00초에서 멈췄습니다"를 묻게 된다 — 이어할 것이 없는 물음이다.
+  if (!force && world.elapsed < CONFIG.runSave.minSec && world.level <= 1) return;
+  var snap = world.snapshot();
+  if (snap) RunSave.save(snap);
+}
+
+function showPause(){
+  var m = Math.floor(world.elapsed / 60), s = Math.floor(world.elapsed % 60);
+  overlayTitle.textContent = '잠깐 멈춤';
+  overlayStat.innerHTML = m + '분 ' + (s < 10 ? '0' : '') + s + '초 · Lv.' + world.level +
+    '<br><small>지금 나가셔도 됩니다. 다음에 열면 여기서부터 이어집니다.</small>';
+  cardsEl.innerHTML = '';
+  cardsEl.style.display = 'none';
+  rerollBtn.style.display = 'none';
+  shopBtn.style.display = 'none';
+  overlayBtn.style.display = 'block';
+  overlayBtn.textContent = '계속하기';
+  overlay.classList.add('on');
+  paused = true;
+  isPauseScreen = true;
+}
+
+function resumeFromPause(){
+  overlay.classList.remove('on');
+  paused = false;
+  isPauseScreen = false;
+  lastTime = 0;              // 멈춰 있던 동안 쌓인 시간을 버린다
+}
+
+// 일시정지 버튼·키가 부른다. 레벨업 카드·상점·결과 화면에서는 아무것도 하지 않는다.
+function togglePause(){
+  if (world.gameOver || world.cleared || inShop) return;
+  if (pendingRun) return;                                   // 이어할지 고르는 중
+  if (world.pendingChoices > 0 && !isPauseScreen) return;   // 카드를 고르는 중
+  if (isPauseScreen) resumeFromPause();
+  else { saveRun(); showPause(); }
+}
+
+// 판의 결과를 저장소에 반영한다. 한 판에 한 번만.
+function bankRun(cleared){
+  if (runBanked) return;
+  runBanked = true;
+  RunSave.clear();                   // 끝난 판은 이어할 것이 없다
+  Save.addCoins(world.coins);
+  if (!runTainted) Save.recordRun(Math.floor(world.elapsed), world.level, cleared);
+}
+
+// 결과 화면 아래에 붙는 최고 기록 줄
+function bestLine(){
+  var b = Save.get().best;
+  if (!b.sec) return '';
+  var bm = Math.floor(b.sec / 60), bs = b.sec % 60;
+  return '<br><small>최고 기록 ' + bm + '분 ' + (bs < 10 ? '0' : '') + bs + '초' +
+         ' · 최고 Lv.' + b.level +
+         (b.clears ? ' · 클리어 ' + b.clears + '회' : '') + '</small>';
+}
+
+function showGameOver(){
+  bankRun(false);
+  var total = Math.floor(world.elapsed);
+  var mm = Math.floor(total / 60), ss = total % 60;
+  overlayTitle.textContent = '쥐떼에게 당했습니다';
+  overlayStat.innerHTML = '버틴 시간 ' + mm + '분 ' + ss + '초<br>' +
+                          '잡은 쥐 ' + world.kills + '마리<br>' +
+                          '최종 레벨 ' + world.level + '<br>' +
+                          '\u{1FA99} 이번 판 ' + Math.floor(world.coins) +
+                          ' (모은 코인 ' + Save.get().coins + ')' + bestLine();
+  cardsEl.style.display = 'none';
+  rerollBtn.style.display = 'none';
+  overlayBtn.style.display = 'block';
+  overlayBtn.textContent = '다시 하기';
+  shopBtn.style.display = 'block';
+  overlay.classList.add('on');
+  paused = true;
+}
+
+function showCleared(){
+  bankRun(true);
+  var total = Math.floor(world.elapsed);
+  var mm = Math.floor(total / 60), ss = total % 60;
+  overlayTitle.textContent = '쥐왕을 물리쳤습니다!';
+  overlayStat.innerHTML = '걸린 시간 ' + mm + '분 ' + (ss < 10 ? '0' : '') + ss + '초<br>' +
+                          '잡은 쥐 ' + world.kills + '마리<br>' +
+                          '최종 레벨 ' + world.level + '<br>' +
+                          '\u{1FA99} 이번 판 ' + Math.floor(world.coins) +
+                          ' (모은 코인 ' + Save.get().coins + ')' + bestLine();
+  cardsEl.style.display = 'none';
+  rerollBtn.style.display = 'none';
+  overlayBtn.style.display = 'block';
+  overlayBtn.textContent = '다시 하기';
+  shopBtn.style.display = 'block';
+  overlay.classList.add('on');
+  paused = true;
+}
+
+// 강화 한 항목의 "n단계일 때의 효과"를 사람이 읽는 문구로 만든다.
+// CONFIG.meta 의 항목은 비율(pct) 아니면 가산(add) 중 하나를 가진다.
+function metaEffectText(key, step){
+  var m = CONFIG.meta[key];
+  if (m.pct !== undefined) return '+' + (step * m.pct) + '%';
+  return '+' + (step * m.add);
+}
+
+// 강화 상점. 결과 화면에서 들어오고, 나가면 결과 화면으로 돌아간다.
+function showShop(){
+  var d = Save.get();
+  overlayTitle.textContent = '강화 상점';
+  overlayStat.innerHTML = '\u{1FA99} 모은 코인 ' + d.coins;
+  cardsEl.style.display = 'flex';
+  rerollBtn.style.display = 'none';
+  cardsEl.innerHTML = '';
+  var keys = ['power', 'maxHp', 'speed', 'magnet', 'xpGain'];
+  for (var i = 0; i < keys.length; i++){
+    (function(key){
+      var m = CONFIG.meta[key];
+      var step = d.meta[key];
+      var cost = Save.costOf(key);
+      var buyable = (cost !== null && d.coins >= cost);
+      // 지금 효과 → 사면 될 효과. 단계가 10까지 늘어나면 숫자만으로는
+      // 얼마나 세졌는지 감이 안 온다.
+      var nowText = metaEffectText(key, step);
+      var effect = (cost === null)
+        ? nowText + ' (최대)'
+        : nowText + ' → ' + metaEffectText(key, step + 1);
+      appendCard('<div class="ico">' + m.emoji + '</div>' +
+                 '<div class="nm">' + m.name + '</div>' +
+                 '<div class="lv">' + step + ' / ' + CONFIG.meta.maxStep + '</div>' +
+                 '<div class="ds">' + m.desc + '<br>' + effect + '<br>' +
+                 (cost === null ? '최대 강화' : '\u{1FA99} ' + cost) + '</div>',
+                 function(){
+                   if (Save.buy(key)) showShop();     // 사고 나서 화면을 다시 그린다
+                 }, !buyable);
+    })(keys[i]);
+  }
+  overlayBtn.style.display = 'block';
+  overlayBtn.textContent = '닫기';
+  shopBtn.style.display = 'none';
+  overlay.classList.add('on');
+  paused = true;
+  inShop = true;
+}
+
+document.getElementById('pauseBtn').addEventListener('click', function(e){
+  e.preventDefault();
+  togglePause();
+});
+
+window.addEventListener('keydown', function(e){
+  if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') togglePause();
+});
+
+/* 폰에서 전화가 오거나 홈으로 나가면 여기가 불린다. 이 순간 저장해두지 않으면
+   탭이 정리될 때 그 판이 통째로 사라진다 — 이 기능을 만든 이유가 이것이다.
+   모바일에서 beforeunload 는 안 불리는 경우가 많아 쓰지 않는다. */
+function onLeaving(){
+  if (world.gameOver || world.cleared || inShop) return;
+  if (pendingRun) return;        // 이어할지 묻는 중이면 그 물음을 그대로 둔다
+  saveRun();
+  if (!paused) showPause();
+}
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'hidden') onLeaving();
+});
+window.addEventListener('pagehide', onLeaving);
+
+shopBtn.addEventListener('click', showShop);
+
+overlayBtn.addEventListener('click', function(){
+  if (isPauseScreen){ resumeFromPause(); return; }
+  if (inShop){                       // 상점에서 나가면 결과 화면으로 돌아간다
+    inShop = false;
+    cardsEl.innerHTML = '';
+    cardsEl.style.display = 'none';
+    shopBtn.style.display = 'block';
+    if (world.cleared) showCleared(); else showGameOver();
+    return;
+  }
+  world.applyMeta(Save.get().meta);   // 상점에서 산 강화를 다음 판에 반영
+  world.reset();
+  RunSave.clear();                   // 새 판을 시작하니 옛 저장은 버린다
+  isPauseScreen = false;
+  runBanked = false;
+  runTainted = false;
+  overlay.classList.remove('on');
+  paused = false;
+  lastTime = 0;
+});
+
+var lastTime = 0;
+function frame(now){
+  if (!lastTime) lastTime = now;
+  var delta = now - lastTime;
+  lastTime = now;
+  applyInput();
+  if (!paused){
+    if (world.cleared){ showCleared(); }
+    else if (world.gameOver){ showGameOver(); }
+    else if (world.pendingChoices > 0){ showLevelUp(); }
+  }
+  var steps = stepper.advance(delta);        // 정지 중에도 그대로 흘린다
+  // 측정 중일 때만 계산/그리기 시간을 따로 잰다 (평소엔 시계를 읽지 않는다)
+  var t0 = stressRecording ? performance.now() : 0;
+  for (var i = 0; i < (paused ? 0 : steps); i++){
+    world.update(CONFIG.step.ms / 1000);
+  }
+  var t1 = stressRecording ? performance.now() : 0;
+  render();
+  if (stressRecording) stressTick(delta, t1 - t0, performance.now() - t1);
+  requestAnimationFrame(frame);
+}
+
+/* 저장된 판이 있으면 시작하자마자 물어본다. 이어하기를 고르면 그 시점부터,
+   새로 시작을 고르면 저장을 버리고 처음부터. */
+var pendingRun = RunSave.load();
+if (pendingRun){
+  (function(){
+    var m = Math.floor((pendingRun.elapsed || 0) / 60);
+    var s = Math.floor((pendingRun.elapsed || 0) % 60);
+    var pendingLevel = (typeof pendingRun.level === 'number' && isFinite(pendingRun.level) &&
+                        pendingRun.level >= 1) ? Math.floor(pendingRun.level) : 1;
+    overlayTitle.textContent = '이어서 할까요?';
+    overlayStat.innerHTML = m + '분 ' + (s < 10 ? '0' : '') + s + '초 · Lv.' +
+      pendingLevel + ' 에서 멈췄습니다' +
+      '<br><small>이어하면 화면의 쥐는 새로 몰려옵니다</small>';
+    cardsEl.style.display = 'flex';
+    cardsEl.innerHTML = '';
+    shopBtn.style.display = 'none';
+    rerollBtn.style.display = 'none';
+    overlayBtn.style.display = 'none';
+
+    function 고르기(이어할까){
+      RunSave.clear();
+      cardsEl.innerHTML = '';
+      cardsEl.style.display = 'none';
+      shopBtn.style.display = 'block';
+      overlayBtn.style.display = 'block';
+      overlay.classList.remove('on');
+      paused = false;
+      lastTime = 0;
+      if (이어할까 && !world.restore(pendingRun)) world.reset();   // 못 쓰면 새 판
+      pendingRun = null;
+    }
+
+    var 항목 = [
+      { ico: '\u{25B6}️', nm: '이어하기', ds: m + '분 ' + s + '초부터', go: true },
+      { ico: '\u{1F504}', nm: '새로 시작', ds: '처음부터 다시', go: false }
+    ];
+    for (var i = 0; i < 항목.length; i++){
+      (function(c){
+        appendCard('<div class="ico">' + c.ico + '</div>' +
+                   '<div class="nm">' + c.nm + '</div>' +
+                   '<div class="ds">' + c.ds + '</div>',
+                   function(){ 고르기(c.go); }, false);
+      })(항목[i]);
+    }
+    overlay.classList.add('on');
+    paused = true;
+  })();
+}
+
+
+
+requestAnimationFrame(frame);
+
+
+
+
+
+
+// 프레임 루프(frame 함수)가 매 프레임 stressRecording 을 읽으므로 측정 도구를
+// 걷어내도 이 선언은 남겨야 한다. 남기지 않으면 배포본이 첫 프레임에서 죽는다.
+var stressRecording = false;
+
+})();
+</script>
+</body>
+</html>
