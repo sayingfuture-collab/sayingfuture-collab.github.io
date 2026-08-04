@@ -50,6 +50,10 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
 .card .lv{font-size:12px; opacity:.75; margin-top:2px}
 .card .ds{font-size:13px; opacity:.9; margin-top:8px; line-height:1.4}
 .card.off{ opacity:.45; cursor:default }
+/* 장착 중인 카드 — 못 사는 카드와 같은 흐림 처리를 쓰면 "지금 쓰는 것"인지
+   "못 사는 것"인지 라벨을 읽기 전엔 구분이 안 된다. 불투명하게 두고
+   기존 강조색(포커스 아웃라인과 동일)으로 테두리만 준다. */
+.card.sel{ opacity:1; cursor:default; border-color:#f7efd8; box-shadow:0 0 0 2px #f7efd8 inset }
 /* 일시정지 버튼 — 폰 엄지로 닿아야 하므로 최소 44px */
 #pauseBtn{
   position: fixed; top: 10px; right: 10px; z-index: 5;
@@ -72,6 +76,8 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
 }
 #shopBtn{ background:#3b4a5a; color:#e8eef4; margin-top:8px }
 #overlayStat{font-size:15px; opacity:.9; text-align:center; line-height:1.7}
+.shopSection{ flex:0 0 100%; text-align:center; opacity:.7; font-size:14px;
+              margin:10px 0 2px; }
 </style>
 </head>
 <body>
@@ -259,12 +265,48 @@ var CONFIG = {
     speed:     { name: '날쌘 발',       emoji: '\u{1F4A8}', pct: 4,  desc: '더 빨리 움직입니다' },
     magnet:    { name: '예민한 코',     emoji: '\u{1F43D}', pct: 12, desc: '젬을 더 멀리서 줍습니다' },
     xpGain:    { name: '영리한 사냥',   emoji: '\u{1F9E0}', pct: 8,  desc: '경험치를 더 많이 받아 빨리 강해집니다' }
+  },
+  /* 시작 무기 해금가. 봇 시뮬 600판(무기별 강화0/강화풀 각 30판)의 클리어율
+     순서를 그대로 따랐다. 측정 근거는 계획/10-시작무기-해금-측정결과.md.
+     싼 것부터 사게 두되, 판을 뒤집는 bone 은 한참 뒤에 오도록 세게 매겼다. */
+  starterCosts: {
+    claw: 0,
+    yarn: 4000, tail: 4000,
+    laser: 9000, friend: 9000, tornado: 9000, zap: 9000,
+    catnip: 15000, milk: 15000,
+    bone: 30000
   }
 };
 
 /* 패시브를 적을 때 쓰는 고정 순서. CONFIG.passives 를 for...in 으로 돌면
    엔진마다 순서가 달라져 같은 판이 다른 문자열로 기록된다. */
 var PASSIVE_ORDER = ['claws', 'tuna', 'bell', 'whisker', 'nap', 'clover'];
+
+/* 무기를 훑을 때 쓰는 고정 순서. CONFIG.weapons 를 for...in 으로 돌면 엔진마다
+   순서가 달라져 같은 저장 데이터가 다른 화면·다른 결과를 낸다.
+   맨 앞은 반드시 'claw' — 무료 기본 무기이고, 모든 되돌림의 착지점이다. */
+var WEAPON_IDS = ['claw', 'yarn', 'bone', 'laser', 'catnip', 'milk',
+                  'tail', 'tornado', 'zap', 'friend'];
+
+/* 저장에서 읽은 해금 정보를 믿을 수 있는 모양으로 만든다.
+   손으로 고친 저장 데이터가 "게임이 시작조차 안 되는" 상태를 만들면 안 된다.
+   localStorage 를 안 만지는 순수 함수라 core 에 두고 테스트로 고정한다. */
+function normalizeStarterSave(raw){
+  var out = { unlocked: ['claw'], starter: 'claw' };
+  var i, id;
+  if (raw && Array.isArray(raw.unlocked)){
+    for (i = 0; i < raw.unlocked.length; i++){
+      id = raw.unlocked[i];
+      if (typeof id !== 'string') continue;
+      if (WEAPON_IDS.indexOf(id) < 0) continue;      // 아는 무기 10종에만 있는 이름만 통과
+      if (out.unlocked.indexOf(id) >= 0) continue;   // 중복 제거 (claw 포함)
+      out.unlocked.push(id);
+    }
+  }
+  if (raw && typeof raw.starter === 'string' &&
+      out.unlocked.indexOf(raw.starter) >= 0) out.starter = raw.starter;
+  return out;
+}
 
 /* ================================================================
    Vec — 입력 벡터 처리. out 객체를 재사용해 할당을 만들지 않는다.
@@ -471,6 +513,7 @@ function World(config, metaLevels){
 
   this.facing = { x: 1, y: 0 };   // 마지막 이동 방향. 멈춰도 유지된다.
   this.aimDir = { x: 1, y: 0 };   // 이번 공격이 향한 방향 (자동 조준 결과)
+  this.starter = 'claw';   // 이 판을 시작한 무기. reset 이 바꾼다.
   this.weapons = { claw: { level: 1, cdLeft: 0 } };
   this.weaponOrder = ['claw'];   // 발동 순서 고정 (for-in 은 순서가 엔진 마음이라 봇 시뮬 재현성이 깨진다)
   this.swingTimer = 0;   // 할퀴기 스윙 이펙트 남은 시간(초) — 렌더 전용, 판정과 무관
@@ -754,7 +797,7 @@ World.prototype.applyMeta = function(metaLevels){
 };
 
 // 판을 처음 상태로 되돌린다.
-World.prototype.reset = function(){
+World.prototype.reset = function(starterId){
   this.enemies.releaseAll();
   this.player.x = 0; this.player.y = 0;
   this.player.invuln = 0;
@@ -771,8 +814,6 @@ World.prototype.reset = function(){
   this.boss = null;
   this.facing.x = 1; this.facing.y = 0;
   this.aimDir.x = 1; this.aimDir.y = 0;
-  this.weapons.claw.level = 1;
-  this.weapons.claw.cdLeft = 0;
   this.swingTimer = 0;
   this.swingRadius = 0;
   this.swingDir.x = 1; this.swingDir.y = 0;
@@ -808,8 +849,17 @@ World.prototype.reset = function(){
   this.passives.claws = 0; this.passives.tuna = 0; this.passives.bell = 0;
   this.passives.whisker = 0; this.passives.nap = 0; this.passives.clover = 0;
   this.coins = 0;
-  for (var wid in this.weapons) if (wid !== 'claw') delete this.weapons[wid];
-  this.weaponOrder.length = 1;   // ['claw'] 만 남긴다
+  // 시작 무기를 정한다. 모르는 값이 오면 쓰던 것을 그대로 둔다 —
+  // shell 이 검증을 하더라도 core 혼자서 유효한 판을 만들 수 있어야 한다.
+  if (typeof starterId === 'string' && WEAPON_IDS.indexOf(starterId) >= 0)
+    this.starter = starterId;
+  // 무기를 통째로 새로 만든다. 하나씩 지우면 "아는 무기 목록에 없는 id" 가
+  // 살아남아 다음 판까지 따라온다 — 옛 코드는 그걸 막고 있었다.
+  // reset 은 판당 한 번이라 여기서 객체를 새로 만들어도 된다.
+  this.weapons = {};
+  this.weaponOrder.length = 0;
+  this.weapons[this.starter] = { level: 1, cdLeft: 0 };
+  this.weaponOrder.push(this.starter);
   this.benchMode = false;
   this.rebuildGrid();
 };
@@ -944,8 +994,8 @@ World.prototype.restore = function(s){
     this.weaponOrder.push(id);
   }
   if (!this.weaponOrder.length){                 // 무기가 하나도 안 남으면 시작 무기라도
-    this.weapons.claw = { level: 1, cdLeft: 0 };
-    this.weaponOrder.push('claw');
+    this.weapons[this.starter] = { level: 1, cdLeft: 0 };
+    this.weaponOrder.push(this.starter);
   }
 
   // 최대 체력은 저장값을 그대로 믿는다. 참치캔·영구강화가 이미 반영된 값이라
@@ -1789,7 +1839,9 @@ global.CatCore = {
   Pool: Pool,
   Grid: Grid,
   Stepper: Stepper,
-  World: World
+  World: World,
+  WEAPON_IDS: WEAPON_IDS,
+  normalizeStarterSave: normalizeStarterSave
 };
 
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -1799,6 +1851,8 @@ global.CatCore = {
 (function(){
 'use strict';
 var CONFIG = window.CatCore.CONFIG;
+var normalizeStarterSave = window.CatCore.normalizeStarterSave;
+var WEAPON_IDS = window.CatCore.WEAPON_IDS;
 var canvas = document.getElementById('game');
 var ctx = canvas.getContext('2d', { alpha: false });
 
@@ -1817,7 +1871,8 @@ var Save = (function(){
 
   function fresh(){
     return { coins: 0, meta: { power: 0, maxHp: 0, speed: 0, magnet: 0, xpGain: 0 },
-             best: { sec: 0, level: 0, clears: 0 } };
+             best: { sec: 0, level: 0, clears: 0 },
+             unlocked: ['claw'], starter: 'claw' };
   }
   function read(){
     try {
@@ -1837,6 +1892,10 @@ var Save = (function(){
       }
       if (o.best && typeof o.best === 'object') for (var b in f.best)
         f.best[b] = safeStoredInt(o.best[b], Number.MAX_SAFE_INTEGER || 9007199254740991);
+      // 해금·장착은 core 의 순수 함수가 검증한다 (테스트로 고정돼 있다).
+      var st = normalizeStarterSave(o);
+      f.unlocked = st.unlocked;
+      f.starter = st.starter;
       return f;
     } catch (e){
       return mem || fresh();
@@ -1881,6 +1940,32 @@ var Save = (function(){
       var step = d.meta[key];
       return step >= cfg.maxStep ? null : cfg.costs[step];
     },
+    starter: function(){ return this.get().starter; },
+    isUnlocked: function(id){ return this.get().unlocked.indexOf(id) >= 0; },
+    starterCostOf: function(id){
+      var c = CONFIG.starterCosts[id];
+      return (typeof c === 'number') ? c : null;
+    },
+    // 살 수 있으면 사고 true. 이미 샀거나 코인이 모자라면 false.
+    buyStarter: function(id){
+      var d = this.get();
+      if (WEAPON_IDS.indexOf(id) < 0) return false;   // CONFIG 조회는 프로토타입 이름을 통과시킨다
+      if (d.unlocked.indexOf(id) >= 0) return false;
+      var cost = this.starterCostOf(id);
+      if (cost === null || d.coins < cost) return false;
+      d.coins -= cost;
+      d.unlocked.push(id);
+      write();
+      return true;
+    },
+    // 산 무기만 장착할 수 있다
+    equipStarter: function(id){
+      var d = this.get();
+      if (d.unlocked.indexOf(id) < 0) return false;
+      d.starter = id;
+      write();
+      return true;
+    },
     // 개발자용: 전부 만렙 + 코인 지급. 밸런스 판단이 아니라 후반 확인용이다.
     maxOut: function(coins){
       var d = this.get(), k;
@@ -1900,6 +1985,10 @@ var Save = (function(){
 Save.load();
 
 var world = new window.CatCore.World(CONFIG, Save.get().meta);
+/* 장착한 시작 무기를 첫 판부터 적용한다. 저장된 판이 없으면 showTitleOrResume 이
+   reset 을 안 부르고 곧장 시작하므로, 여기서 안 부르면 페이지를 새로 연 뒤의
+   첫 판만 조용히 할퀴기로 시작한다 — 가장 흔한 경로인데 증상이 없다. */
+world.reset(Save.starter());
 var stepper = new window.CatCore.Stepper(CONFIG.step.ms, CONFIG.step.maxSteps, CONFIG.step.maxAccumMs);
 
 
@@ -1916,6 +2005,7 @@ function resize(){
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   world.ensureGridCovers(viewW, viewH);
+  if (inShop) overlay.scrollTop = 0;   // 상점을 연 채 회전하면 제목·잔액이 화면 위로 밀려 사라진다
 }
 window.addEventListener('resize', resize);
 resize();
@@ -2330,7 +2420,10 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '5169ec3';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = 'c18d9f1';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+// GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
+// 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
+window.게임버전 = GAME_VERSION;
 var runUid = '';            // 판마다 새로 만든다. 같은 판이 두 번 저장되는 걸 막는다
 
 /* 새 판이 시작되는 지점마다 이 함수를 불러 runUid 를 새로 만든다.
@@ -2355,10 +2448,10 @@ function escapeHtml(s){
 }
 
 // 카드형 선택지는 실제 button 으로 만든다. 마우스·터치뿐 아니라 Tab/Enter 로도 고를 수 있다.
-function appendCard(html, onActivate, disabled){
+function appendCard(html, onActivate, disabled, selected){
   var el = document.createElement('button');
   el.type = 'button';
-  el.className = disabled ? 'card off' : 'card';
+  el.className = !disabled ? 'card' : (selected ? 'card sel' : 'card off');
   el.disabled = !!disabled;
   el.innerHTML = html;
   if (onActivate && !disabled) el.addEventListener('click', onActivate);
@@ -2599,6 +2692,7 @@ function showNameAsk(after){
 
 // 강화 상점. 결과 화면에서 들어오고, 나가면 결과 화면으로 돌아간다.
 function showShop(){
+  overlay.scrollTop = 0;   // 카드가 늘어 내용이 길다. 스크롤이 남아 있으면 제목·잔액이 화면 위로 밀려 사라진다.
   var d = Save.get();
   overlayTitle.textContent = '강화 상점';
   overlayStat.innerHTML = '\u{1FA99} 모은 코인 ' + d.coins;
@@ -2636,6 +2730,34 @@ function showShop(){
                    if (Save.buy(key)) showShop();     // 사고 나서 화면을 다시 그린다
                  }, !buyable);
     })(keys[i]);
+  }
+  var 제목 = document.createElement('div');
+  제목.className = 'shopSection';
+  제목.textContent = '시작 무기';
+  cardsEl.appendChild(제목);
+  for (var wi = 0; wi < WEAPON_IDS.length; wi++){
+    (function(id){
+      var wcfg = CONFIG.weapons[id];
+      var cost = Save.starterCostOf(id);
+      var owned = Save.isUnlocked(id);
+      var equipped = (Save.starter() === id);
+      var 아랫줄;
+      if (equipped)   아랫줄 = '<b>장착 중</b>';
+      else if (owned) 아랫줄 = '장착하기';
+      else            아랫줄 = '\u{1FA99} ' + cost;
+      appendCard('<div class="ico">' + wcfg.emoji + '</div>' +
+                 '<div class="nm">' + wcfg.name + '</div>' +
+                 '<div class="ds">' + 아랫줄 + '</div>',
+                 function(){
+                   if (equipped) return;
+                   // 사면 바로 장착한다 — 산 걸 또 눌러야 쓰이는 건 헷갈린다.
+                   if (!owned && !Save.buyStarter(id)) return;
+                   Save.equipStarter(id);
+                   showShop();                 // 사고 나서 화면을 다시 그린다
+                 },
+                 equipped || (!owned && d.coins < cost),
+                 equipped);
+    })(WEAPON_IDS[wi]);
   }
   overlayBtn.style.display = 'block';
   overlayBtn.textContent = '닫기';
@@ -2682,7 +2804,7 @@ overlayBtn.addEventListener('click', function(){
     return;
   }
   world.applyMeta(Save.get().meta);   // 상점에서 산 강화를 다음 판에 반영
-  world.reset();
+  world.reset(Save.starter());
   RunSave.clear();                   // 새 판을 시작하니 옛 저장은 버린다
   isPauseScreen = false;
   runBanked = false;
@@ -2754,7 +2876,11 @@ function showTitleOrResume(){
     overlay.classList.remove('on');
     paused = false;
     lastTime = 0;
-    if (이어할까 && !world.restore(pendingRun)) world.reset();   // 못 쓰면 새 판
+    if (이어할까){
+      if (!world.restore(pendingRun)) world.reset(Save.starter());   // 저장이 깨졌으면 새 판
+    } else {
+      world.reset(Save.starter());                                   // 새로 시작
+    }
     pendingRun = null;
   }
 
