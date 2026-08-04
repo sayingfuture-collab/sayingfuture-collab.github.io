@@ -45,6 +45,11 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
   width:100%; display:flex; flex-direction:column; align-items:center; gap:10px;
   padding:36px 0 12px; margin:-36px 0 0;
   background:rgba(10,14,8,.96);
+  /* 13단계에서 결과 화면에 무기별 기여도 줄이 늘면서, 붙박이 머리 자체가
+     작은 폰 가로모드(세로 320px 안팎)에서는 화면보다 커지는 경우가 생겼다.
+     sticky 는 자기 키가 뷰포트보다 크면 다시 하기/상점 버튼을 영원히 가린다 —
+     그래서 머리 자신에게 상한을 주고 안에서 스크롤하게 한다. */
+  max-height:55vh; overflow-y:auto;
 }
 /* 닫기는 왼쪽 위 구석. 붙박이 머리 안에 있으므로 같이 따라다닌다. */
 #headClose{
@@ -307,6 +312,29 @@ var PASSIVE_ORDER = ['claws', 'tuna', 'bell', 'whisker', 'nap', 'clover'];
    맨 앞은 반드시 'claw' — 무료 기본 무기이고, 모든 되돌림의 착지점이다. */
 var WEAPON_IDS = ['claw', 'yarn', 'bone', 'laser', 'catnip', 'milk',
                   'tail', 'tornado', 'zap', 'friend'];
+
+/* 딜량 측정용 칸 이름 (계획/13-딜량측정-명세.md). 무기 10종 + 핵폭탄(무기는 아니지만
+   화면을 쓸어버리므로 빠지면 합계가 안 맞는다) + ?(이름 없이 들어온 호출을 담는 칸).
+   WEAPON_IDS 에서 만들어 쓴다 — 손으로 다시 적으면 무기가 늘 때 한쪽만 고쳐
+   새 무기 딜량이 조용히 ? 로 샌다. */
+var DAMAGE_IDS = WEAPON_IDS.concat(['nuke', '?']);
+
+/* source 가 아는 이름인지 보는 표. '?' 는 일부러 뺀다 — 모르는 이름이 오는 것
+   자체가 ? 로 가는 신호라서, ? 를 아는 이름으로 쳐 버리면 방어가 무너진다. */
+var DAMAGE_INDEX = (function(){
+  var out = Object.create(null);
+  for (var i = 0; i < WEAPON_IDS.length; i++) out[WEAPON_IDS[i]] = true;
+  out.nuke = true;
+  return out;
+})();
+
+/* 12칸을 전부 0으로 채운 새 그릇을 만든다. 생성자와 reset() 이 함께 쓴다 —
+   따로 두면 하나만 고칠 위험이 있다. */
+function freshDamageTally(){
+  var out = Object.create(null);
+  for (var i = 0; i < DAMAGE_IDS.length; i++) out[DAMAGE_IDS[i]] = 0;
+  return out;
+}
 
 /* 저장에서 읽은 해금 정보를 믿을 수 있는 모양으로 만든다.
    손으로 고친 저장 데이터가 "게임이 시작조차 안 되는" 상태를 만들면 안 된다.
@@ -595,6 +623,7 @@ function World(config, metaLevels){
   }
   this.kills = 0;
   this.coins = 0;    // 이번 판에 번 코인 (영구 잔액은 shell 이 관리한다)
+  this.dmgBy = freshDamageTally();   // 무기별 실제 딜량 (계획/13-딜량측정-명세.md)
   this.level = 1;
   this.pendingChoices = 0;
   this.rerollLeft = config.level.rerollPerRun;   // 판당 다시 뽑기 남은 횟수
@@ -610,9 +639,10 @@ function World(config, metaLevels){
     var dx = e.x - p.x, dy = e.y - p.y;
     var dist = Math.sqrt(dx * dx + dy * dy);
     if (dist > self._hitRadius + e.radius) return;
-    if (dist < 1e-6){ self.damageEnemy(e, self._hitDmg); return; }   // 겹쳐 있으면 무조건 맞음
+    // 이 콜백은 fireClaw 만 부른다 — 다른 무기와 안 겹치므로 이름을 그대로 적는다.
+    if (dist < 1e-6){ self.damageEnemy(e, self._hitDmg, 'claw'); return; }   // 겹쳐 있으면 무조건 맞음
     if ((dx / dist) * f.x + (dy / dist) * f.y < self._hitCosHalf) return;
-    self.damageEnemy(e, self._hitDmg);
+    self.damageEnemy(e, self._hitDmg, 'claw');
   };
 
   // 빔 판정 콜백 — 후보 원 안의 적을 선분까지의 정확한 거리(사영+수직)로 거른다
@@ -625,7 +655,7 @@ function World(config, metaLevels){
     var perp = ex * d.y - ey * d.x;                  // 빔 축에서 옆으로 벗어난 거리
     if (perp < 0) perp = -perp;
     if (perp > self.beamHalfW + e.radius) return;
-    self.damageEnemy(e, self._hitDmg);
+    self.damageEnemy(e, self._hitDmg, 'laser');   // 이 콜백은 fireBeam 만 부른다
   };
 
   // 폭발 판정 콜백 — 폭발 중심에서 원형 반경 안의 적을 거른다
@@ -634,7 +664,8 @@ function World(config, metaLevels){
     var dx = e.x - self.blastX, dy = e.y - self.blastY;
     var r = self._hitRadius + e.radius;
     if (dx * dx + dy * dy > r * r) return;
-    self.damageEnemy(e, self._hitDmg);
+    // 캣닢·핵폭탄이 이 콜백을 같이 쓴다 — blastWeaponId 로 어느 쪽인지 구분한다.
+    self.damageEnemy(e, self._hitDmg, self.blastWeaponId);
   };
 
   // 장판 판정 콜백 — 검사 중인 장판은 _field 로 전달한다. 안에 있으면 둔화를 걸고 때린다.
@@ -647,7 +678,7 @@ function World(config, metaLevels){
     if (dx * dx + dy * dy > r * r) return;
     e.slowT = f.slowDur;
     e.slowPct = f.slowPct;
-    self.damageEnemy(e, f.tickDmg);
+    self.damageEnemy(e, f.tickDmg, f.weaponId);
   };
 
   // 꼬리 회전 판정 콜백 — 공 반경 안의 적을 때리고 적마다 재타격 간격을 건다
@@ -657,7 +688,7 @@ function World(config, metaLevels){
     var r = self._hitRadius + e.radius;
     if (dx * dx + dy * dy > r * r) return;
     e.orbitCd = self._orbitCd;
-    self.damageEnemy(e, self._hitDmg);
+    self.damageEnemy(e, self._hitDmg, 'tail');   // 이 콜백은 fireOrbit 만 부른다
   };
 
   /* 토네이도 끌어당김 콜백 — 피해를 주지 않고 좌표만 옮긴다.
@@ -704,7 +735,8 @@ function World(config, metaLevels){
       e.lastProjStamp = p.stamp;
       p.pierce--;
     }
-    self.damageEnemy(e, p.dmg);
+    // 털뭉치·생선뼈·토네이도가 이 콜백을 같이 쓴다 — p.weaponId 로 구분한다.
+    self.damageEnemy(e, p.dmg, p.weaponId);
   };
 }
 World.prototype.setRandom = function(fn){ this.random = fn; };
@@ -849,6 +881,7 @@ World.prototype.reset = function(starterId){
   this.chainStamp = 0;
   this._chainBuf.length = 0;
   this.kills = 0;
+  this.dmgBy = freshDamageTally();   // 이어할 때마다 새로 세지 않도록 reset 이 비운다 (Task 3 가 복원한다)
   this.gems.releaseAll();
   this.projectiles.releaseAll();
   this.fields.releaseAll();
@@ -910,6 +943,10 @@ World.prototype.snapshot = function(){
   }
   var passives = {};
   for (id in this.passives) passives[id] = this.passives[id];
+  // 딜량: DAMAGE_IDS 순서 그대로 정수 배열로 뽑는다. 정수로 내리는 이유는
+  // 소수점까지 저장할 필요가 없어서다 — 결과 화면은 퍼센트만 보여준다.
+  var dmg = new Array(DAMAGE_IDS.length);
+  for (i = 0; i < DAMAGE_IDS.length; i++) dmg[i] = Math.floor(this.dmgBy[DAMAGE_IDS[i]]);
   return {
     v: 1,
     elapsed: this.elapsed,
@@ -927,7 +964,8 @@ World.prototype.snapshot = function(){
     weapons: weapons,
     passives: passives,
     boss: (this.boss && this.boss.active)
-            ? { typeId: this.boss.typeId, hp: this.boss.hp } : null
+            ? { typeId: this.boss.typeId, hp: this.boss.hp } : null,
+    dmg: dmg
   };
 };
 
@@ -1030,6 +1068,21 @@ World.prototype.restore = function(s){
     var b = this.spawnEnemy(s.boss.typeId, this.player.x + ring, this.player.y);
     if (b){ b.hp = s.boss.hp > b.maxHp ? b.maxHp : s.boss.hp; this.boss = b; }
   }
+
+  // 딜량: 배열이 없거나(예전 저장) 길이가 안 맞거나 숫자가 아니면 그 판은
+  // 전부 0으로 두고 계속한다 (reset() 이 이미 dmgBy 를 0으로 채워 뒀다).
+  if (Array.isArray(s.dmg) && s.dmg.length === DAMAGE_IDS.length){
+    var dmgOk = true;
+    for (var di = 0; di < s.dmg.length; di++){
+      if (typeof s.dmg[di] !== 'number' || !isFinite(s.dmg[di]) || s.dmg[di] < 0){
+        dmgOk = false;
+        break;
+      }
+    }
+    if (dmgOk){
+      for (di = 0; di < DAMAGE_IDS.length; di++) this.dmgBy[DAMAGE_IDS[di]] = s.dmg[di];
+    }
+  }
   return true;
 };
 
@@ -1043,7 +1096,12 @@ World.prototype.coinGain = function(typeId){
 };
 
 // 적에게 피해를 준다. 죽으면 풀로 돌려보내고 true 를 반환한다.
-World.prototype.damageEnemy = function(e, amount){
+// source 는 무기 id (또는 'nuke') — 딜량 측정에 쓴다. 모르는 이름·빈 값은 ? 로 간다.
+World.prototype.damageEnemy = function(e, amount, source){
+  // 남은 체력보다 크게 때려도 실제로 깎인 만큼만 센다 — 넘친 분까지 세면
+  // 캣닢·핵폭탄처럼 한 번에 크게 때리는 무기가 실제보다 세 보인다.
+  var real = amount < e.hp ? amount : e.hp;
+  if (real > 0) this.dmgBy[DAMAGE_INDEX[source] ? source : '?'] += real;
   e.hp -= amount;
   e.hitFlash = 0.12;                  // 렌더가 흰색으로 번쩍이는 데 쓴다(초)
   if (e.hp > 0) return false;
@@ -1339,7 +1397,7 @@ World.prototype.fireChain = function(id){
   // ② 이제 때린다 — 격자 순회 밖이라 재진입이 아니다
   var dmg = this.weaponDamage(id);
   for (i = 0; i < buf.length; i++){
-    this.damageEnemy(buf[i], dmg);
+    this.damageEnemy(buf[i], dmg, id);
     dmg *= cfg.chainFalloff;
   }
   buf.length = 0;   // 죽은 적 참조를 붙잡고 있지 않게 비운다
@@ -1399,7 +1457,7 @@ World.prototype.updateCompanions = function(dt){
         dx = t.x - c.x;  dy = t.y - c.y;
         d = Math.sqrt(dx * dx + dy * dy);
         if (d <= cfg.biteRadius + t.radius){
-          this.damageEnemy(t, c.dmg);          // 한 마리만 문다
+          this.damageEnemy(t, c.dmg, c.weaponId);          // 한 마리만 문다
           c.state = 0;  c.target = null;  c.targetStamp = 0;
         } else {
           step = cfg.moveSpeed * dt;
@@ -1861,6 +1919,7 @@ global.CatCore = {
   Stepper: Stepper,
   World: World,
   WEAPON_IDS: WEAPON_IDS,
+  DAMAGE_IDS: DAMAGE_IDS,
   normalizeStarterSave: normalizeStarterSave
 };
 
@@ -2095,6 +2154,7 @@ root.CatArt = {
 var CONFIG = window.CatCore.CONFIG;
 var normalizeStarterSave = window.CatCore.normalizeStarterSave;
 var WEAPON_IDS = window.CatCore.WEAPON_IDS;
+var DAMAGE_IDS = window.CatCore.DAMAGE_IDS;
 var canvas = document.getElementById('game');
 var ctx = canvas.getContext('2d', { alpha: false });
 
@@ -2778,7 +2838,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '01ce8fb';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = 'a4de10a';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -2990,6 +3050,45 @@ function bestLine(){
          (b.clears ? ' · 클리어 ' + b.clears + '회' : '') + '</small>';
 }
 
+// 결과 화면에 붙는 무기별 딜량 기여도. 큰 순서로 최대 5줄, 나머지는 "그 외" 로 묶는다.
+// bestLine() 과 같은 방식으로 <br><small> 텍스트만 만든다 — 새 CSS/레이아웃을
+// 만들지 않는 이유는 이미 폰에서 검증된 자리(overlayStat)를 그대로 쓰기 위함이다.
+// ? 칸(이름 없이 들어온 호출)은 개발용 신호라 사람에게 보이면 안 된다.
+function damageBreakdownHtml(world){
+  // DAMAGE_IDS 에서 ? 만 뺀다 — 손으로 다시 나열하면 나중에 딜량 칸이 하나 늘 때
+  // 여기와 botsim.js 둘 중 한쪽만 고쳐서 새 칸이 조용히 화면에서 빠질 수 있다.
+  var ids = DAMAGE_IDS.filter(function(id){ return id !== '?'; });
+  var rows = [];
+  var total = 0;
+  var i;
+  for (i = 0; i < ids.length; i++){
+    var v = world.dmgBy[ids[i]] || 0;
+    if (v <= 0) continue;
+    total += v;
+    var label = ids[i] === 'nuke'
+      ? (CONFIG.nukeItem.emoji + '핵폭탄')
+      : (CONFIG.weapons[ids[i]].emoji + CONFIG.weapons[ids[i]].name);
+    rows.push({ label: label, v: v });
+  }
+  if (total <= 0) return '';   // 15초 미만 등으로 아예 못 때린 판은 이 칸을 안 그린다
+  rows.sort(function(a, b){ return b.v - a.v; });
+  var shown = rows.slice(0, 5);
+  var restV = 0;
+  for (i = 5; i < rows.length; i++) restV += rows[i].v;
+  if (restV > 0) shown.push({ label: '그 외', v: restV });
+
+  var BAR = 10;   // 막대 칸 수 — 너무 길면 폰 폭에서 줄바꿈된다
+  var lines = [];
+  for (i = 0; i < shown.length; i++){
+    var pct = Math.round(shown[i].v / total * 100);
+    var fill = Math.round(pct / 100 * BAR);
+    var bar = '';
+    for (var k = 0; k < BAR; k++) bar += (k < fill) ? '█' : '░';
+    lines.push(escapeHtml(shown[i].label) + ' ' + bar + ' ' + pct + '%');
+  }
+  return '<br><small>' + lines.join('<br>') + '</small>';
+}
+
 function showGameOver(){
   bankRun(false);
   var total = Math.floor(world.elapsed);
@@ -2999,7 +3098,8 @@ function showGameOver(){
                           '잡은 쥐 ' + world.kills + '마리<br>' +
                           '최종 레벨 ' + world.level + '<br>' +
                           '\u{1FA99} 이번 판 ' + Math.floor(world.coins) +
-                          ' (모은 코인 ' + Save.get().coins + ')' + bestLine();
+                          ' (모은 코인 ' + Save.get().coins + ')' + bestLine() +
+                          damageBreakdownHtml(world);
   cardsEl.style.display = 'none';
   rerollBtn.style.display = 'none';
   overlayBtn.style.display = 'block';
@@ -3018,7 +3118,8 @@ function showCleared(){
                           '잡은 쥐 ' + world.kills + '마리<br>' +
                           '최종 레벨 ' + world.level + '<br>' +
                           '\u{1FA99} 이번 판 ' + Math.floor(world.coins) +
-                          ' (모은 코인 ' + Save.get().coins + ')' + bestLine();
+                          ' (모은 코인 ' + Save.get().coins + ')' + bestLine() +
+                          damageBreakdownHtml(world);
   cardsEl.style.display = 'none';
   rerollBtn.style.display = 'none';
   overlayBtn.style.display = 'block';
@@ -3182,6 +3283,7 @@ function closeShop(){
 headClose.addEventListener('click', function(){ if (inShop) closeShop(); });
 
 overlayBtn.addEventListener('click', function(){
+  if (askingName) return;               // 이름 화면 중엔 onclick 쪽 핸들러만 돈다
   if (isPauseScreen){ resumeFromPause(); return; }
   if (inShop){ closeShop(); return; }
   world.applyMeta(Save.get().meta);   // 상점에서 산 강화를 다음 판에 반영
