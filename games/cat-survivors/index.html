@@ -35,6 +35,23 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
   overflow-y:auto;
 }
 #overlay.on{display:flex}
+/* 제목·잔액·닫기는 위에 붙박이로 둔다. 상점은 카드가 10장 넘게 늘어나서,
+   닫기가 맨 아래에 있으면 폰에서 한참 내려야 나갈 수 있었다. 붙박이로 두면
+   화면을 돌렸을 때 제목이 위로 밀려 사라지던 문제도 같이 없어진다.
+   top 을 음수로 주는 것은 #overlay 의 위쪽 안쪽여백(36px)만큼 끌어올려
+   스크롤한 카드가 제목 위로 비쳐 보이지 않게 하기 위함이다. */
+#overlayHead{
+  position:sticky; top:-36px; z-index:2;
+  width:100%; display:flex; flex-direction:column; align-items:center; gap:10px;
+  padding:36px 0 12px; margin:-36px 0 0;
+  background:rgba(10,14,8,.96);
+}
+/* 닫기는 왼쪽 위 구석. 붙박이 머리 안에 있으므로 같이 따라다닌다. */
+#headClose{
+  position:absolute; left:0; top:30px; display:none;
+  padding:8px 16px; font-size:14px; font-weight:800; cursor:pointer;
+  background:#7a8f5c; color:#12180d; border:none; border-radius:10px;
+}
 #overlayTitle{font-size:clamp(20px,6vmin,32px); font-weight:800; letter-spacing:.05em}
 #cards{display:flex; gap:12px; flex-wrap:wrap; justify-content:center; width:100%; max-width:640px}
 .card{
@@ -85,8 +102,11 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
   <button id="pauseBtn" aria-label="일시정지">⏸</button>
 <div id="stick"><div id="stickKnob"></div></div>
 <div id="overlay">
-  <div id="overlayTitle"></div>
-  <div id="overlayStat"></div>
+  <div id="overlayHead">
+    <button id="headClose" type="button">닫기</button>
+    <div id="overlayTitle"></div>
+    <div id="overlayStat"></div>
+  </div>
   <div id="cards"></div>
   <button id="rerollBtn"></button>
   <button id="overlayBtn"></button>
@@ -2749,6 +2769,7 @@ var Player = (function(){
 })();
 
 var overlayBtn = document.getElementById('overlayBtn');
+var headClose = document.getElementById('headClose');   // 상점 전용, 왼쪽 위 붙박이 닫기
 var rerollBtn = document.getElementById('rerollBtn');
 var shopBtn = document.getElementById('shopBtn');
 var paused = false;
@@ -2757,7 +2778,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '435bf77';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = '01ce8fb';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -3109,8 +3130,10 @@ function showShop(){
                  equipped);
     })(WEAPON_IDS[wi]);
   }
-  overlayBtn.style.display = 'block';
-  overlayBtn.textContent = '닫기';
+  // 상점만 닫기를 왼쪽 위 붙박이에 둔다. 카드가 10장 넘어서 맨 아래 닫기는
+  // 폰에서 한참 내려야 닿는다. 아래 닫기는 감춰 둘이 같이 보이지 않게 한다.
+  headClose.style.display = 'block';
+  overlayBtn.style.display = 'none';
   shopBtn.style.display = 'none';
   overlay.classList.add('on');
   paused = true;
@@ -3144,17 +3167,23 @@ window.addEventListener('pagehide', onLeaving);
 
 shopBtn.addEventListener('click', function(){ shopOrigin = 'result'; showShop(); });   // 결과 화면의 상점 버튼
 
+/* 상점에서 나가면 열었던 곳(결과 화면 또는 시작 화면)으로 돌아간다.
+   왼쪽 위 닫기와 아래 닫기가 같은 일을 해야 하므로 함수로 뺐다. */
+function closeShop(){
+  inShop = false;
+  headClose.style.display = 'none';   // 상점 밖에서는 이 버튼이 보이면 안 된다
+  cardsEl.innerHTML = '';
+  cardsEl.style.display = 'none';
+  shopBtn.style.display = 'block';
+  if (shopOrigin === 'start'){ showStartScreen(); return; }
+  if (world.cleared) showCleared(); else showGameOver();
+}
+
+headClose.addEventListener('click', function(){ if (inShop) closeShop(); });
+
 overlayBtn.addEventListener('click', function(){
   if (isPauseScreen){ resumeFromPause(); return; }
-  if (inShop){                       // 상점에서 나가면 열었던 곳(결과 화면 또는 시작 화면)으로 돌아간다
-    inShop = false;
-    cardsEl.innerHTML = '';
-    cardsEl.style.display = 'none';
-    shopBtn.style.display = 'block';
-    if (shopOrigin === 'start'){ showStartScreen(); return; }
-    if (world.cleared) showCleared(); else showGameOver();
-    return;
-  }
+  if (inShop){ closeShop(); return; }
   world.applyMeta(Save.get().meta);   // 상점에서 산 강화를 다음 판에 반영
   world.reset(Save.starter());
   catLastX = null;   // 이전 판 좌표가 남아있으면 안 되므로 리셋할 때마다 걸음 추적을 함께 비운다
