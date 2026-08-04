@@ -880,6 +880,108 @@ a.worksheet-card:focus-visible {
 }
 
 /* -------------------------------------------------------------------------
+   소식 (Personal Archive 톤 — 카드가 아니라 얇은 기록 줄로 처리해
+   게임/학습지 카드와 시각적으로 경쟁하지 않게 한다)
+   ------------------------------------------------------------------------- */
+.section-eyebrow--news { color: var(--text-secondary); }
+
+.news-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--border-default);
+}
+
+.news-item {
+  border-bottom: 1px solid var(--border-default);
+  opacity: 0;
+  animation: reveal-in var(--motion-slow) ease forwards;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+.news-entry {
+  display: grid;
+  grid-template-columns: 132px 1fr;
+  align-items: baseline;
+  gap: 20px;
+  padding: 18px 4px;
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--motion-fast) ease, padding-left var(--motion-fast) ease;
+}
+
+a.news-entry:hover,
+a.news-entry:focus-visible {
+  background: rgba(180, 205, 255, 0.045);
+  padding-left: 10px;
+}
+
+a.news-entry:active { padding-left: 6px; }
+
+a.news-entry:focus-visible {
+  outline: 2px solid var(--border-hover);
+  outline-offset: -2px;
+}
+
+.news-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.news-date {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.news-tag {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  color: var(--accent-cyan);
+  background: var(--accent-soft);
+  border: 1px solid rgba(85, 214, 255, 0.2);
+  white-space: nowrap;
+}
+
+.news-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.news-arrow {
+  display: inline-block;
+  margin-left: 8px;
+  color: var(--accent-cyan);
+  transition: transform var(--motion-fast) ease;
+}
+
+a.news-entry:hover .news-arrow { transform: translateX(4px); }
+
+.news-desc {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 639px) {
+  .news-entry {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 16px 4px;
+  }
+  .news-title { font-size: 15px; }
+}
+
+/* -------------------------------------------------------------------------
    푸터
    ------------------------------------------------------------------------- */
 .site-footer {

@@ -41,6 +41,7 @@
     <nav class="site-nav" aria-label="주요 메뉴">
       <a class="site-nav__link" href="#game-heading">Games</a>
       <a class="site-nav__link" href="#worksheet-heading">Worksheets</a>
+      <a class="site-nav__link" href="#news-heading">News</a>
     </nav>
   </div>
 </header>
@@ -87,6 +88,17 @@
     </div>
   </section>
 
+  <!-- 소식: data/news.js 가 비어 있으면 스크립트가 이 섹션을 통째로 숨깁니다 -->
+  <section class="section section--news" id="news-section" aria-labelledby="news-heading" hidden>
+    <div class="wrapper">
+      <div class="section__head">
+        <span class="section-eyebrow section-eyebrow--news">UPDATES</span>
+        <h2 class="section-title" id="news-heading">소식</h2>
+      </div>
+      <ul class="news-list" id="news-list" role="list"></ul>
+    </div>
+  </section>
+
 </main>
 
 <footer class="site-footer">
@@ -99,6 +111,7 @@
 </footer>
 
 <script src="./data/services.js"></script>
+<script src="./data/news.js"></script>
 <script src="./js/site.js"></script>
 </body>
 </html>

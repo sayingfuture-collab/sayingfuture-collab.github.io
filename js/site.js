@@ -165,6 +165,82 @@
     });
   }
 
+  /* ---------------------------------------------------------------------
+     소식 (data/news.js 의 window.NEWS)
+     - 최신 MAX_NEWS 개만 표시. 목록이 비면 섹션 자체를 숨긴다.
+     --------------------------------------------------------------------- */
+  var MAX_NEWS = 5;
+
+  function formatNewsDate(raw) {
+    // "2026-08-10" → "2026.08.10" (형식이 다르면 원문 그대로 표시)
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(raw || "").trim());
+    return m ? m[1] + "." + m[2] + "." + m[3] : String(raw || "");
+  }
+
+  function buildNewsInner(item) {
+    var tag = item.tag
+      ? '<span class="news-tag">' + escapeHtml(item.tag) + "</span>"
+      : "";
+    var desc = item.desc
+      ? '<p class="news-desc">' + escapeHtml(item.desc) + "</p>"
+      : "";
+    var arrow = item.href
+      ? '<span class="news-arrow" aria-hidden="true">→</span>'
+      : "";
+
+    return (
+      '<div class="news-meta">' +
+      '<time class="news-date" datetime="' + escapeHtml(item.date) + '">' +
+      escapeHtml(formatNewsDate(item.date)) +
+      "</time>" +
+      tag +
+      "</div>" +
+      '<div class="news-body">' +
+      '<h3 class="news-title">' + escapeHtml(item.title) + arrow + "</h3>" +
+      desc +
+      "</div>"
+    );
+  }
+
+  function renderNews() {
+    var section = document.getElementById("news-section");
+    var listEl = document.getElementById("news-list");
+    if (!section || !listEl) return;
+
+    var items = (window.NEWS || []).slice(0, MAX_NEWS);
+    if (items.length === 0) {
+      // 소식이 없으면 섹션을 통째로 감춘다 (빈 칸을 남기지 않음)
+      section.hidden = true;
+      return;
+    }
+    section.hidden = false;
+
+    listEl.innerHTML = "";
+    items.forEach(function (item, i) {
+      var li = document.createElement("li");
+      li.className = "news-item";
+      li.style.setProperty("--i", String(i));
+
+      var el;
+      if (item.href) {
+        el = document.createElement("a");
+        el.className = "news-entry";
+        el.href = item.href;
+        // 외부 주소면 새 탭으로 (내 사이트 안이면 같은 탭)
+        if (/^https?:\/\//i.test(item.href)) {
+          el.target = "_blank";
+          el.rel = "noopener";
+        }
+      } else {
+        el = document.createElement("div");
+        el.className = "news-entry news-entry--plain";
+      }
+      el.innerHTML = buildNewsInner(item);
+      li.appendChild(el);
+      listEl.appendChild(li);
+    });
+  }
+
   function renderAll() {
     var services = window.SERVICES || [];
     var games = services.filter(function (s) { return s.type === "game"; });
@@ -180,6 +256,8 @@
     var statWorksheets = document.getElementById("stat-worksheets");
     if (statGames) statGames.textContent = pad2(liveGames);
     if (statWorksheets) statWorksheets.textContent = pad2(liveWorksheets);
+
+    renderNews();
   }
 
   function init() {
