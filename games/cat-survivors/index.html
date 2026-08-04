@@ -1847,6 +1847,228 @@ global.CatCore = {
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
 
+<script id="art">
+/* ================================================================
+   도트 그림. 한 글자가 한 픽셀이다.
+   DOM 을 쓰지 않는다 — 테스트가 Node 에서 이 블록만 떼어 돌린다.
+   실제로 캔버스에 굽는 일은 shell 이 한다.
+   ================================================================ */
+(function(root){
+'use strict';
+
+/* 몬스터 공용 팔레트. MOB_KEYS 는 for...in 을 안 쓰려고 두는 고정 순서다. */
+var MOB_KEYS = ['D','b','l','P','K','g','G','y','Y'];
+var PAL_MOB = {
+  D:'#2b1d16',   // 테두리
+  b:'#9c7350',   // 몸통
+  l:'#cfa87e',   // 밝은 배
+  P:'#e8a7ad',   // 분홍 (귀 안·코·꼬리)
+  K:'#120c08',   // 눈
+  g:'#6f6f78',   // 두더지 회색
+  G:'#9a9aa6',   // 두더지 밝은 부분
+  y:'#ffd24a',   // 금색 (왕관)
+  Y:'#c0392b'    // 왕관 보석
+};
+
+/* 고양이 팔레트. 슬롯 9개짜리 표를 갈아끼우면 다른 고양이가 된다.
+   새 고양이를 추가하는 비용을 "색 9개" 로 묶어 두려는 것이다. */
+var CAT_SKIN_KEYS = ['d','f','F','h','w','p','k','e','s'];
+var CAT_SKINS = {
+  /* d 테두리 / f 털 / F 그늘·줄무늬 / h 하이라이트 / w 배·가슴
+     p 분홍(코·귀안) / k 눈테 / e 눈동자 / s 눈빛 */
+  cheese: { d:'#5a3210', f:'#e08a3c', F:'#b8641f', h:'#f3b163',
+            w:'#ffe9c9', p:'#e8a7ad', k:'#1a1116', e:'#4fbf5a', s:'#ffffff' },
+  // 고양이 친구는 고양이다. 따로 그리지 않고 다른 색으로 그린다.
+  // 플레이어와 헷갈리면 안 되므로 주황(치즈)과 확실히 먼 회색으로 잡았다.
+  friend: { d:'#39424e', f:'#8b98a8', F:'#67727f', h:'#a9b5c2',
+            w:'#d7dee6', p:'#e8a7ad', k:'#1a1116', e:'#6fd46f', s:'#ffffff' }
+};
+
+/* 계획/11-도트-시험판.html 의 var MOUSE·RAT·FAT·MOLE 을 그대로 옮긴 것 — 손으로 다시 찍지 않는다.
+   MOLE 은 한 번 시험판에서 빠졌다가(커밋 b9e59ea 로 복구) 다시 채워 넣었다. */
+var SPRITES = {
+  mouse: [
+['................','.............DD.','............DPPD','....DDDDD...DPPD',
+ 'D..DbbbbbDDDbbbD','.DDbllllbbbbKbbD','..DbllllbbbbbbPD','..DbllllbbbbbbD.',
+ '...DbbbbbbbbbD..','...D.DD...DD.D..','...D..D....D..D.','................'],
+['................','.............DD.','............DPPD','....DDDDD...DPPD',
+ '...DbbbbbDDDbbbD','.DDbllllbbbbKbbD','D.DbllllbbbbbbPD','..DbllllbbbbbbD.',
+ '...DbbbbbbbbbD..','....DD.D...D.DD.','...D...D..D....D','................']
+  ],
+  rat: [
+  ['..................','...............DD.','..............DPPD','.....DDDDDD...DPPD',
+ 'D..DDbbbbbbDDDbbbD','.DDblllllbbbbbKbbD','..DbllllbbbbbbbbPD','..DbllllbbbbbbbbD.',
+ '...DbbbbbbbbbbbD..','...D.DD....DD.D...','...D..D.....D..D..','..................'],
+  ['..................','...............DD.','..............DPPD','.....DDDDDD...DPPD',
+ '...DDbbbbbbDDDbbbD','.DDblllllbbbbbKbbD','D.DbllllbbbbbbbbPD','..DbllllbbbbbbbbD.',
+ '...DbbbbbbbbbbbD..','....DD.D....D.DD..','...D....D..D....D.','..................']
+  ],
+  fat: [
+  ['....................','..................DD','.................DPP','......DDDDDD.....DPP',
+ '....DDbbbbbbDD..DDbD','D..DbllllllbbbDbbbbD','.DDblllllllllbbbKbbD','..DblllllllllbbbbbPD',
+ '..DbllllllllbbbbbbD.','..DbbllllllbbbbbbD..','...DDbbbbbbbbbbbD...','....D.DD...DD.D.....',
+ '....D..D....D..D....','....................'],
+  ['....................','..................DD','.................DPP','......DDDDDD.....DPP',
+ '....DDbbbbbbDD..DDbD','...DbllllllbbbDbbbbD','.DDblllllllllbbbKbbD','D.DblllllllllbbbbbPD',
+ '..DbllllllllbbbbbbD.','..DbbllllllbbbbbbD..','...DDbbbbbbbbbbbD...','.....DD.D...D.DD....',
+ '....D....D.D....D...','....................']
+  ],
+  mole: [
+  ['................','................','.....DDDDDD.....','...DDgggggggD...',
+ '..DggggggggggD..','.DgGGgggggggggD.','.DgGGgggDDDggPD.','.DggggggggggggD.',
+ '..DgggggggggggD.','...DDDDDDDDDDDD.','................','................'],
+  ['................','................','................','.....DDDDDD.....',
+ '...DDgggggggD...','..DggggggggggD..','.DgGGgggggggggD.','.DgGGgggDDDggPD.',
+ '.DggggggggggggD.','..DgggggggggggD.','...DDDDDDDDDDDD.','................']
+  ],
+  // king1·king2 가 같이 쓰는 그림. 시험판의 KING 을 그대로 옮겼다 — 색은 tint 가 갈아끼운다.
+  king: [
+['........................','.......y.y.y............','.......yyyyy............','.......DDDDD............',
+ '.....DDDDDDDD.......DD..','...DDbbbbbbbbDD....DPPD.','D..DbbllllllbbbDDDDDPPD.','.DDblllllllllbbbbbbbbbD.',
+ '..DbllllllllllbbbbKbbbD.','..DblllllllllbbbbbbbbbPD','..DbbllllllllbbbbbbbbbD.','...DbbllllllbbbbbbbbbD..',
+ '....DDbbbbbbbbbbbbbbD...','.....D.DDD....DDD.D.....','.....D...D....D...D.....','........................'],
+['........................','.......y.y.y............','.......yyyyy............','.......DDDDD............',
+ '.....DDDDDDDD.......DD..','...DDbbbbbbbbDD....DPPD.','...DbbllllllbbbDDDDDPPD.','.DDblllllllllbbbbbbbbbD.',
+ 'D.DbllllllllllbbbbKbbbD.','..DblllllllllbbbbbbbbbPD','..DbbllllllllbbbbbbbbbD.','...DbbllllllbbbbbbbbbD..',
+ '....DDbbbbbbbbbbbbbbD...','......DDD.D..D.DDD......','......D...D..D...D......','........................']
+  ],
+  // king3 : 쥐의 왕. 큰 왕관 + 망토. 시험판의 KING3 을 그대로 옮겼다.
+  king3: [
+   ['....y...y...y...........','....yyy.y.yyy...........','....yYyyyyyYy...........','....yyyyyyyyy...........',
+   '.....DDDDDDDD.......DD..','...DDbbbbbbbbDD....DPPD.','..DbbllllllbbbbDDDDDPPD.','.DbllllllllllbbbbbbbbbD.',
+   'DblllllllllllbbbbbKbbbD.','DbllllllllllllbbbbbbbbPD','DbbllllllllllbbbbbbbbbD.','DbbbllllllllbbbbbbbbbD..',
+   '.DbbbbllllllbbbbbbbbbD..','..DDbbbbbbbbbbbbbbbbD...','...yyyyyyyyyyyyyyyy.....','....y.DDD....DDD.y......',
+   '......D..D....D..D......'],
+   ['....y...y...y...........','....yyy.y.yyy...........','....yYyyyyyYy...........','....yyyyyyyyy...........',
+   '.....DDDDDDDD.......DD..','...DDbbbbbbbbDD....DPPD.','..DbbllllllbbbbDDDDDPPD.','.DbllllllllllbbbbbbbbbD.',
+   'DblllllllllllbbbbbKbbbD.','DbllllllllllllbbbbbbbbPD','DbbllllllllllbbbbbbbbbD.','DbbbllllllllbbbbbbbbbD..',
+   '.DbbbbllllllbbbbbbbbbD..','..DDbbbbbbbbbbbbbbbbD...','...yyyyyyyyyyyyyyyy.....','....y..DDD..DDD..y......',
+   '.......D...D.D...D......']
+  ],
+  // 고양이(플레이어·고양이 친구). 계획/11-도트-시험판.html 의 CAT/LEGS/TAIL/BLINK 를
+  // frameRows(i, false) 로 합친 걷기 4장 — Node 스크립트로 뽑아냈다(손으로 옮기지 않았다).
+  cat: [
+  [
+    "....dd............dd....","...dffd..........dffd...",
+    "..dfpffd........dffpfd..","..dffpffddddddddffpffd..",
+    "..dffffffffffffffffffd..",".dffffffffffffffffffffd.",
+    ".dffffffFffFFffFffffffd.",".dffffffffffffffffffffd.",
+    ".dffffkkffffffffkkffffd.",".dfffksekffffffksekfffd.",
+    ".dfffkeekffffffkeekfffd.",".dffffkkffffffffkkffffd.",
+    ".dffffffffffffffffffffd.",".dfffffffffppfffffffffd.",
+    ".dffffffwwwwwwwwffffffd.","..dfffffwwwwwwwwfffffd..",
+    "..dffffffwwwwwwffffffd..","...ddffffwwwwwwffffdd...",
+    ".....dffwwwwwwwwffd.ddd.","....dffwwwwwwwwwwffddFd.",
+    "....dFfwwwwwwwwwwfFddFd.","....dFffwwwwwwwwffFddFd.",
+    "....dwwd......dwwd......",".....dd........dd......."
+  ],
+  [
+    "....dd............dd....","...dffd..........dffd...",
+    "..dfpffd........dffpfd..","..dffpffddddddddffpffd..",
+    "..dffffffffffffffffffd..",".dffffffffffffffffffffd.",
+    ".dffffffFffFFffFffffffd.",".dffffffffffffffffffffd.",
+    ".dffffkkffffffffkkffffd.",".dfffksekffffffksekfffd.",
+    ".dfffkeekffffffkeekfffd.",".dffffkkffffffffkkffffd.",
+    ".dffffffffffffffffffffd.",".dfffffffffppfffffffffd.",
+    ".dffffffwwwwwwwwffffffd.","..dfffffwwwwwwwwfffffd..",
+    "..dffffffwwwwwwffffffd..","...ddffffwwwwwwffffdd...",
+    ".....dffwwwwwwwwffd..ddd","....dffwwwwwwwwwwffd.dFd",
+    "....dFfwwwwwwwwwwfFddFd.","....dFffwwwwwwwwffFddFd.",
+    "...dwwd........dwwd.....","....dd..........dd......"
+  ],
+  [
+    "....dd............dd....","...dffd..........dffd...",
+    "..dfpffd........dffpfd..","..dffpffddddddddffpffd..",
+    "..dffffffffffffffffffd..",".dffffffffffffffffffffd.",
+    ".dffffffFffFFffFffffffd.",".dffffffffffffffffffffd.",
+    ".dffffkkffffffffkkffffd.",".dfffksekffffffksekfffd.",
+    ".dfffkeekffffffkeekfffd.",".dffffkkffffffffkkffffd.",
+    ".dffffffffffffffffffffd.",".dfffffffffppfffffffffd.",
+    ".dffffffwwwwwwwwffffffd.","..dfffffwwwwwwwwfffffd..",
+    "..dffffffwwwwwwffffffd..","...ddffffwwwwwwffffdd...",
+    ".....dffwwwwwwwwffd.ddd.","....dffwwwwwwwwwwffddFd.",
+    "....dFfwwwwwwwwwwfFddFd.","....dFffwwwwwwwwffFddFd.",
+    "....dwwd......dwwd......",".....dd........dd......."
+  ],
+  [
+    "....dd............dd....","...dffd..........dffd...",
+    "..dfpffd........dffpfd..","..dffpffddddddddffpffd..",
+    "..dffffffffffffffffffd..",".dffffffffffffffffffffd.",
+    ".dffffffFffFFffFffffffd.",".dffffffffffffffffffffd.",
+    ".dffffkkffffffffkkffffd.",".dfffksekffffffksekfffd.",
+    ".dfffkeekffffffkeekfffd.",".dffffkkffffffffkkffffd.",
+    ".dffffffffffffffffffffd.",".dfffffffffppfffffffffd.",
+    ".dffffffwwwwwwwwffffffd.","..dfffffwwwwwwwwfffffd..",
+    "..dffffffwwwwwwffffffd..","...ddffffwwwwwwffffdd...",
+    ".....dffwwwwwwwwffddd...","....dffwwwwwwwwwwffdFd..",
+    "....dFfwwwwwwwwwwfFdFd..","....dFffwwwwwwwwffFddFd.",
+    ".....dwwd....dwwd.......","......dd......dd........"
+  ]
+  ],
+  // 눈 감음 1장 — frameRows(0, true). 4초마다 잠깐 깜빡이는 데 쓴다.
+  catBlink: [
+  [
+    "....dd............dd....","...dffd..........dffd...",
+    "..dfpffd........dffpfd..","..dffpffddddddddffpffd..",
+    "..dffffffffffffffffffd..",".dffffffffffffffffffffd.",
+    ".dffffffFffFFffFffffffd.",".dffffffffffffffffffffd.",
+    ".dffffffffffffffffffffd.",".dffffkkffffffffkkffffd.",
+    ".dfffkffkffffffkffkfffd.",".dffffffffffffffffffffd.",
+    ".dffffffffffffffffffffd.",".dfffffffffppfffffffffd.",
+    ".dffffffwwwwwwwwffffffd.","..dfffffwwwwwwwwfffffd..",
+    "..dffffffwwwwwwffffffd..","...ddffffwwwwwwffffdd...",
+    ".....dffwwwwwwwwffd.ddd.","....dffwwwwwwwwwwffddFd.",
+    "....dFfwwwwwwwwwwfFddFd.","....dFffwwwwwwwwffFddFd.",
+    "....dwwd......dwwd......",".....dd........dd......."
+  ]
+  ]
+};
+
+var SPRITE_IDS = ['mouse','rat','fat','mole','king','king3','cat','catBlink'];
+
+/* 적 typeId → 어떤 그림을 어떤 색으로, 좌우를 뒤집을지.
+   tint 는 PAL_MOB 위에 덮어쓸 글자만 적는다. */
+var ENEMY_ART = {
+  // 네모로 그리던 시절 적마다 색이 달랐고(CONFIG.enemies[*].color) 그게 종을
+  // 구분하는 단서였다. 도트로 옮기면서 공용 갈색을 그대로 쓰면 생쥐와 큰쥐가
+  // 크기로만 구분된다. 그래서 원래 색을 tint 로 되살린다.
+  // l(밝은 배)은 b(몸통)를 밝힌 값이다.
+  mouse: { sprite: 'mouse', tint: null, flip: true },              // 갈색 — 공용 팔레트가 곧 생쥐 색이다
+  rat:   { sprite: 'rat',   tint: { b:'#6f7f8f', l:'#9aa8b5' }, flip: true },   // 회청색
+  fat:   { sprite: 'fat',   tint: { b:'#a8683f', l:'#cf9268' }, flip: true },   // 주황빛 갈색
+  // 두더지는 정면이라 뒤집으면 안 된다 — 대칭이라 뒤집어도 그림은 똑같아 보이지만
+  // 고양이가 두더지를 지나칠 때마다 좌우가 튀어 들썩이는 것처럼 보인다.
+  mole:  { sprite: 'mole',  tint: null, flip: false },
+  // king1·king2 는 같은 왕쥐다. 지금도 색만 달랐으므로 그림 한 장에
+  // 팔레트만 갈아끼운다. l(밝은 배)은 b(몸통)를 밝힌 값으로 잡았다.
+  king1: { sprite: 'king',  tint: { b:'#c0724a', l:'#dfa47e' }, flip: true },
+  king2: { sprite: 'king',  tint: { b:'#b05a6a', l:'#d68b96' }, flip: true },
+  king3: { sprite: 'king3', tint: null, flip: true }
+};
+var ENEMY_IDS = ['mouse','rat','fat','mole','king1','king2','king3'];
+
+/* PAL_MOB 에 tint 를 덮어쓴 새 팔레트를 만든다.
+   원본을 그대로 돌려주면 호출한 쪽이 더럽힐 수 있으므로 늘 새로 만든다. */
+function mobPalette(tint){
+  var out = {}, i, k;
+  for (i = 0; i < MOB_KEYS.length; i++){
+    k = MOB_KEYS[i];
+    out[k] = (tint && tint[k]) ? tint[k] : PAL_MOB[k];
+  }
+  return out;
+}
+
+root.CatArt = {
+  MOB_KEYS: MOB_KEYS, PAL_MOB: PAL_MOB,
+  CAT_SKIN_KEYS: CAT_SKIN_KEYS, CAT_SKINS: CAT_SKINS,
+  SPRITES: SPRITES, SPRITE_IDS: SPRITE_IDS,
+  ENEMY_ART: ENEMY_ART, ENEMY_IDS: ENEMY_IDS,
+  mobPalette: mobPalette
+};
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+
 <script id="shell">
 (function(){
 'use strict';
@@ -1989,6 +2211,7 @@ var world = new window.CatCore.World(CONFIG, Save.get().meta);
    reset 을 안 부르고 곧장 시작하므로, 여기서 안 부르면 페이지를 새로 연 뒤의
    첫 판만 조용히 할퀴기로 시작한다 — 가장 흔한 경로인데 증상이 없다. */
 world.reset(Save.starter());
+catLastX = null;   // 이전 판 좌표가 남아있으면 안 되므로 리셋할 때마다 걸음 추적을 함께 비운다
 var stepper = new window.CatCore.Stepper(CONFIG.step.ms, CONFIG.step.maxSteps, CONFIG.step.maxAccumMs);
 
 
@@ -2036,10 +2259,96 @@ var PROJ_COLOR = { yarn: '#e88ac0', bone: '#f2ead6', tornado: '#b8d4e8' };
 var BLAST_COLOR = { catnip: '#9ae86a', nuke: '#ffcf5a' };
 // ☢️ 핵폭탄 아이템 글자 크기 — render() 마다 문자열을 새로 이어붙이지 않도록 한 번만 만든다.
 var NUKE_FONT = CONFIG.nukeItem.size + 'px serif';
+/* ── 도트 굽기 ──────────────────────────────────────────────────
+   글자 격자를 오프스크린 캔버스로 시작할 때 한 번만 굽는다.
+   매 프레임에 픽셀을 찍으면 적 400마리에서 감당이 안 되므로,
+   그린 뒤로는 drawImage 만 한다.
+   forceColor 를 주면 보이는 픽셀을 전부 그 색으로 칠한다 — 맞았을 때
+   쓰는 흰색 판을 만드는 용도다.                                    */
+function bakeFrame(rows, pal, forceColor){
+  var w = 0, i;
+  for (i = 0; i < rows.length; i++) if (rows[i].length > w) w = rows[i].length;
+  var c = document.createElement('canvas');
+  c.width = w || 1;
+  c.height = rows.length || 1;
+  var g = c.getContext('2d');
+  for (var y = 0; y < rows.length; y++){
+    var row = rows[y];
+    for (var x = 0; x < row.length; x++){
+      var col = pal[row.charAt(x)];
+      if (!col) continue;              // 팔레트에 없는 글자는 투명 — 오타가 게임을 안 깬다
+      g.fillStyle = forceColor || col;
+      g.fillRect(x, y, 1, 1);
+    }
+  }
+  return c;
+}
+
+function bakeSet(frames, pal){
+  var out = { frames: [], flash: [] };
+  for (var i = 0; i < frames.length; i++){
+    out.frames.push(bakeFrame(frames[i], pal, null));
+    out.flash.push(bakeFrame(frames[i], pal, '#ffffff'));
+  }
+  return out;
+}
+
+/* 적 그림을 시작할 때 한 번 굽는다. ENEMY_ART 에 없는 적은 키가 안 생기고,
+   렌더가 예전 네모 방식으로 떨어진다. */
+var ART = window.CatArt;
+var ENEMY_BAKED = {};
+(function bakeEnemies(){
+  for (var i = 0; i < ART.ENEMY_IDS.length; i++){
+    var id = ART.ENEMY_IDS[i];
+    var spec = ART.ENEMY_ART[id];
+    if (!spec) continue;
+    var frames = ART.SPRITES[spec.sprite];
+    if (!frames) continue;
+    ENEMY_BAKED[id] = bakeSet(frames, ART.mobPalette(spec.tint));
+  }
+})();
+
+/* 고양이. 플레이어와 고양이 친구가 같은 그림에 팔레트만 다르다. */
+var CAT_BAKED = {
+  cheese: bakeSet(ART.SPRITES.cat, ART.CAT_SKINS.cheese),
+  friend: bakeSet(ART.SPRITES.cat, ART.CAT_SKINS.friend)
+};
+var CAT_BLINK = {
+  cheese: bakeSet(ART.SPRITES.catBlink, ART.CAT_SKINS.cheese),
+  friend: bakeSet(ART.SPRITES.catBlink, ART.CAT_SKINS.friend)
+};
+
+/* 고양이 걸음은 "움직인 거리" 로 센다. 시간으로 세면 서 있을 때도 다리가
+   움직여서 미끄러지는 것처럼 보인다. */
+var catWalk = 0, catLastX = null, catLastY = null;
+function catFrame(skin, size, sx, sy){
+  var img;
+  // 4초에 한 번, 0.12초 동안 눈을 감는다
+  if ((world.elapsed % 4) < 0.12){
+    img = CAT_BLINK[skin].frames[0];
+  } else {
+    var set = CAT_BAKED[skin].frames;
+    img = set[Math.floor(catWalk / 11) % set.length];
+  }
+  var dw = size, dh = size * img.height / img.width;
+  ctx.drawImage(img, sx - dw / 2, sy - dh / 2, dw, dh);
+}
+
 function render(){
   var camX = world.player.x - viewW / 2;
   var camY = world.player.y - viewH / 2;
   drawBackground(camX, camY);
+
+  // 고양이가 이번 프레임에 움직인 거리를 걸음에 더한다
+  if (catLastX !== null){
+    catWalk += Math.abs(world.player.x - catLastX) + Math.abs(world.player.y - catLastY);
+  }
+  catLastX = world.player.x;
+  catLastY = world.player.y;
+
+  // 도트는 흐리게 늘리면 죽는다. 캔버스 크기가 바뀌면 이 설정이 풀리므로
+  // 프레임마다 켠다 (설정 비용은 무시할 수 있다).
+  ctx.imageSmoothingEnabled = false;
 
   // 우유 웅덩이 (바닥에 깔리므로 가장 먼저 그린다)
   var fitems = world.fields.items;
@@ -2093,7 +2402,6 @@ function render(){
     if (nx < -CULL || ny < -CULL || nx > viewW + CULL || ny > viewH + CULL) continue;
     ctx.fillText(CONFIG.nukeItem.emoji, nx, ny);
   }
-  ctx.font = '32px serif';   // 고양이·다른 그림이 쓰는 기본 크기로 되돌린다
 
   // 적 — 맞은 직후에는 흰색으로 번쩍인다
   var items = world.enemies.items;
@@ -2103,9 +2411,42 @@ function render(){
     var sx = e.x - camX, sy = e.y - camY;
     if (sx < -CULL || sy < -CULL || sx > viewW + CULL || sy > viewH + CULL) continue;
     var etype = CONFIG.enemies[e.typeId];
-    var half = etype.size / 2;
-    ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : etype.color;
-    ctx.fillRect(sx - half, sy - half, half * 2, half * 2);
+    var baked = ENEMY_BAKED[e.typeId];
+    if (baked){
+      var set = e.hitFlash > 0 ? baked.flash : baked.frames;
+      var fi = 0;
+      if (set.length > 1){
+        // 걷는 놈은 "지나온 거리" 로 프레임을 고른다. 시간으로 고르면 화면의
+        // 모든 쥐가 발을 맞춰 걸어서 기계처럼 보인다. 좌표로 하면 개체마다
+        // 위상이 달라지고, 빠른 놈이 저절로 빨리 걷는다.
+        // 제자리인 놈(두더지)은 좌표가 안 변하므로 시간으로 들썩인다.
+        fi = etype.speed > 0
+           ? Math.floor((e.x + e.y) / 9) % set.length
+           : Math.floor(world.elapsed * 3) % set.length;
+        if (fi < 0) fi += set.length;    // 좌표는 음수일 수 있다
+      }
+      var img = set[fi];
+      var dw = etype.size;
+      var dh = etype.size * img.height / img.width;
+      var spec = ART.ENEMY_ART[e.typeId];
+      if (spec.flip && e.x > world.player.x){
+        // 고양이보다 오른쪽에 있으면 뒤집어서 고양이 쪽을 보게 한다.
+        // "쫓아온다" 는 느낌은 이것 하나로 생긴다.
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.scale(-1, 1);
+        ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+        ctx.restore();
+      } else {
+        ctx.drawImage(img, sx - dw / 2, sy - dh / 2, dw, dh);
+      }
+    } else {
+      // 그림이 아직 없는 적 — 예전 방식으로 그린다. 어느 하나를 빠뜨려도
+      // 화면에서 사라지지 않게 하는 안전장치다.
+      var half = etype.size / 2;
+      ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : etype.color;
+      ctx.fillRect(sx - half, sy - half, half * 2, half * 2);
+    }
   }
 
   // 투사체
@@ -2197,18 +2538,14 @@ function render(){
     if (!cm.active) continue;
     var cmx = cm.x - camX, cmy = cm.y - camY;
     if (cmx < -CULL || cmy < -CULL || cmx > viewW + CULL || cmy > viewH + CULL) continue;
-    ctx.font = '24px serif';
-    ctx.fillStyle = '#f7efd8';
-    ctx.fillText(CONFIG.weapons.friend.emoji, cmx, cmy);
-    ctx.font = '32px serif';   // 플레이어 고양이용 설정으로 되돌린다
+    catFrame('friend', 24, cmx, cmy);
   }
 
   // 고양이 (아트 교체 지점)
   // 맞은 직후 무적인 동안은 깜빡인다 — 왜 안 맞는지가 보여야 한다.
   var inv = world.player.invuln;
   if (inv > 0) ctx.globalAlpha = (Math.floor(inv * 20) % 2) ? 0.35 : 1;
-  ctx.fillStyle = '#f7efd8';
-  ctx.fillText('\u{1F431}', viewW / 2, viewH / 2);
+  catFrame('cheese', 32, viewW / 2, viewH / 2);
   ctx.globalAlpha = 1;
 
   drawHud();
@@ -2420,7 +2757,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = 'c18d9f1';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = '435bf77';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -2436,8 +2773,13 @@ function 새판고유번호(){
 }
 
 var inShop = false;      // 지금 강화 상점 화면인가
+// 상점 "닫기"가 어디로 돌아가야 하는지. 상점은 결과 화면과 시작 화면 두 곳에서
+// 열릴 수 있게 됐으므로, 연 곳을 기억해뒀다가 닫을 때 그리로 돌려보낸다.
+var shopOrigin = 'result';
 var askingName = false;  // 지금 이름을 묻는 화면인가 — 이 동안은 판이 진행되면 안 되고,
                           // 다른 화면(일시정지·레벨업·게임오버)이 덮어써서도 안 된다
+var atStartScreen = false;   // 지금 시작 화면인가 — 이어할 판이 없을 때 뜨는 첫 화면.
+                              // pendingRun 과 같은 이유로 일시정지·나가기 처리에서 건드리면 안 된다
 
 // Player 이름처럼 사용자가 적은 문자열을 innerHTML 에 넣을 때 쓰는 최소 이스케이프.
 // Task 7 대시보드에서도 이 이름을 다시 그리므로 습관을 잡아둔다.
@@ -2555,6 +2897,7 @@ function togglePause(){
   if (askingName) return;                                   // 이름 화면 중에는 아무것도 안 한다
   if (world.gameOver || world.cleared || inShop) return;
   if (pendingRun) return;                                   // 이어할지 고르는 중
+  if (atStartScreen) return;                                // 시작 화면 중
   if (world.pendingChoices > 0 && !isPauseScreen) return;   // 카드를 고르는 중
   if (isPauseScreen) resumeFromPause();
   else { saveRun(); showPause(); }
@@ -2566,6 +2909,12 @@ var META_ORDER = ['power', 'maxHp', 'speed', 'magnet', 'xpGain'];
    알 필요가 없기 때문이다. */
 function sendRecord(){
   try {
+    // 개발 중 판은 보내지 않는다. 기록을 모으는 목적은 "라이브 게임에서 사람들이
+    // 어떻게 하는가" 인데, 개발 중 빌드는 밸런스가 다르다(가격·적·무기가 손보는
+    // 중이다). 그걸 같이 세면 평균이 조용히 틀어진다. version 필드로 걸러낼 수도
+    // 있지만, 안 쌓이는 쪽이 앞으로 모든 질의에서 걸러내는 것을 기억하는 것보다 확실하다.
+    // tools/build-dist.js 가 배포본에서 이 값을 git 해시로 바꾸므로 배포본은 안 걸린다.
+    if (GAME_VERSION === 'dev') return;
     var run = world.recordSummary();
     if (!run) return;                       // 안 끝났거나 15초 미만
     // 안전장치: 새 판 시작 지점(다시 하기 버튼 / 첫 판 / 이어하기 화면)에서 전부
@@ -2692,6 +3041,7 @@ function showNameAsk(after){
 
 // 강화 상점. 결과 화면에서 들어오고, 나가면 결과 화면으로 돌아간다.
 function showShop(){
+  atStartScreen = false;   // 상점을 보는 동안은 시작 화면이 아니다 (닫으면 shopOrigin 이 돌려보낸다)
   overlay.scrollTop = 0;   // 카드가 늘어 내용이 길다. 스크롤이 남아 있으면 제목·잔액이 화면 위로 밀려 사라진다.
   var d = Save.get();
   overlayTitle.textContent = '강화 상점';
@@ -2783,6 +3133,7 @@ function onLeaving(){
   if (askingName) return;        // 이름 화면 중이면 그 화면을 그대로 둔다
   if (world.gameOver || world.cleared || inShop) return;
   if (pendingRun) return;        // 이어할지 묻는 중이면 그 물음을 그대로 둔다
+  if (atStartScreen) return;     // 시작 화면 중이면 그 화면을 그대로 둔다 (아직 시작 전이라 저장할 것도 없다)
   saveRun();
   if (!paused) showPause();
 }
@@ -2791,20 +3142,22 @@ document.addEventListener('visibilitychange', function(){
 });
 window.addEventListener('pagehide', onLeaving);
 
-shopBtn.addEventListener('click', showShop);
+shopBtn.addEventListener('click', function(){ shopOrigin = 'result'; showShop(); });   // 결과 화면의 상점 버튼
 
 overlayBtn.addEventListener('click', function(){
   if (isPauseScreen){ resumeFromPause(); return; }
-  if (inShop){                       // 상점에서 나가면 결과 화면으로 돌아간다
+  if (inShop){                       // 상점에서 나가면 열었던 곳(결과 화면 또는 시작 화면)으로 돌아간다
     inShop = false;
     cardsEl.innerHTML = '';
     cardsEl.style.display = 'none';
     shopBtn.style.display = 'block';
+    if (shopOrigin === 'start'){ showStartScreen(); return; }
     if (world.cleared) showCleared(); else showGameOver();
     return;
   }
   world.applyMeta(Save.get().meta);   // 상점에서 산 강화를 다음 판에 반영
   world.reset(Save.starter());
+  catLastX = null;   // 이전 판 좌표가 남아있으면 안 되므로 리셋할 때마다 걸음 추적을 함께 비운다
   RunSave.clear();                   // 새 판을 시작하니 옛 저장은 버린다
   isPauseScreen = false;
   runBanked = false;
@@ -2840,15 +3193,65 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 
+/* 이어할 판이 없을 때 뜨는 시작 화면. 시작 무기를 사고 장착하는 상점이 결과 화면에서만
+   닿을 수 있었다 — 새 플레이어는 한 번 죽어야만 무기를 고를 수 있었다. 여기서 상점으로도
+   갈 수 있게 열어준다. "시작하기" 흐름 자체는 예전에 여기서 바로 시작하던 것과 완전히
+   같아야 하므로, 이어하기 화면의 고르기(새로 시작 쪽)와 순서를 맞춰뒀다. */
+function showStartScreen(){
+  overlayTitle.textContent = '냥서바이버';
+  overlayStat.innerHTML = '고양이 한 마리가 쥐떼를 버텨내는 게임';
+  cardsEl.style.display = 'flex';
+  cardsEl.innerHTML = '';
+  shopBtn.style.display = 'none';
+  rerollBtn.style.display = 'none';
+  overlayBtn.style.display = 'none';
+
+  appendCard('<div class="ico">\u{25B6}\u{FE0F}</div>' +
+             '<div class="nm">시작하기</div>' +
+             '<div class="ds">지금 바로 시작</div>',
+             function(){
+               // 이어하기 화면의 "새로 시작"과 같은 순서 — 시작하는 자리는 하나의
+               // 틀을 따라야 runUid 가 빠지는 경로가 생기지 않는다.
+               runUid = 새판고유번호();
+               cardsEl.innerHTML = '';
+               cardsEl.style.display = 'none';
+               shopBtn.style.display = 'block';
+               overlayBtn.style.display = 'block';
+               overlay.classList.remove('on');
+               atStartScreen = false;
+               paused = false;
+               lastTime = 0;
+               // 이 화면에서 상점에 다녀올 수 있으므로, 방금 산 강화를 다시 계산해야 한다.
+               // reset 만으로는 안 된다 — metaMult 는 applyMeta 가 갱신하고 reset 은 안 건드린다.
+               // 이게 빠지면 코인은 나갔는데 그 판에는 효과가 없다("다시 하기" 쪽은 이미 이 순서다).
+               world.applyMeta(Save.get().meta);
+               world.reset(Save.starter());   // 상점에서 방금 장착했을 수도 있는 시작 무기를 반영한다
+               catLastX = null;   // 이전 판 좌표가 남아있으면 안 되므로 리셋할 때마다 걸음 추적을 함께 비운다
+             }, false);
+
+  appendCard('<div class="ico">\u{1FA99}</div>' +
+             '<div class="nm">상점</div>' +
+             '<div class="ds">강화 · 시작 무기</div>',
+             function(){
+               shopOrigin = 'start';   // 상점을 닫으면 결과 화면이 아니라 여기로 돌아온다
+               showShop();
+             }, false);
+
+  overlay.classList.add('on');
+  paused = true;
+  atStartScreen = true;
+}
+
 /* 저장된 판이 있으면 시작하자마자 물어본다. 이어하기를 고르면 그 시점부터,
    새로 시작을 고르면 저장을 버리고 처음부터.
    이름 화면(showNameAsk) 뒤에 이어지는 원래 시작 흐름이라 이름을 붙여 함수로 뺐다 —
    이름을 물을 필요가 없으면 이 함수가 바로 불린다. */
 var pendingRun = RunSave.load();
 function showTitleOrResume(){
-  // 저장된 판이 없으면 여기가 바로 "새로 판을 여는 자리" — 페이지를 새로 열고
-  // 곧장 시작하는 가장 흔한 경우라 여기서 runUid 를 안 만들면 첫 판 기록이 통째로 빠진다.
-  if (!pendingRun){ runUid = 새판고유번호(); overlay.classList.remove('on'); return; }   // 이어할 판이 없으면 그냥 시작
+  // 저장된 판이 없으면 시작 화면을 연다 — 예전엔 여기서 곧장 플레이가 시작됐지만,
+  // 그러면 상점(시작 무기 장착)이 결과 화면에서만 닿을 수 있어 새 플레이어는 한 번
+  // 죽어야만 무기를 고를 수 있었다.
+  if (!pendingRun){ showStartScreen(); return; }
   var m = Math.floor((pendingRun.elapsed || 0) / 60);
   var s = Math.floor((pendingRun.elapsed || 0) % 60);
   var pendingLevel = (typeof pendingRun.level === 'number' && isFinite(pendingRun.level) &&
@@ -2881,6 +3284,7 @@ function showTitleOrResume(){
     } else {
       world.reset(Save.starter());                                   // 새로 시작
     }
+    catLastX = null;   // 이전 판 좌표가 남아있으면 안 되므로 리셋할 때마다 걸음 추적을 함께 비운다
     pendingRun = null;
   }
 
