@@ -144,6 +144,12 @@ var CONFIG = {
   spawn:   { marginPx: 60, maxAlive: 240,
              recycleDist: 1400,   // 이보다 멀어진 적은 반대편 화면 밖으로 옮긴다
              recycleRingMult: 1.5,   // 단, 회수 거리는 스폰 링의 이 배수보다 가까울 수 없다
+             // 보스는 이동속도가 느려(56~72) 플레이어(180)보다 훨씬 처지므로, 일반 회수
+             // 거리를 그대로 적용하면 3~7초만 거리를 벌려도 "갑자기 앞에서 튀어나오는"
+             // 것처럼 순간이동한다. 보스만 발동 거리를 늘려, 정상적으로 거리를 벌리며
+             // 싸우는 동안은 절대 안 걸리고 작정하고 계속 도망치는 꼼수만 막는다.
+             // 완전히 빼면 안 된다 — 보스전은 스폰이 0.25배라 무한 도망이 최적 전략이 된다.
+             bossRecycleMult: 2,
              hpPerMin: 0.22,   // 1분마다 적 체력 +22%
              bossSpawnMult: 0.25,   // 보스전 동안 일반 스폰을 줄여 1대1에 가깝게 둔다
              // 분 단위 "분당 마릿수" 표. 사이 시간은 직선 보간, 표 끝을 넘으면 마지막 값 유지.
@@ -626,6 +632,7 @@ function World(config, metaLevels){
   this.dmgBy = freshDamageTally();   // 무기별 실제 딜량 (계획/13-딜량측정-명세.md)
   this.level = 1;
   this.pendingChoices = 0;
+  this.rolledChoices = null;   // 지금 떠 있는 3택 — rollChoices 가 채우고 applyChoice 가 비운다
   this.rerollLeft = config.level.rerollPerRun;   // 판당 다시 뽑기 남은 횟수
   this.passives = { claws: 0, tuna: 0, bell: 0, whisker: 0, nap: 0, clover: 0 };
 
@@ -898,6 +905,7 @@ World.prototype.reset = function(starterId){
   this.xp = 0;
   this.level = 1;
   this.pendingChoices = 0;
+  this.rolledChoices = null;
   this.rerollLeft = this.config.level.rerollPerRun;   // 새 판이면 다시 뽑기도 새로
   this.passives.claws = 0; this.passives.tuna = 0; this.passives.bell = 0;
   this.passives.whisker = 0; this.passives.nap = 0; this.passives.clover = 0;
@@ -947,6 +955,12 @@ World.prototype.snapshot = function(){
   // 소수점까지 저장할 필요가 없어서다 — 결과 화면은 퍼센트만 보여준다.
   var dmg = new Array(DAMAGE_IDS.length);
   for (i = 0; i < DAMAGE_IDS.length; i++) dmg[i] = Math.floor(this.dmgBy[DAMAGE_IDS[i]]);
+  // 레벨업 3택: 안 저장하면 이어하기가 공짜 리롤이 된다(카드가 다시 뽑힌다).
+  // (kind,id) 만 저장한다 — 이름·설명·단계는 복원 후 지금 상태로 다시 만들 수 있다.
+  var choices = null;
+  if (this.pendingChoices > 0 && Array.isArray(this.rolledChoices)){
+    choices = this.rolledChoices.map(function(c){ return [c.kind, c.id]; });
+  }
   return {
     v: 1,
     elapsed: this.elapsed,
@@ -957,6 +971,7 @@ World.prototype.snapshot = function(){
     bossIndex: this.bossIndex,
     nukesTaken: this.nukesTaken,
     pendingChoices: this.pendingChoices,
+    choices: choices,
     rerollLeft: this.rerollLeft,   // 안 저장하면 멈췄다 이어하는 게 공짜 리롤이 된다
     hp: this.player.hp,
     maxHp: this.player.maxHp,
@@ -1082,6 +1097,28 @@ World.prototype.restore = function(s){
     if (dmgOk){
       for (di = 0; di < DAMAGE_IDS.length; di++) this.dmgBy[DAMAGE_IDS[di]] = s.dmg[di];
     }
+  }
+
+  // 레벨업 3택: 검증을 통과해야만 복원한다. 배열이 아니거나, 정확히 3장이 아니거나
+  // (rollChoices 는 항상 정확히 3장을 돌려준다 — dmg 배열의 정확 길이 검증과 같은 패턴),
+  // 항목 하나라도 지금 CONFIG·상태와 안 맞으면(무기가 없어졌다 등) 전부 버린다 —
+  // reset() 이 이미 rolledChoices 를 null 로 둬서, showLevelUp 이 새로 추첨하는
+  // 지금까지의 동작으로 폴백한다.
+  if (this.pendingChoices > 0 && Array.isArray(s.choices) && s.choices.length === 3){
+    var restoredChoices = [];
+    var choicesOk = true;
+    for (var ci = 0; ci < s.choices.length; ci++){
+      var pair = s.choices[ci];
+      if (!Array.isArray(pair) || pair.length !== 2 ||
+          typeof pair[0] !== 'string' || typeof pair[1] !== 'string'){
+        choicesOk = false;
+        break;
+      }
+      var built = this.choiceFromKindId(pair[0], pair[1]);
+      if (!built){ choicesOk = false; break; }
+      restoredChoices.push(built);
+    }
+    if (choicesOk) this.rolledChoices = restoredChoices;
   }
   return true;
 };
@@ -1631,6 +1668,7 @@ World.prototype.rollChoices = function(){
                emoji: '\u{1F41F}', level: 0,
                desc: '체력을 ' + cfg.level.healAmount + ' 회복합니다' });
   }
+  this.rolledChoices = out;   // 저장(snapshot)이 이걸 (kind,id)만 뽑아 담는다
   return out;
 };
 
@@ -1662,6 +1700,38 @@ World.prototype.passiveDesc = function(id){
   return '공격이 더 자주 나갑니다';
 };
 
+// (kind, id) 한 장을 지금 상태 기준 카드 한 장으로 되살린다. 레벨업 3택 저장 복원 전용 —
+// 이름·설명·단계는 저장하지 않고(현재 상태에서 다시 만들 수 있어서) 여기서 만든다.
+// kind/id 가 지금 CONFIG·상태와 안 맞으면(무기가 없어졌다 등) null — 부르는 쪽이 폴백한다.
+World.prototype.choiceFromKindId = function(kind, id){
+  var cfg = this.config;
+  if (kind === 'weapon' && cfg.weapons[id]){
+    var wst = this.weapons[id];
+    var lv = wst ? wst.level : 0;
+    // rollChoices 가 애초에 걸러내는 것과 같은 조건 — 만렙인데 또 뽑혔거나
+    // (레벨이 어긋난 저장), 미보유인데 그새 무기 슬롯이 꽉 찼으면(다른 경로로 채워진
+    // 저장) 지금 상태로는 줄 수 없는 카드다.
+    if (wst && lv >= cfg.weapons[id].maxLevel) return null;
+    if (!wst && this.weaponSlotsUsed() >= cfg.level.slotsWeapon) return null;
+    return { kind: 'weapon', id: id, name: cfg.weapons[id].name,
+             emoji: cfg.weapons[id].emoji, level: lv + 1,
+             desc: wst ? '공격력과 범위가 올라갑니다' : '새 무기를 얻습니다' };
+  }
+  if (kind === 'passive' && cfg.passives[id]){
+    var plv = this.passives[id];
+    if (plv >= cfg.passives[id].maxLevel) return null;
+    if (plv === 0 && this.passiveSlotsUsed() >= cfg.level.slotsPassive) return null;
+    return { kind: 'passive', id: id, name: cfg.passives[id].name,
+             emoji: cfg.passives[id].emoji, level: plv + 1,
+             desc: this.passiveDesc(id) };
+  }
+  if (kind === 'heal' && typeof id === 'string' && id.indexOf('heal') === 0){
+    return { kind: 'heal', id: id, name: '고양이 캔', emoji: '\u{1F41F}', level: 0,
+             desc: '체력을 ' + cfg.level.healAmount + ' 회복합니다' };
+  }
+  return null;
+};
+
 // 고른 것을 반영한다.
 World.prototype.applyChoice = function(choice){
   if (choice.kind === 'weapon'){
@@ -1683,6 +1753,7 @@ World.prototype.applyChoice = function(choice){
     if (this.player.hp > this.player.maxHp) this.player.hp = this.player.maxHp;
   }
   if (this.pendingChoices > 0) this.pendingChoices--;
+  this.rolledChoices = null;   // 고른 3택은 소비됐다 — 남은 pendingChoices 는 다음에 새로 뽑는다
 };
 
 // 보스 등장·퇴장을 관리한다. 화면 밖 링에서 걸어 들어온다.
@@ -1768,12 +1839,15 @@ World.prototype.recycleFarEnemies = function(){
   var minFar = ring * cfg.recycleRingMult;
   if (far < minFar) far = minFar;
   var far2 = far * far;
+  var bossFar = far * cfg.bossRecycleMult;
+  var bossFar2 = bossFar * bossFar;
   var items = this.enemies.items;
   for (var i = 0; i < items.length; i++){
     var e = items[i];
     if (!e.active) continue;
     var dx = e.x - this.player.x, dy = e.y - this.player.y;
-    if (dx * dx + dy * dy < far2) continue;
+    var limit2 = (e === this.boss) ? bossFar2 : far2;
+    if (dx * dx + dy * dy < limit2) continue;
     // 스스로 못 움직이는 적(두더지)은 옮겨봐야 그 자리에 굳는다. 화면 밖을 맴돌며
     // 동시 상한만 차지하므로 조용히 걷어낸다(젬·처치 수는 주지 않는다).
     if (e.speed === 0){ this.enemies.release(e); continue; }
@@ -2296,6 +2370,10 @@ var stepper = new window.CatCore.Stepper(CONFIG.step.ms, CONFIG.step.maxSteps, C
 
 
 var dpr = 1, viewW = 0, viewH = 0;
+// 게임 루프가 아직 안 돈 시점(첫 resize() 호출은 페이지 로드 중에 온다)엔 render() 가
+// 아직 준비 안 된 상태(고양이 애니메이션 프레임 데이터 등)를 읽어 죽는다.
+// frame() 이 처음 한 번 돈 뒤부터만 resize 때 다시 그린다.
+var gameLoopStarted = false;
 function resize(){
   dpr = Math.min(window.devicePixelRatio || 1, CONFIG.render.maxDpr); // 고해상도 기기에서 과부하 방지
   viewW = window.innerWidth;
@@ -2309,6 +2387,9 @@ function resize(){
   ctx.textBaseline = 'middle';
   world.ensureGridCovers(viewW, viewH);
   if (inShop) overlay.scrollTop = 0;   // 상점을 연 채 회전하면 제목·잔액이 화면 위로 밀려 사라진다
+  // 캔버스 크기를 바꾸면 그 내용이 지워진다. frame() 이 정지 상태라 다시 안 그리면
+  // 오버레이 뒤 배경이 회전 후 빈 채로 남는다 — 여기서 즉시 한 번 다시 그린다.
+  if (gameLoopStarted) render();
 }
 window.addEventListener('resize', resize);
 resize();
@@ -2838,7 +2919,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = 'a4de10a';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = '51b402c';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -2912,7 +2993,8 @@ function showLevelUp(){
   overlayBtn.style.display = 'none';
   shopBtn.style.display = 'none';
   cardsEl.style.display = 'flex';
-  renderChoices(world.rollChoices());
+  // 복원된 3택이 있으면 그대로 쓴다 — 없으면(새 레벨업, 또는 옛 저장) 새로 뽑는다.
+  renderChoices(world.rolledChoices || world.rollChoices());
   updateRerollBtn();
   overlay.classList.add('on');
   paused = true;
@@ -3084,7 +3166,9 @@ function damageBreakdownHtml(world){
     var fill = Math.round(pct / 100 * BAR);
     var bar = '';
     for (var k = 0; k < BAR; k++) bar += (k < fill) ? '█' : '░';
-    lines.push(escapeHtml(shown[i].label) + ' ' + bar + ' ' + pct + '%');
+    // v>0 인데 반올림하면 0%로 보여 "때렸는데 0%"라는 자기모순 표시가 된다 — 글로만 구분한다
+    var pctText = (pct === 0) ? '1% 미만' : (pct + '%');
+    lines.push(escapeHtml(shown[i].label) + ' ' + bar + ' ' + pctText);
   }
   return '<br><small>' + lines.join('<br>') + '</small>';
 }
@@ -3300,6 +3384,9 @@ overlayBtn.addEventListener('click', function(){
 });
 
 var lastTime = 0;
+// 지난 프레임에 render() 를 건너뛰었는가 — 정지 상태로 막 들어온 프레임엔
+// (오버레이 뒤 배경을 최신 상태로 남기려) 반드시 한 번 그리고, 그 다음부터 건너뛴다.
+var wasIdle = false;
 function frame(now){
   if (!lastTime) lastTime = now;
   var delta = now - lastTime;
@@ -3319,7 +3406,12 @@ function frame(now){
     world.update(CONFIG.step.ms / 1000);
   }
   var t1 = stressRecording ? performance.now() : 0;
-  render();
+  // 일시정지·오버레이 표시 중엔 world 가 안 움직이므로 화면도 안 바뀐다.
+  // backdrop-filter 블러 재계산이 특히 무거워서, 매 프레임 다시 그릴 필요가 없다.
+  var idle = paused || overlay.classList.contains('on');
+  gameLoopStarted = true;   // resize() 가 이제부터 안전하게 다시 그릴 수 있다
+  if (!idle || !wasIdle) render();
+  wasIdle = idle;
   if (stressRecording) stressTick(delta, t1 - t0, performance.now() - t1);
   requestAnimationFrame(frame);
 }
@@ -3412,6 +3504,10 @@ function showTitleOrResume(){
     lastTime = 0;
     if (이어할까){
       if (!world.restore(pendingRun)) world.reset(Save.starter());   // 저장이 깨졌으면 새 판
+      // 복원 직후에도 정지 상태가 이어질 수 있다(예: 레벨업 카드가 뜬 채로 저장된 판).
+      // wasIdle 을 안 건드리면 "정지→정지" 로만 보여 진입 프레임의 강제 렌더가 건너뛰어지고,
+      // 카드 뒤 배경·HUD 가 복원 전(새 판) 상태로 남는다.
+      else wasIdle = false;
     } else {
       world.reset(Save.starter());                                   // 새로 시작
     }
