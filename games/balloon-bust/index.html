@@ -9,6 +9,15 @@
 <meta property="og:description" content="매일 전 세계가 같은 풍선 5개 — 터지기 전에 놓아라. 30초 데일리 배짱 게임">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://nyejun.com/games/balloon-bust/">
+<meta property="og:site_name" content="풍선빵 Balloon Bust">
+<meta property="og:image" content="https://nyejun.com/games/balloon-bust/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="풍선빵 Balloon Bust">
+<meta name="twitter:description" content="매일 전 세계가 같은 풍선 5개 — 터지기 전에 놓아라">
+<!-- Cloudflare Web Analytics — 방문자 수 집계 (쿠키 없음) -->
+<script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "66d74d758a3b4b68ae33d7a072440b61"}'></script>
 <style>
   :root{
     --bg:#151022;
@@ -170,9 +179,6 @@
     *{transition:none!important;animation:none!important}
   }
 </style>
-<!-- Cloudflare Web Analytics — 방문자 수 집계. ⚠️ 이 파일은 원본에서 복사해 오는 사본이라,
-     풍선빵을 재빌드해 덮어쓰면 이 두 줄이 사라집니다. 복사 후 다시 넣어주세요. -->
-<script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "66d74d758a3b4b68ae33d7a072440b61"}'></script>
 </head>
 <body>
 <div id="stage">
@@ -837,10 +843,7 @@
     const total = results.reduce((a,r)=>a+r.mult, 0);
     const line = results.map(r=>r.popped ? '💥' : r.mult.toFixed(1)+'×').join(' ');
     const text = `🎈 ${T('shareTitle')} ${today.replace(/-/g,'.')}${lastStreak >= 2 ? ' ' + T('streakTag', lastStreak) : ''}\n${line}\n${T('shareTotal', total.toFixed(1))}${lastPct != null ? ' · ' + T('topPct', lastPct) : ''}\n${SHARE_URL}`;
-    const ok = ()=>{ $('shareBtn').textContent = T('copied'); setTimeout(()=>$('shareBtn').textContent = T('shareBtn'), 1500); };
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(text).then(ok).catch(()=>fallbackCopy(text, ok));
-    } else fallbackCopy(text, ok);
+    shareOrCopy(text, $('shareBtn'));
   });
   function fallbackCopy(text, ok){
     const ta = document.createElement('textarea');
@@ -849,7 +852,13 @@
     try{ document.execCommand('copy'); ok(); }catch(e){}
     ta.remove();
   }
-  function copyText(text, btn){
+  function copyText(text, btn){ shareOrCopy(text, btn); }
+  function shareOrCopy(text, btn){
+    // 모바일: 네이티브 공유 시트(카톡 등으로 바로 전달) / 데스크톱·미지원 환경: 클립보드 복사 폴백
+    if(navigator.share){
+      navigator.share({ text }).catch(()=>{}); // 유저가 시트를 취소해도 조용히 무시
+      return;
+    }
     const ok = ()=>{ btn.textContent = T('copied'); setTimeout(()=>{ btn.textContent = T('shareBtn'); }, 1500); };
     if(navigator.clipboard && navigator.clipboard.writeText){
       navigator.clipboard.writeText(text).then(ok).catch(()=>fallbackCopy(text, ok));
