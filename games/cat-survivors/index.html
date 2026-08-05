@@ -50,6 +50,14 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
      sticky 는 자기 키가 뷰포트보다 크면 다시 하기/상점 버튼을 영원히 가린다 —
      그래서 머리 자신에게 상한을 주고 안에서 스크롤하게 한다. */
   max-height:55vh; overflow-y:auto;
+  /* flex-shrink:0 필수 — #overlay(부모)는 고정 높이(inset:0) flex column인데,
+     overflow-y:auto가 붙은 자식은 CSS 스펙상 자동 최소 크기가 0이 되어 형제보다
+     먼저(사실상 전부) 짜부러든다. 상점 카드가 5장 넘어 #overlay 전체가 넘치면
+     이 머리(제목·코인 잔액)만 패딩만 남기고 짜부러들어 코인 표시가 안 보였다
+     (2026-08-05 사용자 피드백: "폰에서 상점 들어가면 위에 바가 깨져서 코인이
+     안 보임"). flex-shrink:0으로 이 박스는 항상 제 내용 높이(최대 55vh)를
+     유지하고, 넘치는 건 #overlay 자체 스크롤(overflow-y:auto)이 그대로 받는다. */
+  flex-shrink:0;
 }
 /* 닫기는 왼쪽 위 구석. 붙박이 머리 안에 있으므로 같이 따라다닌다. */
 #headClose{
@@ -3023,7 +3031,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '0537c92';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = 'aa5fa74';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -3503,11 +3511,18 @@ overlayBtn.addEventListener('click', function(){
 // 이 둘을 타격음 집계에 넣으면 "때리는 순간"이 아니라 끊이지 않는 배경음이 되어버려서
 // (2026-08-05 실측: 무기 여럿 갖춘 구간 분당 200회, 재생 간격 중앙값 266ms로 소리가
 // 중구난방으로 들림 — 사용자 피드백), 지속딜 종류는 타격음 트리거에서 뺀다.
+// 토네이도(kind는 projectile)도 같은 부류다 — hitCooldownMs로 회오리 안에 머무는 적을
+// 계속 재타격하는 "재타격형" 무기라, 꼬리 회전과 똑같이 끊임없이 딜이 들어간다
+// (설정 주석: "꼬리 회전이 쓰는 hitCooldownMs 패턴을 그대로 따랐다"). kind가 아니라
+// hitCooldownMs 유무로 판정해야 이런 무기를 놓치지 않는다.
 // nuke·'?'(이름표 누락)처럼 CONFIG.weapons에 없는 항목은 그대로 둔다 — 배제 대상이 아니다.
 var CONTINUOUS_HIT_KINDS = { field: true, orbit: true };
 var HIT_SOUND_IDS = DAMAGE_IDS.filter(function(id){
   var w = CONFIG.weapons[id];
-  return !w || !CONTINUOUS_HIT_KINDS[w.kind];
+  if (!w) return true;
+  if (CONTINUOUS_HIT_KINDS[w.kind]) return false;
+  if (w.hitCooldownMs) return false;
+  return true;
 });
 
 var lastDmgTotal = 0;
