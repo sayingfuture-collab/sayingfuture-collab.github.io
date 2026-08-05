@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>풍선빵 Balloon Bust — 데일리 풍선 챌린지</title>
 <meta name="description" content="매일 전 세계가 같은 풍선 5개 — 터지기 전에 놓아라. 30초 데일리 배짱 게임">
 <meta property="og:title" content="풍선빵 Balloon Bust">
@@ -30,14 +30,14 @@
     --line:#3a2f57;
   }
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{height:100%}
+  html,body{height:100%;height:100dvh}
   body{
     background:var(--bg);
     color:var(--ink);
     font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;
     overflow:hidden;
     user-select:none;-webkit-user-select:none;
-    touch-action:none;
+    touch-action:manipulation;
   }
   #stage{
     position:fixed;inset:0;
@@ -55,6 +55,9 @@
     background:var(--card);border:1px solid var(--line);color:var(--dim);
     font-size:11px;font-weight:700;padding:5px 9px;border-radius:9px;
     cursor:pointer;font-family:inherit;
+  }
+  button:focus-visible{
+    outline:3px solid var(--gold);outline-offset:3px;
   }
   #langBtn{right:14px;z-index:11} /* 결과/런종료 오버레이(z10) 위에서도 눌리게 */
   #backBtn{left:14px;display:none}
@@ -89,9 +92,12 @@
   #balloonWrap{
     flex:1;display:flex;align-items:center;justify-content:center;
     width:100%;position:relative;
+    border:0;background:none;color:inherit;padding:0;font:inherit;
+    cursor:pointer;touch-action:none;
   }
+  #balloonWrap:disabled{cursor:default}
   #balloon{
-    width:110px;height:130px;
+    display:block;width:110px;height:130px;
     background:radial-gradient(circle at 35% 28%, #ff9aa8 0%, var(--balloon) 45%, #d63a52 100%);
     border-radius:50% 50% 50% 50% / 55% 55% 45% 45%;
     position:relative;
@@ -178,6 +184,12 @@
   @media (prefers-reduced-motion: reduce){
     *{transition:none!important;animation:none!important}
   }
+  @media (max-height:560px){
+    header{padding-top:12px}
+    #mult{margin-top:2vh;font-size:52px}
+    #hint{padding-bottom:3vh}
+    #hint .sub,.ymini{font-size:11px}
+  }
 </style>
 </head>
 <body>
@@ -186,24 +198,24 @@
   <header>
     <h1 id="gameTitle"></h1>
     <div class="date" id="dateLabel"></div>
-    <div id="dots"></div>
-    <div id="runInfo"></div>
+    <div id="dots" role="status" aria-live="polite"></div>
+    <div id="runInfo" role="status" aria-live="polite"></div>
   </header>
   <button id="backBtn"></button>
-  <div id="mult">1.00×</div>
-  <div id="balloonWrap"><div id="balloon"></div></div>
+  <div id="mult" aria-hidden="true">1.00×</div>
+  <button id="balloonWrap" type="button" aria-describedby="hintBig hintSub"><span id="balloon" aria-hidden="true"></span></button>
   <div id="hint">
     <div class="big" id="hintBig"></div>
-    <div class="sub" id="hintSub"></div>
-    <button id="runBtn"></button>
+    <div class="sub" id="hintSub"><span id="hintSub1"></span><br><span id="hintSub2"></span></div>
+    <button id="runBtn" type="button"></button>
     <div class="ymini" id="yLine"></div>
   </div>
 </div>
-<div id="toast"></div>
-<div id="toastSub"></div>
+<div id="toast" role="status" aria-live="assertive" aria-atomic="true"></div>
+<div id="toastSub" aria-hidden="true"></div>
 <div id="flash"></div>
 
-<div id="result">
+<div id="result" role="dialog" aria-modal="true" aria-labelledby="resLabel">
   <div class="card">
     <div class="label" id="resLabel"></div>
     <div class="total" id="totalNum">0.0</div>
@@ -211,22 +223,22 @@
     <div class="pct" id="pctLine"></div>
     <div class="rounds" id="roundList"></div>
     <div class="best" id="bestLine"></div>
-    <button id="shareBtn"></button>
-    <button id="toRunBtn" class="ghost"></button>
+    <button id="shareBtn" type="button"></button>
+    <button id="toRunBtn" type="button" class="ghost"></button>
     <div class="ymini" id="yLineCard"></div>
     <div class="tmr" id="tmr"></div>
   </div>
 </div>
 
-<div id="runOver">
+<div id="runOver" role="dialog" aria-modal="true" aria-labelledby="roTitle">
   <div class="card">
     <div class="label" id="roTitle"></div>
     <div class="total" id="roSum">0.0</div>
     <div class="totalUnit" id="roMeta"></div>
     <div class="best" id="roBest"></div>
-    <button id="roAgain"></button>
-    <button id="roCopy" class="ghost"></button>
-    <button id="roExit" class="ghost"></button>
+    <button id="roAgain" type="button"></button>
+    <button id="roCopy" type="button" class="ghost"></button>
+    <button id="roExit" type="button" class="ghost"></button>
   </div>
 </div>
 
@@ -255,27 +267,31 @@
       return ((t ^ (t>>>14))>>>0)/4294967296;
     };
   }
-  const today = kstDateStr();
-  const rng = mulberry32(hashStr('balloon-'+today));
-
-  /* ---------- 오늘의 풍선 5개 생성 ---------- */
   const ROUNDS = 5;
-  const thresholds = []; // 터지는 배율 (비공개)
-  const stutters = [];   // 페이크 멈칫 지점
-  for(let i=0;i<ROUNDS;i++){
-    // 최소 1.5x 보장, 평균 ~4.4x, 중앙값 ~3.7x, 최대 10x(약 5.7% 도달)
-    const r = rng();
-    let th = 1.5 + (-Math.log(1 - r*0.985)) * 3.2;
-    th = Math.min(th, 10);
-    thresholds.push(th);
-    // 멈칫 페이크 0~2개, 터짐 지점보다 앞에
-    const n = rng() < 0.55 ? (rng() < 0.4 ? 2 : 1) : 0;
-    const arr = [];
-    for(let j=0;j<n;j++){
-      arr.push(1.4 + rng() * (th - 1.5));
+  const TRANSITION_MS = 950;
+  const TOAST_MS = 900;
+  const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function generateDailyBalloons(date){
+    const random = mulberry32(hashStr('balloon-'+date));
+    const generated = {thresholds: [], stutters: []};
+    for(let i=0;i<ROUNDS;i++){
+      // 최소 1.5x 보장, 평균 ~4.4x, 중앙값 ~3.7x, 최대 10x(약 5.7% 도달)
+      const threshold = Math.min(1.5 + (-Math.log(1 - random()*0.985)) * 3.2, 10);
+      generated.thresholds.push(threshold);
+
+      // 멈칫 페이크 0~2개, 터짐 지점보다 앞에
+      const count = random() < 0.55 ? (random() < 0.4 ? 2 : 1) : 0;
+      const pauses = [];
+      for(let j=0;j<count;j++) pauses.push(1.4 + random() * (threshold - 1.5));
+      generated.stutters.push(pauses.sort((a,b)=>a-b));
     }
-    stutters.push(arr.sort((a,b)=>a-b));
+    return generated;
   }
+  const today = kstDateStr();
+  const dailyBalloons = generateDailyBalloons(today);
+  const thresholds = dailyBalloons.thresholds; // 터지는 배율 (비공개)
+  const stutters = dailyBalloons.stutters;     // 페이크 멈칫 지점
 
   /* ---------- 안전한 저장 (미리보기 환경에서도 동작) ---------- */
   const store = {
@@ -289,7 +305,8 @@
       title:'🎈 풍선빵',
       sub:'매일 자정 리셋',
       hintBig:'꾹 누르면 부풀어요',
-      hintSub:'손 떼면 배율 확정 · 터지면 0점<br>오늘은 전 세계 모두 같은 풍선이에요',
+      hintSub1:'손 떼면 배율 확정 · 터지면 0점',
+      hintSub2:'오늘은 전 세계 모두 같은 풍선이에요',
       gained:m=>m+'× 획득!',
       popped:'💥 터졌다!',
       resLabel:'오늘의 합계',
@@ -318,13 +335,17 @@
       runShareTitle:'터질 때까지',
       runBestNew:'🏆 무한 모드 최고 기록!',
       runBestPrev:v=>'무한 최고: '+v+'×',
-      yLimits:t=>'어제의 풍선 한계 — '+t
+      yLimits:t=>'어제의 풍선 한계 — '+t,
+      inflate:'풍선 누르기: 누르는 동안 부풀고, 놓으면 배율이 확정됩니다',
+      switchLang:'Switch to English',
+      roundsStatus:(current,total)=>`${total}라운드 중 ${current}라운드`
     },
     en: {
       title:'🎈 Balloon Bust',
       sub:'resets daily 00:00 KST',
       hintBig:'Hold to inflate',
-      hintSub:'Release to bank · pop = 0<br>Everyone worldwide gets the same balloons today',
+      hintSub1:'Release to bank · pop = 0',
+      hintSub2:'Everyone worldwide gets the same balloons today',
       gained:m=>'Banked '+m+'×!',
       popped:'💥 Popped!',
       resLabel:"Today's total",
@@ -353,7 +374,10 @@
       runShareTitle:'Till It Pops',
       runBestNew:'🏆 New endless best!',
       runBestPrev:v=>'Endless best: '+v+'×',
-      yLimits:t=>"Yesterday's limits — "+t
+      yLimits:t=>"Yesterday's limits — "+t,
+      inflate:'Inflate balloon: hold to inflate and release to bank the multiplier',
+      switchLang:'한국어로 전환',
+      roundsStatus:(current,total)=>`Round ${current} of ${total}`
     }
   };
   const SHARE_URL = 'nyejun.com/games/balloon-bust'; // 공유 텍스트 마지막 줄
@@ -373,10 +397,14 @@
   let usedStutters = [];
   let done = false;
   let transitioning = false; // 라운드 전환 대기(950ms) 동안 입력 차단용
+  let transitionTimer = null;
+  let toastTimer = null;
+  let countdownTimer = null;
+  let activePointerId = null;
   let lastBest = null; // 결과 화면 최고기록 줄 재렌더용(언어 전환 대응)
   let stutterActive = false;
   let lastStutterEnd = -1e9; // 멈칫이 끝난 시각(겁쟁이 판정용)
-  let lastPct = null;   // 오늘 상위 % (표시·공유·재렌더용)
+  let lastPct = null;   // 시뮬레이션 기반 예상 상위 % (표시·공유·재렌더용)
   let savedPct = null;  // 복원된 저장값의 pct
   let lastStreak = null; // 연속 출석 일수
 
@@ -409,33 +437,29 @@
     $('dateLabel').textContent = today.replace(/-/g,'.') + ' · ' + T('sub')
       + (lastStreak >= 2 ? ' · ' + T('streakTag', lastStreak) : '');
   }
-  /* ---------- 어제의 풍선 한계 공개 (어제 시드에서 재계산 — 데일리 생성과 같은 rng 소비 순서 유지 필수) ---------- */
-  function yesterdayLimits(){
-    const y = new Date(Date.now() + 9*3600*1000); y.setUTCDate(y.getUTCDate() - 1);
-    const r = mulberry32(hashStr('balloon-' + y.toISOString().slice(0,10)));
-    const ths = [];
-    for(let i=0;i<ROUNDS;i++){
-      const u = r();
-      ths.push(Math.min(1.5 + (-Math.log(1 - u*0.985)) * 3.2, 10));
-      const n = r() < 0.55 ? (r() < 0.4 ? 2 : 1) : 0; // 멈칫 생성이 소비하는 rng까지 그대로 재현
-      for(let j=0;j<n;j++) r();
-    }
-    return ths;
-  }
+  /* ---------- 어제의 풍선 한계 공개 ---------- */
   function renderYesterday(){
-    const s = T('yLimits', yesterdayLimits().map(v=>v.toFixed(1)+'×').join(' · '));
+    const yesterday = new Date(Date.now() + 9*3600*1000);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    const limits = generateDailyBalloons(yesterday.toISOString().slice(0,10)).thresholds;
+    const s = T('yLimits', limits.map(v=>v.toFixed(1)+'×').join(' · '));
     $('yLine').textContent = s;
     $('yLineCard').textContent = s;
   }
   function applyStaticTexts(){
+    document.documentElement.lang = lang;
     $('gameTitle').textContent = T('title');
     renderDateLine();
     $('hintBig').textContent = T('hintBig');
-    $('hintSub').innerHTML = T('hintSub');
+    $('hintSub1').textContent = T('hintSub1');
+    $('hintSub2').textContent = T('hintSub2');
     $('resLabel').textContent = T('resLabel');
     $('resUnit').textContent = T('resUnit');
     $('shareBtn').textContent = T('shareBtn');
     $('langBtn').textContent = lang === 'ko' ? 'EN' : '한';
+    $('langBtn').setAttribute('aria-label', T('switchLang'));
+    wrap.setAttribute('aria-label', T('inflate'));
+    dots.setAttribute('aria-label', T('roundsStatus', Math.min(round+1, ROUNDS), ROUNDS));
     $('runBtn').textContent = T('runBtn');
     $('toRunBtn').textContent = T('runBtn');
     $('backBtn').textContent = T('backDaily');
@@ -448,7 +472,7 @@
   $('langBtn').addEventListener('click', ()=>setLang(lang === 'ko' ? 'en' : 'ko'));
 
   function renderDots(){
-    dots.innerHTML = '';
+    const fragment = document.createDocumentFragment();
     for(let i=0;i<ROUNDS;i++){
       const d = document.createElement('div');
       d.className = 'dot';
@@ -460,8 +484,10 @@
       } else {
         d.textContent = (i+1);
       }
-      dots.appendChild(d);
+      fragment.appendChild(d);
     }
+    dots.replaceChildren(fragment);
+    dots.setAttribute('aria-label', T('roundsStatus', Math.min(round+1, ROUNDS), ROUNDS));
   }
   renderDots();
 
@@ -580,7 +606,7 @@
     const scale = 1 + (mult - 1) * 0.18;
     // 떨림: 배율 비례 (임계값 힌트는 안 줌 — 절대값 기반 긴장감)
     const baseShake = Math.pow(Math.max(mult-1.8,0), 1.3) * 0.9;
-    const shakeAmt = stuttering ? Math.max(5, baseShake + 2) : baseShake; // 멈칫이 항상 평소보다 강하게
+    const shakeAmt = prefersReducedMotion ? 0 : (stuttering ? Math.max(5, baseShake + 2) : baseShake); // 멈칫이 항상 평소보다 강하게
     const sx = (Math.random()-0.5) * shakeAmt;
     const sy = (Math.random()-0.5) * shakeAmt;
     balloon.style.transform = `scale(${scale}) translate(${sx}px,${sy}px)`;
@@ -599,7 +625,7 @@
     const margin = th - mult;
     if(margin <= 0.3){
       showToast(T('nearMiss'), '#ffd166', T('limitWas', th.toFixed(1)));
-      if(navigator.vibrate) navigator.vibrate(30);
+      if(!prefersReducedMotion && navigator.vibrate) navigator.vibrate(30);
     } else if(performance.now() - lastStutterEnd <= 500 && margin >= 2.0){
       showToast(T('gained', mult.toFixed(2)), '#7fe0a8', T('chicken', th.toFixed(1)));
     } else {
@@ -609,6 +635,7 @@
   function bank(){
     if(!holding) return;
     holding = false;
+    activePointerId = null;
     cancelAnimationFrame(rafId);
     if(mode === 'run'){ bankRun(); return; }
     const th = thresholds[round];
@@ -622,19 +649,18 @@
     if(mult > runBestSingle) runBestSingle = mult;
     bankToast(runTh);
     renderRunInfo();
-    transitioning = true;
-    setTimeout(()=>{
-      transitioning = false;
+    scheduleTransition(()=>{
       if(mode !== 'run') return; // 전환 중에 데일리로 나갔으면 무시
       resetBalloonVisual();
       newRunBalloon();
-    }, 950);
+    });
   }
   function popFx(){
     popSound();
-    if(navigator.vibrate) navigator.vibrate(80);
+    if(!prefersReducedMotion && navigator.vibrate) navigator.vibrate(80);
     // 파편
     balloon.classList.add('popped');
+    if(prefersReducedMotion) return;
     const rect = balloon.getBoundingClientRect();
     const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
     for(let i=0;i<10;i++){
@@ -653,6 +679,7 @@
   }
   function pop(){
     holding = false;
+    activePointerId = null;
     cancelAnimationFrame(rafId);
     if(mode === 'run'){ popRun(); return; }
     results.push({mult: 0, popped: true, th: thresholds[round]});
@@ -665,9 +692,10 @@
     showToast(T('popped'), '#ff8296', T('limitWas', runTh.toFixed(1)));
     let best = null;
     try{ best = JSON.parse(store.get('balloon-run-best') || 'null'); }catch(e){}
+    if(!best || !Number.isFinite(best.sum) || best.sum < 0) best = null;
     const isNew = !best || runSum > best.sum;
     if(isNew && runSum > 0) store.set('balloon-run-best', JSON.stringify({sum: +runSum.toFixed(2), cnt: runN}));
-    setTimeout(()=>{
+    scheduleTransition(()=>{
       if(mode !== 'run') return;
       lastRun = {
         sum: runSum, n: runN, bestSingle: runBestSingle,
@@ -677,7 +705,10 @@
       renderRunOverCard();
       $('runOver').classList.add('show');
       runOverShown = true;
-    }, 950);
+      wrap.disabled = true;
+      $('backBtn').disabled = true;
+      $('roAgain').focus();
+    });
   }
   function renderRunOverCard(){
     if(!lastRun) return;
@@ -690,11 +721,18 @@
     $('roExit').textContent = T('toDaily');
   }
   function showToast(text, color, sub){
+    clearTimeout(toastTimer);
     toast.textContent = text;
+    toast.setAttribute('aria-label', sub ? `${text}. ${sub}` : text);
     toast.style.color = color;
     toast.classList.add('show');
-    if(sub){ toastSub.textContent = sub; toastSub.classList.add('show'); }
-    setTimeout(()=>{ toast.classList.remove('show'); toastSub.classList.remove('show'); }, 900);
+    toastSub.textContent = sub || '';
+    toastSub.classList.toggle('show', Boolean(sub));
+    toastTimer = setTimeout(()=>{
+      toast.classList.remove('show');
+      toastSub.classList.remove('show');
+      toast.removeAttribute('aria-label');
+    }, TOAST_MS);
   }
   function resetBalloonVisual(){
     mult = 1.0;
@@ -706,16 +744,36 @@
     stage.style.background = '';
     multEl.textContent = '1.00×';
     multEl.style.textShadow = '';
+    stutterUntil = 0;
+    stutterActive = false;
+  }
+  function setTransitioning(value){
+    transitioning = value;
+    $('runBtn').disabled = value || (mode === 'daily' && done);
+    $('toRunBtn').disabled = value;
+    wrap.disabled = value || runOverShown || (mode === 'daily' && done);
+  }
+  function scheduleTransition(callback){
+    clearTimeout(transitionTimer);
+    setTransitioning(true);
+    transitionTimer = setTimeout(()=>{
+      transitionTimer = null;
+      setTransitioning(false);
+      callback();
+    }, TRANSITION_MS);
+  }
+  function cancelTransition(){
+    clearTimeout(transitionTimer);
+    transitionTimer = null;
+    setTransitioning(false);
   }
   function nextRound(){
     round++;
     renderDots();
-    transitioning = true;
-    setTimeout(()=>{
-      transitioning = false;
+    scheduleTransition(()=>{
       if(round >= ROUNDS){ finish(); return; }
       resetBalloonVisual();
-    }, 950);
+    });
   }
 
   /* ---------- 무한 런 ("터질 때까지") ---------- */
@@ -744,6 +802,8 @@
     $('runInfo').textContent = T('runCounter', runN, runSum.toFixed(1));
   }
   function enterRun(){
+    if(holding || transitioning) return;
+    cancelTransition();
     mode = 'run';
     runN = 0; runSum = 0; runBestSingle = 0;
     runOverShown = false;
@@ -752,23 +812,36 @@
     dots.style.display = 'none';
     $('runInfo').style.display = 'block';
     $('backBtn').style.display = 'block';
+    $('backBtn').disabled = false;
     $('runBtn').style.display = 'none';
     resetBalloonVisual();
     newRunBalloon();
+    wrap.disabled = false;
+    wrap.focus();
   }
   function exitRun(){
+    if(holding) return;
+    cancelTransition();
     mode = 'daily';
     runOverShown = false;
     $('runOver').classList.remove('show');
     dots.style.display = 'flex';
     $('runInfo').style.display = 'none';
     $('backBtn').style.display = 'none';
+    $('backBtn').disabled = false;
     $('runBtn').style.display = '';
     resetBalloonVisual();
-    if(done || round >= ROUNDS) $('result').classList.add('show');
+    wrap.disabled = done || round >= ROUNDS;
+    $('runBtn').disabled = done || round >= ROUNDS;
+    if(done || round >= ROUNDS){
+      $('result').classList.add('show');
+      $('shareBtn').focus();
+    } else {
+      wrap.focus();
+    }
   }
 
-  /* ---------- 오늘 상위 % (가상 플레이어 5만 명, 시드 고정 → 누가 계산해도 동일) ---------- */
+  /* ---------- 예상 상위 % (가상 플레이어 5만 명, 시드 고정 → 누가 계산해도 동일) ---------- */
   function computePercentile(myTotal){
     const rr = mulberry32(hashStr('balloon-rank-'+today));
     const N = 50000; let below = 0;
@@ -787,9 +860,10 @@
   /* ---------- 연속 출석 스트릭 ---------- */
   function updateStreak(){
     let s; try{ s = JSON.parse(store.get('balloon-streak') || '{}') || {}; }catch(e){ s = {}; }
-    if(s.last === today) return s.n || 1; // 오늘 이미 반영(재방문 포함) — 중복 증가 방지
+    const storedCount = Number.isInteger(s.n) && s.n > 0 ? s.n : 1;
+    if(s.last === today) return storedCount; // 오늘 이미 반영(재방문 포함) — 중복 증가 방지
     const y = new Date(Date.now() + 9*3600*1000); y.setUTCDate(y.getUTCDate() - 1);
-    const n = (s.last === y.toISOString().slice(0,10)) ? (s.n || 0) + 1 : 1;
+    const n = (s.last === y.toISOString().slice(0,10)) ? storedCount + 1 : 1;
     store.set('balloon-streak', JSON.stringify({last: today, n: n}));
     return n;
   }
@@ -803,7 +877,7 @@
     lastStreak = updateStreak();
     renderDateLine();
     const rl = $('roundList');
-    rl.innerHTML = '';
+    rl.replaceChildren();
     results.forEach(r=>{
       const d = document.createElement('div');
       d.className = 'r' + (r.popped ? ' pop' : '');
@@ -812,7 +886,8 @@
       rl.appendChild(d);
     });
     // 최고 기록
-    const prevBest = parseFloat(store.get('balloon-best') || '0');
+    const storedBest = Number.parseFloat(store.get('balloon-best') || '0');
+    const prevBest = Number.isFinite(storedBest) && storedBest >= 0 ? storedBest : 0;
     if(total > prevBest){
       store.set('balloon-best', total.toFixed(1));
       lastBest = {isNew: true};
@@ -826,8 +901,12 @@
       pct: lastPct
     }));
     $('result').classList.add('show');
+    wrap.disabled = true;
+    $('runBtn').disabled = true;
+    $('shareBtn').focus();
     tickTimer();
-    setInterval(tickTimer, 1000);
+    clearInterval(countdownTimer);
+    countdownTimer = setInterval(tickTimer, 1000);
   }
   function tickTimer(){
     const now = new Date(Date.now() + 9*3600*1000);
@@ -847,12 +926,14 @@
   });
   function fallbackCopy(text, ok){
     const ta = document.createElement('textarea');
-    ta.value = text; document.body.appendChild(ta);
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;left:-9999px;top:0';
+    document.body.appendChild(ta);
     ta.select();
     try{ document.execCommand('copy'); ok(); }catch(e){}
     ta.remove();
   }
-  function copyText(text, btn){ shareOrCopy(text, btn); }
   function shareOrCopy(text, btn){
     // 모바일: 네이티브 공유 시트(카톡 등으로 바로 전달) / 데스크톱·미지원 환경: 클립보드 복사 폴백
     if(navigator.share){
@@ -872,7 +953,7 @@
   $('roCopy').addEventListener('click', ()=>{
     if(!lastRun) return;
     const text = `🎈 ${T('shareTitle')} · ${T('runShareTitle')} — ${T('balloonsN', lastRun.n)} · ${T('shareTotal', lastRun.sum.toFixed(1))}\n${SHARE_URL}`;
-    copyText(text, $('roCopy'));
+    shareOrCopy(text, $('roCopy'));
   });
 
   /* ---------- 테스트용: 주소 끝에 ?dev 붙이면 매번 새로 시작 + 검증 훅(개발자 전용, 일반 링크엔 영향 없음) ---------- */
@@ -891,17 +972,28 @@
   }
 
   /* ---------- 이미 플레이했으면 결과 바로 표시 ---------- */
+  function normalizeSavedRound(value){
+    const multiplier = typeof value === 'number' ? value : value && value.m;
+    if(!Number.isFinite(multiplier) || multiplier < 0 || multiplier > 10) return null;
+    const threshold = typeof value === 'number' ? null : value.th;
+    if(threshold != null && (!Number.isFinite(threshold) || threshold < 0.7 || threshold > 10)) return null;
+    return {mult: multiplier, popped: multiplier === 0, th: threshold};
+  }
   const played = store.get('balloon-'+today);
   if(played){
     try{
       const data = JSON.parse(played);
-      if(Array.isArray(data)){ // v1 호환(한계값 없던 시절 저장)
-        data.forEach(v=>results.push({mult: v, popped: v===0, th: null}));
-      } else if(data && data.v === 2){
-        data.r.forEach(x=>results.push({mult: x.m, popped: x.m===0, th: x.th}));
-        savedPct = data.pct != null ? data.pct : null;
+      const savedRounds = Array.isArray(data) ? data : data && data.v === 2 ? data.r : null;
+      if(Array.isArray(savedRounds) && savedRounds.length === ROUNDS){
+        const normalized = savedRounds.map(normalizeSavedRound);
+        if(normalized.every(Boolean)){
+          results.push(...normalized);
+          if(data && !Array.isArray(data) && Number.isInteger(data.pct) && data.pct >= 1 && data.pct <= 99){
+            savedPct = data.pct;
+          }
+        }
       }
-      if(results.length){
+      if(results.length === ROUNDS){
         round = ROUNDS;
         renderDots();
         finish();
@@ -914,7 +1006,9 @@
     if(holding || transitioning) return;
     if(mode === 'daily' && (done || round >= ROUNDS)) return;
     if(mode === 'run' && runOverShown) return;
+    if(e.pointerId != null && e.isPrimary === false) return;
     e.preventDefault();
+    if(e.pointerId != null) activePointerId = e.pointerId;
     audio(); // 사운드 초기화
     loadPopBuffer(); // 터짐음 미리 디코딩(재생 늦어지는 것 방지)
     holding = true;
@@ -923,9 +1017,22 @@
     rafId = requestAnimationFrame(loop);
   }
   function up(e){
-    if(holding) bank();
+    if(!holding) return;
+    if(activePointerId != null && e.pointerId != null && e.pointerId !== activePointerId) return;
+    bank();
+  }
+  function onKeyDown(e){
+    if((e.key === ' ' || e.key === 'Enter') && !e.repeat) down(e);
+  }
+  function onKeyUp(e){
+    if(e.key === ' ' || e.key === 'Enter'){
+      e.preventDefault();
+      up(e);
+    }
   }
   wrap.addEventListener('pointerdown', down);
+  wrap.addEventListener('keydown', onKeyDown);
+  wrap.addEventListener('keyup', onKeyUp);
   window.addEventListener('pointerup', up);
   window.addEventListener('pointercancel', up);
   window.addEventListener('blur', up);
