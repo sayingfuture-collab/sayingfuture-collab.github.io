@@ -112,9 +112,6 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
 .shopSection{ flex:0 0 100%; text-align:center; opacity:.7; font-size:14px;
               margin:10px 0 2px; }
 </style>
-<!-- Cloudflare Web Analytics — 방문자 수 집계. ⚠️ 이 파일은 원본에서 복사해 오는 사본이라,
-     냥서바이버를 재빌드해 덮어쓰면 이 두 줄이 사라집니다. 복사 후 다시 넣어주세요. -->
-<script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "66d74d758a3b4b68ae33d7a072440b61"}'></script>
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -3026,7 +3023,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '1fa82fe';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = '0537c92';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -3502,6 +3499,17 @@ overlayBtn.addEventListener('click', function(){
 
 // 딜량 총합·보스 유무를 지난 프레임과 비교해 타격·보스 등장 소리를 낸다.
 // world.dmgBy·world.boss 는 core 상태를 읽기만 한다 — core 는 안 건드린다.
+// 우유 웅덩이(field)·꼬리 회전(orbit)은 켜져 있는 동안 매 프레임 계속 딜이 들어간다.
+// 이 둘을 타격음 집계에 넣으면 "때리는 순간"이 아니라 끊이지 않는 배경음이 되어버려서
+// (2026-08-05 실측: 무기 여럿 갖춘 구간 분당 200회, 재생 간격 중앙값 266ms로 소리가
+// 중구난방으로 들림 — 사용자 피드백), 지속딜 종류는 타격음 트리거에서 뺀다.
+// nuke·'?'(이름표 누락)처럼 CONFIG.weapons에 없는 항목은 그대로 둔다 — 배제 대상이 아니다.
+var CONTINUOUS_HIT_KINDS = { field: true, orbit: true };
+var HIT_SOUND_IDS = DAMAGE_IDS.filter(function(id){
+  var w = CONFIG.weapons[id];
+  return !w || !CONTINUOUS_HIT_KINDS[w.kind];
+});
+
 var lastDmgTotal = 0;
 var lastBossAlive = false;
 var endScreenSounded = false;   // 게임오버·클리어 소리가 이미 났는지 — 상점 갔다 와도 다시 안 나게
@@ -3510,14 +3518,14 @@ var endScreenSounded = false;   // 게임오버·클리어 소리가 이미 났�
 // (다시 하기·시작 화면의 시작하기·이어하기 화면의 이어하기/새로 시작, 총 세 자리).
 function syncSoundTrackers(){
   var total = 0;
-  for (var i = 0; i < DAMAGE_IDS.length; i++) total += world.dmgBy[DAMAGE_IDS[i]];
+  for (var i = 0; i < HIT_SOUND_IDS.length; i++) total += world.dmgBy[HIT_SOUND_IDS[i]];
   lastDmgTotal = total;
   lastBossAlive = !!(world.boss && world.boss.active);
   endScreenSounded = false;
 }
 function pollSoundTriggers(now){
   var total = 0;
-  for (var i = 0; i < DAMAGE_IDS.length; i++) total += world.dmgBy[DAMAGE_IDS[i]];
+  for (var i = 0; i < HIT_SOUND_IDS.length; i++) total += world.dmgBy[HIT_SOUND_IDS[i]];
   if (total > lastDmgTotal) Sound.hit(now);
   lastDmgTotal = total;
 
