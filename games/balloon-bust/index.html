@@ -125,6 +125,7 @@
   }
   #toastSub.show{opacity:1;transform:translate(-50%,0) scale(1)}
   .card .rth{font-size:10px;font-weight:700;opacity:.55;margin-top:2px}
+  .ymini{font-size:11px;color:var(--dim);margin-top:12px;letter-spacing:.2px}
 
   /* 결과 화면 */
   #result{
@@ -186,6 +187,7 @@
     <div class="big" id="hintBig"></div>
     <div class="sub" id="hintSub"></div>
     <button id="runBtn"></button>
+    <div class="ymini" id="yLine"></div>
   </div>
 </div>
 <div id="toast"></div>
@@ -202,6 +204,7 @@
     <div class="best" id="bestLine"></div>
     <button id="shareBtn"></button>
     <button id="toRunBtn" class="ghost"></button>
+    <div class="ymini" id="yLineCard"></div>
     <div class="tmr" id="tmr"></div>
   </div>
 </div>
@@ -305,7 +308,8 @@
       toDaily:'데일리로',
       runShareTitle:'터질 때까지',
       runBestNew:'🏆 무한 모드 최고 기록!',
-      runBestPrev:v=>'무한 최고: '+v+'×'
+      runBestPrev:v=>'무한 최고: '+v+'×',
+      yLimits:t=>'어제의 풍선 한계 — '+t
     },
     en: {
       title:'🎈 Balloon Bust',
@@ -339,7 +343,8 @@
       toDaily:'Daily',
       runShareTitle:'Till It Pops',
       runBestNew:'🏆 New endless best!',
-      runBestPrev:v=>'Endless best: '+v+'×'
+      runBestPrev:v=>'Endless best: '+v+'×',
+      yLimits:t=>"Yesterday's limits — "+t
     }
   };
   const SHARE_URL = 'nyejun.com/games/balloon-bust'; // 공유 텍스트 마지막 줄
@@ -395,6 +400,24 @@
     $('dateLabel').textContent = today.replace(/-/g,'.') + ' · ' + T('sub')
       + (lastStreak >= 2 ? ' · ' + T('streakTag', lastStreak) : '');
   }
+  /* ---------- 어제의 풍선 한계 공개 (어제 시드에서 재계산 — 데일리 생성과 같은 rng 소비 순서 유지 필수) ---------- */
+  function yesterdayLimits(){
+    const y = new Date(Date.now() + 9*3600*1000); y.setUTCDate(y.getUTCDate() - 1);
+    const r = mulberry32(hashStr('balloon-' + y.toISOString().slice(0,10)));
+    const ths = [];
+    for(let i=0;i<ROUNDS;i++){
+      const u = r();
+      ths.push(Math.min(1.5 + (-Math.log(1 - u*0.985)) * 3.2, 10));
+      const n = r() < 0.55 ? (r() < 0.4 ? 2 : 1) : 0; // 멈칫 생성이 소비하는 rng까지 그대로 재현
+      for(let j=0;j<n;j++) r();
+    }
+    return ths;
+  }
+  function renderYesterday(){
+    const s = T('yLimits', yesterdayLimits().map(v=>v.toFixed(1)+'×').join(' · '));
+    $('yLine').textContent = s;
+    $('yLineCard').textContent = s;
+  }
   function applyStaticTexts(){
     $('gameTitle').textContent = T('title');
     renderDateLine();
@@ -410,6 +433,7 @@
     if(mode === 'run') renderRunInfo();
     if(runOverShown) renderRunOverCard();
     renderBestLine();
+    renderYesterday();
   }
   applyStaticTexts();
   $('langBtn').addEventListener('click', ()=>setLang(lang === 'ko' ? 'en' : 'ko'));
@@ -580,7 +604,8 @@
     if(mode === 'run'){ bankRun(); return; }
     const th = thresholds[round];
     results.push({mult: mult, popped: false, th: th});
-    bankToast(th);
+    // 데일리는 한계·니어미스·겁쟁이 비공개 (전 세계 같은 풍선 → 당일 공개는 스포일러가 됨. 다음날 '어제의 풍선'으로 공개)
+    showToast(T('gained', mult.toFixed(2)), '#7fe0a8');
     nextRound();
   }
   function bankRun(){
@@ -623,7 +648,7 @@
     if(mode === 'run'){ popRun(); return; }
     results.push({mult: 0, popped: true, th: thresholds[round]});
     popFx();
-    showToast(T('popped'), '#ff8296', T('limitWas', thresholds[round].toFixed(1)));
+    showToast(T('popped'), '#ff8296'); // 데일리는 한계 숫자 미표기(스포 방지)
     nextRound();
   }
   function popRun(){
@@ -774,12 +799,7 @@
       const d = document.createElement('div');
       d.className = 'r' + (r.popped ? ' pop' : '');
       d.textContent = r.popped ? '💥' : r.mult.toFixed(1)+'×';
-      if(r.th != null){
-        const s = document.createElement('div');
-        s.className = 'rth';
-        s.textContent = '/' + r.th.toFixed(1);
-        d.appendChild(s);
-      }
+      // 한계 병기는 당일 스포일러라 제거 — 다음날 '어제의 풍선' 줄에서 공개
       rl.appendChild(d);
     });
     // 최고 기록
