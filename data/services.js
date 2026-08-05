@@ -24,6 +24,7 @@
 window.SERVICES = [
   { id: "shrubdown", title: "Shrubdown (풀스윙)", emoji: "🌱", type: "game", status: "live", href: "./games/shrubdown/index.html", desc: "식물 오토배틀러", tag: "오토배틀러", thumb: "" },
   { id: "cat-survivors", title: "냥서바이버", emoji: "🐱", type: "game", status: "live", href: "./games/cat-survivors/index.html", desc: "고양이 vs 쥐떼 서바이버", tag: "서바이버", thumb: "" },
+  { id: "balloon-bust", title: "풍선빵 Balloon Bust", emoji: "🎈", type: "game", status: "live", href: "./games/balloon-bust/index.html", desc: "매일 전 세계가 같은 풍선 5개 — 터지기 전에 놓아라", tag: "데일리 배짱", thumb: "" },
   { id: "sentence-forms", title: "문장의 형식 Vol.1", emoji: "📘", type: "worksheet", status: "live", href: "./worksheets/sentence-forms/index.html", desc: "영문법 학습지 — 기본편 280제·실전편 340제", format: "WEB", thumb: "./worksheets/sentence-forms/images/cover-basic.png" }
 
   // ── 웹에 올리면 아래 형식으로 한 줄씩 다시 추가하세요 (status: "live", href 채우기) ──
