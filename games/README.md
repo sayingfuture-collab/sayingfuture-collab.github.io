@@ -14,9 +14,10 @@
 
 ## cat-survivors (냥서바이버)
 - 원본: `Desktop\고양이\냥서바이버`
-- 빌드: `node tools/build-dist.js` (개발자 치트를 걷어낸 배포본을 만듦)
-- 갱신 절차: 원본 수정 → 재빌드 → `dist/index.html` 을 `games/cat-survivors/index.html` 로 복사
-- ⚠️ 커밋 전 `grep -c yejun games/cat-survivors/index.html` 이 **0** 인지 확인 (치트 발동어)
+- **갱신 절차 = 게임 폴더에서 `node deploy-nyejun.js --push "메시지"` 한 줄.** 손으로 복사하지 말 것.
+  빌드(치트 제거)→복사→beacon 삽입→검증 9종→커밋·푸시→라이브 확인까지 자동. 검증 실패 시 푸시를 막는다.
+- 확인만: `node deploy-nyejun.js --verify` (라이브 게임 버전·집계·치트 노출 여부)
+- ⚠️ 치트 발동어가 `yejun` 이라 이 파일 안에 그 글자가 있으면 안 된다 — 주석에도 쓰지 말 것
 
 ## shrubdown (Shrubdown / 풀스윙)
 - 원본: `Desktop\고양이\plant fight`
