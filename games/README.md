@@ -26,6 +26,7 @@
 - ⚠️ itch.io(nye-jun.itch.io/shrubdown)에도 같은 게임이 올라가 있음 → 패치하면 **양쪽 다** 갱신할 것
 
 ## balloon-bust (풍선빵)
-- 원본: `Desktop\고양이\풍선게임`
-- 배포본: 단일 `index.html`
-- 갱신 절차: 원본 수정 → `games/balloon-bust/index.html` 로 복사
+- 원본: `Desktop\고양이\풍선게임` (단일 `index.html` + `og.png`, 빌드 단계 없음)
+- **갱신 절차 = 게임 폴더에서 `node deploy-nyejun.js --push "메시지"`.** 손으로 복사하지 말 것.
+- `--push` 없이 실행하면 **검사만 하고 이 폴더를 건드리지 않는다** (빌드 단계가 없어서 작업 중인 코드가 섞여 올라갈 위험이 크기 때문)
+- 지금 라이브가 로컬과 같은지: `node deploy-nyejun.js --verify` (내용 지문 비교)
