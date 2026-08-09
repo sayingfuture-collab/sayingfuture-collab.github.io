@@ -119,6 +119,16 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
 #overlayStat{font-size:15px; opacity:.9; text-align:center; line-height:1.7}
 .shopSection{ flex:0 0 100%; text-align:center; opacity:.7; font-size:14px;
               margin:10px 0 2px; }
+/* 도감 — 탭 셋이 한 줄에 들어가야 한다(폰 375px 에서 카드 기본폭 170px 로는 줄바꿈된다) */
+.codexTab{ flex:1 1 0; min-width:0; padding:12px 4px; font-size:14px }
+/* 도감 표 한 줄 — 왼쪽 이름, 오른쪽 값 */
+.codexRow{ flex:0 0 100%; display:flex; justify-content:space-between; gap:12px;
+           padding:8px 12px; font-size:14px; line-height:1.5 }
+.codexRow > span:last-child{ text-align:right; opacity:.85 }
+/* 도감 안내 문구 — 좌우로 나누지 않고 폭 전체를 쓴다. 좌우 분할(.codexRow)로 두면
+   375px 폰에서 1px 모자라 두 조각이 동시에 접히며 한글이 어절 중간에서 끊긴다. */
+.codexNote{ flex:0 0 100%; padding:8px 12px; font-size:13px; line-height:1.6;
+            word-break:keep-all; opacity:.95 }
 </style>
 <!-- Cloudflare Web Analytics — 방문자 수 집계. ⚠️ 이 파일은 dist/index.html 의 사본이라,
      그냥 덮어쓰면 이 줄이 사라진다. 배포 스크립트가 배포할 때마다 자동으로 다시 넣는다. -->
@@ -192,13 +202,13 @@ var CONFIG = {
               maxAlive: 3,                           // 무한히 쌓아두지 못하게
               showSec: 0.45 },                       // 폭발 잔상 길이
   enemies: {
-    mouse: { emoji: '\u{1F401}', hp: 10, speed: 48, radius: 9,  contact: 6,  xp: 1, size: 20,
+    mouse: { emoji: '\u{1F401}', name: '생쥐', hp: 10, speed: 48, radius: 9,  contact: 6,  xp: 1, size: 20,
              color: '#8a6a4a', fromMin: 0, coin: 1 },
-    rat:   { emoji: '\u{1F400}', hp: 16, speed: 88, radius: 10, contact: 8,  xp: 2, size: 22,
+    rat:   { emoji: '\u{1F400}', name: '시궁쥐', hp: 16, speed: 88, radius: 10, contact: 8,  xp: 2, size: 22,
              color: '#6f7f8f', fromMin: 3, coin: 2 },   // 빠른 적 — 무리에서 먼저 도착한다
-    fat:   { emoji: '\u{1F42D}', hp: 60, speed: 32, radius: 16, contact: 14, xp: 5, size: 34,
+    fat:   { emoji: '\u{1F42D}', name: '뚱쥐', hp: 60, speed: 32, radius: 16, contact: 14, xp: 5, size: 34,
              color: '#a8683f', fromMin: 5, coin: 5 },   // 느리지만 단단하고 아프다
-    mole:  { emoji: '\u{1F43E}', hp: 30, speed: 0, radius: 13, contact: 12, xp: 3, size: 26,
+    mole:  { emoji: '\u{1F43E}', name: '두더지', hp: 30, speed: 0, radius: 13, contact: 12, xp: 3, size: 26,
              color: '#7a5a3a', fromMin: 6, coin: 3,
              viaWarn: true,       // 화면 밖 링이 아니라 예고를 거쳐서만 나온다
              warnSec: 0.6,        // 흙더미 예고 시간 — 피할 틈을 준다
@@ -214,38 +224,38 @@ var CONFIG = {
              color: '#d4af37', boss: true, coin: 700 }
   },
   weapons: {
-    claw: { kind: 'claw', name: '앞발 할퀴기', emoji: '\u{1F43E}', maxLevel: 5,
+    claw: { kind: 'claw', name: '앞발 할퀴기', desc: '앞쪽 부채꼴을 할퀸다', emoji: '\u{1F43E}', maxLevel: 5,
             damage: 14, cooldownMs: 1000, radius: 60, arcDeg: 90,
             radiusPerLv: 10,  // 레벨당 사거리 증가
             swingMs: 150 },   // 스윙 이펙트 표시 시간
-    yarn: { kind: 'projectile', name: '털뭉치', emoji: '\u{1F9F6}', maxLevel: 5,
+    yarn: { kind: 'projectile', name: '털뭉치', desc: '조준 방향으로 굴러간다', emoji: '\u{1F9F6}', maxLevel: 5,
             damage: 8, cooldownMs: 800, speed: 320, radius: 8, lifeSec: 2.0,
             counts: [1, 1, 2, 2, 3],   // 레벨별 동시 발사 수
             spreadDeg: 14, pierce: 1 },
-    bone: { kind: 'projectile', name: '생선뼈', emoji: '\u{1F41F}', maxLevel: 5,
+    bone: { kind: 'projectile', name: '생선뼈', desc: '던지면 돌아온다', emoji: '\u{1F41F}', maxLevel: 5,
             damage: 15, cooldownMs: 2000, speed: 300, radius: 11, lifeSec: 1.8,
             counts: [1, 1, 1, 2, 2],
             spreadDeg: 26, pierce: 999,   // 사실상 무한 관통
             boomerang: true },            // 수명 절반에서 방향을 뒤집는다
-    laser: { kind: 'beam', name: '레이저 포인터', emoji: '\u{1F534}', maxLevel: 5,
+    laser: { kind: 'beam', name: '레이저 포인터', desc: '직선 위의 적을 전부 관통한다', emoji: '\u{1F534}', maxLevel: 5,
              damage: 30, cooldownMs: 2000, length: 400, lengthPerLv: 60,
              width: 16, showMs: 140 },
-    catnip: { kind: 'blast', name: '캣닢 폭발', emoji: '\u{1F33F}', maxLevel: 5,
+    catnip: { kind: 'blast', name: '캣닢 폭발', desc: '가장 가까운 적 자리에서 터진다', emoji: '\u{1F33F}', maxLevel: 5,
               damage: 42, cooldownMs: 3000, radius: 70, radiusPerLv: 10,
               showMs: 260 },
-    milk: { kind: 'field', name: '우유 웅덩이', emoji: '\u{1F95B}', maxLevel: 5,
+    milk: { kind: 'field', name: '우유 웅덩이', desc: '바닥에 깔린다. 밟은 적은 느려진다', emoji: '\u{1F95B}', maxLevel: 5,
             damage: 14,           // 초당 피해 (다른 무기는 1회 피해)
             // 지속 2.5초 / 쿨 5초 = 가동률 50% (낮잠 0 기준, 낮잠 만렙이면 71%).
             // 75% 였을 때는 꼬리 회전과 겹쳐 빈틈없는 살상 고리가 되어
             // 가만히 서 있는 게 정답이 됐다.
             cooldownMs: 5000, radius: 60, radiusPerLv: 8,
             durationSec: 2.5, slowPct: 40, tickSec: 0.5 },
-    tail: { kind: 'orbit', name: '꼬리 회전', emoji: '\u{1F300}', maxLevel: 5,
+    tail: { kind: 'orbit', name: '꼬리 회전', desc: '내 주위를 도는 공', emoji: '\u{1F300}', maxLevel: 5,
             damage: 8, cooldownMs: 0,     // 상시 발동 (재타격 간격은 적마다 따로)
             orbitRadius: 70, orbitRadiusPerLv: 6, ballRadius: 18,
             rotSpeed: 3.0,                // 초당 회전 각도(라디안)
             hitCooldownMs: 650 },         // 같은 적 재타격 간격 — 상시 고리를 얇게 유지한다
-    tornado: { kind: 'projectile', name: '토네이도', emoji: '\u{1F32A}\u{FE0F}', maxLevel: 5,
+    tornado: { kind: 'projectile', name: '토네이도', desc: '적을 끌어당기며 굴러간다', emoji: '\u{1F32A}\u{FE0F}', maxLevel: 5,
                // 굴러가며 반경 안의 적을 끌어당기고, 회오리 안에 머무는 동안 계속 때린다.
                // 만렙 단일 DPS 는 발사 쿨타임이 아니라 **재타격 간격**으로 센다:
                //   18 × 2.0 ÷ 1.2 = 30.0
@@ -257,7 +267,7 @@ var CONFIG = {
                pullRadius: 120,      // 이 안의 적을 끌어당긴다
                pullSpeed: 90,        // 초당 이만큼 중심 쪽으로 당긴다
                hitCooldownMs: 1200 },// 같은 적 재타격 간격 — DPS 를 정하는 값이다
-    zap: { kind: 'chain', name: '정전기', emoji: '\u{26A1}', maxLevel: 5,
+    zap: { kind: 'chain', name: '정전기', desc: '맞은 적에서 근처 적으로 튄다', emoji: '\u{26A1}', maxLevel: 5,
            // 맞은 적에서 근처 적으로 튄다. 만렙 단일 DPS 26.7 (첫 대상 기준).
            // 연쇄로 들어가는 추가 피해는 "여러 마리일 때의 보너스" 라서 단일 대상
            // 균형 계산에는 넣지 않는다 — 1대1 보스전에서는 첫 방뿐이기 때문이다.
@@ -267,7 +277,7 @@ var CONFIG = {
            chainRange: 140,      // 다음 대상까지 이 거리 안이어야 튄다
            chainFalloff: 0.7,    // 연쇄 한 번마다 피해 배수
            showMs: 200 },
-    friend: { kind: 'companion', name: '고양이 친구', emoji: '\u{1F408}', maxLevel: 5,
+    friend: { kind: 'companion', name: '고양이 친구', desc: '적에게 달려가 물고 돌아온다', emoji: '\u{1F408}', maxLevel: 5,
               // 따라다니다 가장 가까운 적 하나에게 달려가 물고 돌아온다.
               // 만렙 단일 DPS 33.3. 상시 발동이지만 한 번에 한 마리만 물기 때문에
               // 우유+꼬리 같은 "빈틈없는 살상 원" 이 안 생긴다 — AC-7 로 실측 검증한다.
@@ -867,15 +877,79 @@ World.prototype.resolveContacts = function(dt){
   this.grid.forEachNear(p.x, p.y, maxR, this._onContactCandidate);
 };
 
-// 영구 강화 단계를 갈아끼운다(상점에서 산 뒤 다음 판에 반영). reset 이 뒤따라야 한다.
-World.prototype.applyMeta = function(metaLevels){
+/* 영구강화 단계 -> 배수·가산값. 순수 계산이라 world 상태를 안 건드린다.
+   applyMeta(적용) 와 playerStats(표시) 가 이 한 표를 같이 쓴다 — 두 벌로 갈라지면
+   도감 숫자가 실제 효과와 조용히 어긋난다. */
+World.prototype.metaMultFrom = function(metaLevels){
   var ml = metaLevels || {};
   var mc = this.config.meta;
-  this.metaMult.damage    = 1 + (ml.power  || 0) * mc.power.pct / 100;
-  this.metaMult.maxHpAdd  =     (ml.maxHp  || 0) * mc.maxHp.add;
-  this.metaMult.speed     = 1 + (ml.speed  || 0) * mc.speed.pct / 100;
-  this.metaMult.pickup    = 1 + (ml.magnet || 0) * mc.magnet.pct / 100;
-  this.metaMult.xp        = 1 + (ml.xpGain || 0) * mc.xpGain.pct / 100;
+  return {
+    damage:   1 + (ml.power  || 0) * mc.power.pct / 100,
+    maxHpAdd:     (ml.maxHp  || 0) * mc.maxHp.add,
+    speed:    1 + (ml.speed  || 0) * mc.speed.pct / 100,
+    pickup:   1 + (ml.magnet || 0) * mc.magnet.pct / 100,
+    xp:       1 + (ml.xpGain || 0) * mc.xpGain.pct / 100
+  };
+};
+
+// 영구강화 단계를 갈아끼운다(상점에서 산 뒤 다음 판에 반영). reset 이 뒤따라야 한다.
+// metaMult 객체 자체는 갈지 않는다 — 매 프레임 읽는 자리라 참조를 유지한다.
+World.prototype.applyMeta = function(metaLevels){
+  var m = this.metaMultFrom(metaLevels);
+  this.metaMult.damage   = m.damage;
+  this.metaMult.maxHpAdd = m.maxHpAdd;
+  this.metaMult.speed    = m.speed;
+  this.metaMult.pickup   = m.pickup;
+  this.metaMult.xp       = m.xp;
+};
+
+/* 도감에 쓸 적 한 종의 표시 정보.
+   보스 이름·등장 시각은 CONFIG.bosses 에서 읽는다 — CONFIG.enemies 에 중복해
+   넣으면 나중에 한쪽만 고쳐서 어긋난다(계획/15-수치공개-명세.md ④).
+   hpLate 는 "마지막 보스가 나오는 시각의 체력" 이다. 적 체력은 1분마다
+   hpPerMin 만큼 늘고 보스만 예외라, 잡졸은 후반에 몇 배가 되는지가 중요하다. */
+World.prototype.enemyInfo = function(id){
+  var e = this.config.enemies[id];
+  if (!e) return null;
+  var name = e.name || '';
+  var fromMin = e.fromMin;
+  var i;
+  if (e.boss){
+    for (i = 0; i < this.config.bosses.length; i++){
+      if (this.config.bosses[i].typeId === id){
+        name = this.config.bosses[i].name;
+        fromMin = this.config.bosses[i].atMin;
+        break;
+      }
+    }
+  }
+  var lateMin = this.config.bosses[this.config.bosses.length - 1].atMin;
+  var scale = 1 + lateMin * this.config.spawn.hpPerMin;
+  return {
+    id: id, name: name, emoji: e.emoji, boss: !!e.boss,
+    hp: e.hp,
+    hpLate:  e.boss ? null : Math.round(e.hp * scale),
+    lateMin: e.boss ? null : lateMin,
+    contact: e.contact, speed: e.speed,
+    fromMin: fromMin, coin: e.coin, xp: e.xp
+  };
+};
+
+/* 도감 "나" 칸. 영구강화 단계를 받아 기본값과 지금 값을 함께 준다.
+   **패시브를 섞지 않는다.** 시작 화면에서 열린 도감은 world 가 아직 초기화되기
+   전이라 world.passives 가 직전 판 값일 수 있다 — 그걸 읽으면 "아직 시작도
+   안 했는데 발톱갈이 3단계" 가 나온다. 이번 판 패시브는 shell 이 일시정지에서
+   열렸을 때만 따로 보여준다. */
+World.prototype.playerStats = function(metaLevels){
+  var p = this.config.player;
+  var m = this.metaMultFrom(metaLevels);
+  return {
+    maxHp:  { base: p.maxHp,       now: p.maxHp + m.maxHpAdd },
+    speed:  { base: p.speed,       now: Math.round(p.speed * m.speed) },
+    damage: { base: 1,             now: m.damage },
+    pickup: { base: p.pickupRange, now: Math.round(p.pickupRange * m.pickup) },
+    xp:     { base: 1,             now: m.xp }
+  };
 };
 
 // 판을 처음 상태로 되돌린다.
@@ -1206,13 +1280,79 @@ World.prototype.updateGems = function(dt){
   this.checkLevelUp();
 };
 
-// 무기의 최종 피해량. 발톱갈이 패시브 배수가 곱해진다.
-World.prototype.weaponDamage = function(id){
+// 표시용 소수 자르기. 17.5 를 18 로 반올림하지 않는다 — 실제 피해는 소수 그대로 들어간다.
+function round1(x){ return Math.round(x * 10) / 10; }
+
+/* 무기마다 "사거리" 의 뜻이 다르다. weaponRadius() 는 할퀴기·캣닢·우유에만 맞고
+   레이저·꼬리 회전·고양이 친구는 radius 필드 자체가 없어 NaN 이 나온다
+   (계획/15-수치공개-명세.md ①). weaponRadius() 는 실제 판정에 쓰이므로 고치지 않고,
+   표시 전용으로 "그 무기가 레벨마다 실제로 좋아지는 것" 을 여기서 따로 정의한다.
+   null 은 "공격력만 오르는 무기" 다 — 안 변하는 숫자를 억지로 띄우지 않는다.
+   무기를 새로 늘리면 여기에도 줄을 더해야 한다(빠뜨리면 core.test.js 가 잡는다). */
+var WEAPON_FEATURE = {
+  claw:    { label: '사거리',    from: 'radius' },
+  yarn:    { label: '발사 수',   from: 'counts', unit: '발' },
+  bone:    { label: '발사 수',   from: 'counts', unit: '발' },
+  laser:   { label: '사거리',    from: 'length' },
+  catnip:  { label: '폭발 범위', from: 'radius' },
+  milk:    { label: '장판 크기', from: 'radius' },
+  tail:    { label: '공전 반경', from: 'orbit'  },
+  tornado: { label: '발사 수',   from: 'counts', unit: '발' },
+  zap:     null,      // 연쇄 수·연쇄 범위가 레벨과 무관하다
+  friend:  null       // 탐지 범위가 레벨과 무관하다
+};
+
+/* 패시브·영구강화를 뺀 순수 기본 피해량. 상점과 도감이 쓴다 — 그 화면들은 판 밖에서도
+   열리는데, 그 시점 world.passives 는 직전 판이 남긴 값일 수 있다. 실제 피해량을
+   보여주면 "발톱갈이를 들고 죽은 뒤 상점을 열면 앞발 할퀴기가 14 가 아니라 20" 이 된다. */
+World.prototype.weaponBaseDamageAt = function(id, lv){
   var w = this.config.weapons[id];
-  var lv = this.weapons[id].level;
-  var base = w.damage * (1 + (lv - 1) * this.config.level.damagePerLvPct / 100);
+  return w.damage * (1 + (lv - 1) * this.config.level.damagePerLvPct / 100);
+};
+
+// 레벨 lv 에서의 실제 피해량. 기본값 위에 발톱갈이 패시브와 영구강화를 얹는다.
+// weaponDamage(id) 가 이걸 현재 레벨로 부른다 — 공식은 여기 한 벌뿐이다.
+World.prototype.weaponDamageAt = function(id, lv){
   var pct = this.passives.claws * this.config.passives.claws.damagePct;
-  return base * (1 + pct / 100) * this.metaMult.damage;
+  return this.weaponBaseDamageAt(id, lv) * (1 + pct / 100) * this.metaMult.damage;
+};
+
+// 무기의 최종 피해량(현재 레벨).
+World.prototype.weaponDamage = function(id){
+  return this.weaponDamageAt(id, this.weapons[id].level);
+};
+
+// 레벨 lv 에서 그 무기의 "두 번째 수치". 없으면 null.
+World.prototype.weaponFeatureAt = function(id, lv){
+  var f = WEAPON_FEATURE[id];
+  if (!f) return null;
+  var c = this.config.weapons[id];
+  var v;
+  if (f.from === 'radius')      v = c.radius + (lv - 1) * (c.radiusPerLv || 0);
+  else if (f.from === 'length') v = c.length + (lv - 1) * (c.lengthPerLv || 0);
+  else if (f.from === 'orbit')  v = c.orbitRadius + (lv - 1) * (c.orbitRadiusPerLv || 0);
+  // 발사 수는 fireProjectile 과 같은 색인 규칙을 써야 한다 — 한쪽만 고치면 어긋난다
+  else                          v = c.counts[Math.min(lv, c.counts.length) - 1];
+  return { label: f.label, value: Math.round(v), unit: f.unit || '' };
+};
+
+/* 레벨업 카드에 쓸 무기 설명. toLv 는 그 카드를 고르면 도달할 레벨이다.
+   toLv === 1 이면 새로 얻는 무기라 비교할 "지금" 이 없다.
+   두 번째 수치는 실제로 값이 바뀔 때만 줄을 만든다 — 털뭉치 Lv1->Lv2 처럼
+   발사 수가 그대로인 구간에 "1 -> 1" 을 띄우면 정보가 아니라 소음이다. */
+World.prototype.weaponCardDesc = function(id, toLv){
+  var dTo = round1(this.weaponDamageAt(id, toLv));
+  var fTo = this.weaponFeatureAt(id, toLv);
+  if (toLv <= 1){
+    var s = '공격력 ' + dTo;
+    if (fTo) s += ' · ' + fTo.label + ' ' + fTo.value + fTo.unit;
+    return s;
+  }
+  var out = '공격력 ' + round1(this.weaponDamageAt(id, toLv - 1)) + ' → ' + dTo;
+  var fFrom = this.weaponFeatureAt(id, toLv - 1);
+  if (fTo && fFrom && fFrom.value !== fTo.value)
+    out += '<br>' + fTo.label + ' ' + fFrom.value + ' → ' + fTo.value + fTo.unit;
+  return out;
 };
 
 // 젬 흡수 범위. 수염 패시브가 곱해진다.
@@ -1223,6 +1363,9 @@ World.prototype.pickupRange = function(){
 };
 
 // 무기의 현재 사거리. 레벨당 radiusPerLv 만큼 늘어난다.
+// ⚠️ 이 함수는 radius 필드가 있는 무기(할퀴기·캣닢·우유)에만 유효하다. 레이저·꼬리
+//    회전·고양이 친구는 radius 가 없어서 NaN 이 나온다 — 실제 판정에서는 그 셋에
+//    대해 부르지 않으므로 문제가 없지만, 화면에 띄우려면 weaponFeatureAt() 를 쓸 것.
 World.prototype.weaponRadius = function(id){
   var w = this.config.weapons[id];
   return w.radius + (this.weapons[id].level - 1) * (w.radiusPerLv || 0);
@@ -1635,7 +1778,7 @@ World.prototype.rollChoices = function(){
     if (!owned && this.weaponSlotsUsed() >= cfg.level.slotsWeapon) continue;
     pool.push({ kind: 'weapon', id: id, name: cfg.weapons[id].name,
                 emoji: cfg.weapons[id].emoji, level: lv + 1,
-                desc: owned ? '공격력과 범위가 올라갑니다' : '새 무기를 얻습니다' });
+                desc: this.weaponCardDesc(id, lv + 1) });
   }
   // 패시브
   for (id in cfg.passives){
@@ -1738,7 +1881,7 @@ World.prototype.choiceFromKindId = function(kind, id){
     if (!wst && this.weaponSlotsUsed() >= cfg.level.slotsWeapon) return null;
     return { kind: 'weapon', id: id, name: cfg.weapons[id].name,
              emoji: cfg.weapons[id].emoji, level: lv + 1,
-             desc: wst ? '공격력과 범위가 올라갑니다' : '새 무기를 얻습니다' };
+             desc: this.weaponCardDesc(id, lv + 1) };
   }
   if (kind === 'passive' && cfg.passives[id]){
     var plv = this.passives[id];
@@ -2016,6 +2159,7 @@ global.CatCore = {
   Stepper: Stepper,
   World: World,
   WEAPON_IDS: WEAPON_IDS,
+  WEAPON_FEATURE: WEAPON_FEATURE,
   DAMAGE_IDS: DAMAGE_IDS,
   normalizeStarterSave: normalizeStarterSave
 };
@@ -2409,7 +2553,7 @@ function resize(){
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   world.ensureGridCovers(viewW, viewH);
-  if (inShop) overlay.scrollTop = 0;   // 상점을 연 채 회전하면 제목·잔액이 화면 위로 밀려 사라진다
+  if (inShop || inCodex) overlay.scrollTop = 0;   // 열어 둔 채 회전하면 제목이 화면 위로 밀려 사라진다
   // 캔버스 크기를 바꾸면 그 내용이 지워진다. frame() 이 정지 상태라 다시 안 그리면
   // 오버레이 뒤 배경이 회전 후 빈 채로 남는다 — 여기서 즉시 한 번 다시 그린다.
   if (gameLoopStarted) render();
@@ -3034,7 +3178,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = 'aa5fa74';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = 'b906211';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -3050,6 +3194,8 @@ function 새판고유번호(){
 }
 
 var inShop = false;      // 지금 강화 상점 화면인가
+var inCodex = false;     // 지금 도감 화면인가
+var codexOrigin = 'start';   // 도감을 닫으면 어디로 돌아가는가: 'start' | 'pause'
 // 상점 "닫기"가 어디로 돌아가야 하는지. 상점은 결과 화면과 시작 화면 두 곳에서
 // 열릴 수 있게 됐으므로, 연 곳을 기억해뒀다가 닫을 때 그리로 돌려보낸다.
 var shopOrigin = 'result';
@@ -3154,7 +3300,14 @@ function showPause(){
   overlayStat.innerHTML = m + '분 ' + (s < 10 ? '0' : '') + s + '초 · Lv.' + world.level +
     '<br><small>지금 나가셔도 됩니다. 다음에 열면 여기서부터 이어집니다.</small>';
   cardsEl.innerHTML = '';
-  cardsEl.style.display = 'none';
+  cardsEl.style.display = 'flex';
+  appendCard('<div class="ico">\u{1F4D6}</div>' +
+             '<div class="nm">도감</div>' +
+             '<div class="ds">무기 · 적 · 내 스펙</div>',
+             function(){
+               codexOrigin = 'pause';   // 닫으면 이 일시정지 화면으로 돌아온다
+               showCodex('weapon');
+             }, false);
   rerollBtn.style.display = 'none';
   shopBtn.style.display = 'none';
   overlayBtn.style.display = 'block';
@@ -3166,6 +3319,8 @@ function showPause(){
 
 function resumeFromPause(){
   overlay.classList.remove('on');
+  cardsEl.innerHTML = '';        // 일시정지 화면의 도감 카드를 치운다
+  cardsEl.style.display = 'none';
   paused = false;
   isPauseScreen = false;
   lastTime = 0;              // 멈춰 있던 동안 쌓인 시간을 버린다
@@ -3174,7 +3329,7 @@ function resumeFromPause(){
 // 일시정지 버튼·키가 부른다. 레벨업 카드·상점·결과 화면에서는 아무것도 하지 않는다.
 function togglePause(){
   if (askingName) return;                                   // 이름 화면 중에는 아무것도 안 한다
-  if (world.gameOver || world.cleared || inShop) return;
+  if (world.gameOver || world.cleared || inShop || inCodex) return;
   if (pendingRun) return;                                   // 이어할지 고르는 중
   if (atStartScreen) return;                                // 시작 화면 중
   if (world.pendingChoices > 0 && !isPauseScreen) return;   // 카드를 고르는 중
@@ -3363,6 +3518,175 @@ function showNameAsk(after){
   overlay.classList.add('on');
 }
 
+/* 도감. 시작 화면과 일시정지 화면에서 연다. 새 UI 를 만들지 않고 기존 오버레이와
+   카드 틀을 쓴다 — 상점 헤더 버그(7b43340)가 이 오버레이 구조의 복잡함에서 나왔다.
+   탭 전환은 showShop 이 물건을 사고 스스로를 다시 부르는 것과 같은 방식이다. */
+function showCodex(tab){
+  inCodex = true;
+  atStartScreen = false;   // 도감을 보는 동안은 시작 화면이 아니다 (닫으면 codexOrigin 이 돌려보낸다)
+  isPauseScreen = false;
+  /* 위 두 줄은 "지금 보이는 화면은 도감이다" 를 상태 기계에 알리는 선언이다.
+     화면을 새로 만들 때 이걸 빠뜨리면, 그 화면이 열려 있는 동안 다른 화면의
+     플래그가 살아 있어 엉뚱한 분기가 먼저 걸린다. 15단계에서만 이 실수가
+     세 번 나왔다(atStartScreen · onLeaving · isPauseScreen). */
+  overlay.scrollTop = 0;
+  overlayTitle.textContent = '도감';
+  overlayStat.textContent = '';
+  cardsEl.style.display = 'flex';
+  cardsEl.innerHTML = '';
+  rerollBtn.style.display = 'none';
+  overlayBtn.style.display = 'none';
+  shopBtn.style.display = 'none';
+  headClose.style.display = 'block';
+
+  var 탭들 = [{ id: 'weapon', nm: '무기' }, { id: 'enemy', nm: '적' }, { id: 'me', nm: '나' }];
+  for (var t = 0; t < 탭들.length; t++){
+    (function(c){
+      var 지금 = (c.id === tab);
+      // 지금 탭은 disabled + selected 로 둔다 — appendCard 가 'card sel' 로 강조한다
+      var el = appendCard('<div class="nm">' + c.nm + '</div>',
+                          function(){ showCodex(c.id); }, 지금, 지금);
+      el.className += ' codexTab';
+    })(탭들[t]);
+  }
+
+  if (tab === 'weapon')      codexWeapons();
+  else if (tab === 'enemy')  codexEnemies();
+  else                       codexMe();
+
+  overlay.classList.add('on');
+  paused = true;
+}
+
+function closeCodex(){
+  inCodex = false;
+  headClose.style.display = 'none';
+  cardsEl.innerHTML = '';
+  cardsEl.style.display = 'none';
+  if (codexOrigin === 'pause'){ showPause(); return; }
+  showStartScreen();
+}
+
+// 폭 전체를 쓰는 표 한 줄. 왼쪽에 이름, 오른쪽에 값.
+function codexRow(왼쪽, 오른쪽){
+  var d = document.createElement('div');
+  d.className = 'codexRow';
+  d.innerHTML = '<span>' + 왼쪽 + '</span><span>' + 오른쪽 + '</span>';
+  cardsEl.appendChild(d);
+}
+
+function codexSection(글자){
+  var d = document.createElement('div');
+  d.className = 'shopSection';
+  d.textContent = 글자;
+  cardsEl.appendChild(d);
+}
+
+// 폭 전체를 쓰는 안내 한 줄. 좌우 분할이 아니라 한 덩어리다(폰에서 안 접히게).
+function codexNote(글자){
+  var d = document.createElement('div');
+  d.className = 'codexNote';
+  d.innerHTML = 글자;
+  cardsEl.appendChild(d);
+}
+
+// core 의 round1 은 export 되지 않는다. shell 에서 도감·상점 표시에 쓰는 같은 반올림.
+function shellRound1(x){
+  return Math.round(x * 10) / 10;
+}
+
+function codexWeapons(){
+  codexNote('강화·패시브를 뺀 <b>기본 수치</b>입니다. 지금 내 배수는 \u{2018}나\u{2019} 칸에서 볼 수 있습니다.');
+  for (var i = 0; i < WEAPON_IDS.length; i++){
+    var id = WEAPON_IDS[i];
+    var c = CONFIG.weapons[id];
+    var max = c.maxLevel;
+    // 기본값을 쓴다 — 상점과 같은 기준이고, 판 밖에서 열려도 직전 판의 패시브가 안 샌다
+    var d1 = shellRound1(world.weaponBaseDamageAt(id, 1));
+    var dM = shellRound1(world.weaponBaseDamageAt(id, max));
+    var f1 = world.weaponFeatureAt(id, 1);
+    var fM = world.weaponFeatureAt(id, max);
+    var 줄 = '공격력 ' + d1 + ' → ' + dM;
+    if (f1 && fM && f1.value !== fM.value)
+      줄 += '<br>' + fM.label + ' ' + f1.value + ' → ' + fM.value + fM.unit;
+    else if (f1)
+      줄 += '<br>' + f1.label + ' ' + f1.value + f1.unit;
+    codexSection(c.emoji + ' ' + c.name);
+    codexRow(c.desc, '');
+    codexRow('Lv.1 → Lv.' + max, 줄);
+  }
+}
+
+function codexEnemies(){
+  codexNote('<b>적 체력은 1분마다 ' + Math.round(CONFIG.spawn.hpPerMin * 100) +
+            '%씩 늘어납니다.</b> 보스는 예외입니다.');
+  // 적 목록은 art 블록이 갖고 있다. shell 은 ART 별칭(2481줄)으로만 닿는다 —
+  // 맨 ENEMY_IDS 로 쓰면 ReferenceError 다.
+  for (var i = 0; i < ART.ENEMY_IDS.length; i++){
+    var e = world.enemyInfo(ART.ENEMY_IDS[i]);
+    // 이름이 비었거나 등장 시각이 숫자가 아니면 조용히 건너뛰지 않고 눈에 띄게 표시한다.
+    // (예: 새 보스를 CONFIG.bosses 에 안 넣고 추가하면 여기서 바로 드러난다)
+    var 이름 = e.name || ('(이름 없음: ' + ART.ENEMY_IDS[i] + ')');
+    var 등장시각 = (typeof e.fromMin === 'number' && !isNaN(e.fromMin))
+      ? e.fromMin : '?';
+    codexSection(e.emoji + ' ' + 이름 + (e.boss ? ' (보스)' : ''));
+    codexRow('등장', e.boss ? (등장시각 + '분에 나타난다') : (등장시각 + '분부터'));
+    codexRow('체력', e.boss ? String(e.hp)
+                            : e.hp + ' → ' + e.hpLate + ' (' + e.lateMin + '분)');
+    codexRow('공격력', String(e.contact));
+    codexRow('이동 속도', e.speed === 0 ? '0 — 안 움직인다' : String(e.speed));
+  }
+}
+
+function codexMe(){
+  var s = world.playerStats(Save.get().meta);
+  codexSection('영구강화 결과');
+  codexRow('\u{2764}\u{FE0F} 최대 체력',   s.maxHp.base + ' → ' + s.maxHp.now);
+  codexRow('\u{1F4A8} 이동 속도',          s.speed.base + ' → ' + s.speed.now);
+  codexRow('\u{1F43E} 공격력',             '×' + s.damage.base.toFixed(2) + ' → ×' + s.damage.now.toFixed(2));
+  codexRow('\u{1F43D} 젬 줍는 범위',       s.pickup.base + ' → ' + s.pickup.now);
+  codexRow('\u{1F9E0} 경험치',             '×' + s.xp.base.toFixed(2) + ' → ×' + s.xp.now.toFixed(2));
+
+  /* 이번 판 패시브는 판 중에 열었을 때만 보여준다. 시작 화면 시점의
+     world.passives 는 직전 판이 남긴 값일 수 있다 — showStartScreen 은 world 를
+     초기화하지 않는다(초기화는 "시작하기" 를 눌러야 일어난다). 그걸 읽으면
+     "아직 시작도 안 했는데 발톱갈이 3단계" 가 나온다. */
+  if (codexOrigin !== 'pause') return;
+  codexSection('이번 판 패시브');
+  var 있나 = false;
+  for (var id in CONFIG.passives){
+    var lv = world.passives[id];
+    if (!lv) continue;
+    있나 = true;
+    var pc = CONFIG.passives[id];
+    var 단계칸 = lv + ' / ' + pc.maxLevel;
+    var 효과 = codexPassiveEffectText(id, pc, lv);
+    if (효과) 단계칸 += ' · ' + 효과;
+    codexRow(pc.emoji + ' ' + pc.name, 단계칸);
+  }
+  if (!있나) codexRow('아직 없습니다', '');
+}
+
+// 패시브 단계에 대응하는 현재 효과 수치. CONFIG.passives 필드로만 계산한다(하드코딩 금지).
+// 모르는 필드 조합이면 null 을 돌려주고, 호출부는 단계만 보여주고 넘어간다.
+function codexPassiveEffectText(id, pc, lv){
+  if (id === 'claws' && typeof pc.damagePct === 'number')
+    return '공격력 ×' + (1 + lv * pc.damagePct / 100).toFixed(2);
+  if (id === 'tuna' && typeof pc.maxHpAdd === 'number')
+    return '최대 체력 +' + (lv * pc.maxHpAdd);
+  if (id === 'bell' && typeof pc.speedPct === 'number')
+    return '이동 속도 ×' + (1 + lv * pc.speedPct / 100).toFixed(2);
+  if (id === 'whisker' && typeof pc.pickupPct === 'number')
+    return '젬 범위 ×' + (1 + lv * pc.pickupPct / 100).toFixed(2);
+  if (id === 'nap' && typeof pc.cooldownPct === 'number' && typeof pc.minMult === 'number'){
+    var mult = Math.max(1 - lv * pc.cooldownPct / 100, pc.minMult);
+    return '쿨타임 ×' + mult.toFixed(2);
+  }
+  if (id === 'clover' && typeof pc.coinPct === 'number')
+    return '코인 ×' + (1 + lv * pc.coinPct / 100).toFixed(2);
+  return null;
+}
+
 // 강화 상점. 결과 화면에서 들어오고, 나가면 결과 화면으로 돌아간다.
 function showShop(){
   atStartScreen = false;   // 상점을 보는 동안은 시작 화면이 아니다 (닫으면 shopOrigin 이 돌려보낸다)
@@ -3409,6 +3733,7 @@ function showShop(){
   제목.className = 'shopSection';
   제목.textContent = '시작 무기';
   cardsEl.appendChild(제목);
+  codexNote('강화·패시브를 뺀 기본 수치입니다.');
   for (var wi = 0; wi < WEAPON_IDS.length; wi++){
     (function(id){
       var wcfg = CONFIG.weapons[id];
@@ -3419,9 +3744,14 @@ function showShop(){
       if (equipped)   아랫줄 = '<b>장착 중</b>';
       else if (owned) 아랫줄 = '장착하기';
       else            아랫줄 = '\u{1FA99} ' + cost;
+      // Lv1 기준 기본값을 보여준다(영구강화·패시브 미포함). 상점은 무기끼리
+      // 비교하는 자리이고, 배수는 전부에게 똑같이 붙어서 순위를 안 바꾼다.
+      var f1 = world.weaponFeatureAt(id, 1);
+      var 수치 = '공격력 ' + shellRound1(world.weaponBaseDamageAt(id, 1));
+      if (f1) 수치 += ' · ' + f1.label + ' ' + f1.value + f1.unit;
       appendCard('<div class="ico">' + wcfg.emoji + '</div>' +
                  '<div class="nm">' + wcfg.name + '</div>' +
-                 '<div class="ds">' + 아랫줄 + '</div>',
+                 '<div class="ds">' + wcfg.desc + '<br>' + 수치 + '<br>' + 아랫줄 + '</div>',
                  function(){
                    if (equipped) return;
                    // 사면 바로 장착한다 — 산 걸 또 눌러야 쓰이는 건 헷갈린다.
@@ -3463,7 +3793,7 @@ window.addEventListener('keydown', function(e){
    모바일에서 beforeunload 는 안 불리는 경우가 많아 쓰지 않는다. */
 function onLeaving(){
   if (askingName) return;        // 이름 화면 중이면 그 화면을 그대로 둔다
-  if (world.gameOver || world.cleared || inShop) return;
+  if (world.gameOver || world.cleared || inShop || inCodex) return;
   if (pendingRun) return;        // 이어할지 묻는 중이면 그 물음을 그대로 둔다
   if (atStartScreen) return;     // 시작 화면 중이면 그 화면을 그대로 둔다 (아직 시작 전이라 저장할 것도 없다)
   saveRun();
@@ -3488,12 +3818,16 @@ function closeShop(){
   if (world.cleared) showCleared(); else showGameOver();
 }
 
-headClose.addEventListener('click', function(){ if (inShop) closeShop(); });
+headClose.addEventListener('click', function(){
+  if (inShop) closeShop();
+  else if (inCodex) closeCodex();
+});
 
 overlayBtn.addEventListener('click', function(){
   if (askingName) return;               // 이름 화면 중엔 onclick 쪽 핸들러만 돈다
   if (isPauseScreen){ resumeFromPause(); return; }
   if (inShop){ closeShop(); return; }
+  if (inCodex){ closeCodex(); return; }
   world.applyMeta(Save.get().meta);   // 상점에서 산 강화를 다음 판에 반영
   world.reset(Save.starter());
   syncSoundTrackers();   // 새 판은 딜량 0·보스 없음 — 이전 판 값이 남아있지 않게 동기화
@@ -3629,6 +3963,14 @@ function showStartScreen(){
              function(){
                shopOrigin = 'start';   // 상점을 닫으면 결과 화면이 아니라 여기로 돌아온다
                showShop();
+             }, false);
+
+  appendCard('<div class="ico">\u{1F4D6}</div>' +
+             '<div class="nm">도감</div>' +
+             '<div class="ds">무기 · 적 · 내 스펙</div>',
+             function(){
+               codexOrigin = 'start';   // 닫으면 여기로 돌아온다
+               showCodex('weapon');
              }, false);
 
   overlay.classList.add('on');
