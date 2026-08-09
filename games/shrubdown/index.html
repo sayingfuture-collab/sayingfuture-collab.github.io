@@ -624,13 +624,26 @@
   .codex-detail .cx-emoji-big{ font-size:76px; line-height:1.1; }
   .codex-detail .cx-title{ font-size:17px; font-weight:900; margin:6px 0 4px; }
   .codex-detail .cx-chips{ display:flex; gap:6px; justify-content:center; margin-bottom:8px; flex-wrap:wrap; }
-  .codex-detail .cx-stats{ display:flex; gap:10px; justify-content:center; font-weight:900; font-size:14px; margin-bottom:8px; }
   .codex-detail .cx-desc{
     background:#fff; border:2px solid var(--outline); border-radius:12px;
     padding:8px 10px; font-size:12.5px; text-align:left; margin-bottom:6px;
   }
   .codex-detail .cx-desc b{ display:block; font-size:11px; color:var(--ink-soft); margin-bottom:2px; }
   .codex-detail .cx-flavor{ font-style:italic; font-size:11.5px; color:var(--ink-soft); }
+  .codex-detail .cx-scale-wrap{ overflow-x:auto; margin-bottom:6px; }
+  .codex-detail .cx-scale{ width:100%; border-collapse:collapse; font-size:11px; }
+  .codex-detail .cx-scale th{
+    font-size:10px; color:var(--ink-soft); font-weight:900;
+    padding:2px 3px; border-bottom:2px solid var(--outline);
+  }
+  .codex-detail .cx-scale td{ padding:3px; border-bottom:1px solid rgba(0,0,0,.12); }
+  .codex-detail .cx-scale tr:last-child td{ border-bottom:none; }
+  /* ★·공격·체력은 내용만큼만 차지하고, 남는 폭은 효과 칸이 전부 가져간다 */
+  .codex-detail .cx-scale .cs-lv{ width:1%; white-space:nowrap; }
+  .codex-detail .cx-scale .cs-atk,
+  .codex-detail .cx-scale .cs-hp{ width:1%; white-space:nowrap; text-align:center; font-weight:900; }
+  .codex-detail .cx-scale .cs-eff{ text-align:left; }
+  .codex-detail .cs-note{ font-size:10px; color:var(--ink-soft); text-align:left; margin-top:3px; }
 
   /* shop */
   .shop-grid{
@@ -1073,7 +1086,7 @@ const PLANTS = {
     trigger:'onAllyFaint', desc:'아군이 쓰러질 때: 자신 체력+2.', descEn:'When an ally faints: gains +2 HP.', flavor:'슬픔도 물처럼 묵묵히 머금고 버틴다', flavorEn:'Soaks up sorrow like water, and endures.'},
 
   tomato: {id:'tomato', name:'토마토', nameEn:'Tomato', emoji:'🍅', tier:3, role:'검사', cost:4, atk:3, hp:3,
-    trigger:'onBattleStart', desc:'전투 시작 시: 적의 공격력 감소 — ★1은 최강 1마리(-1), ★2는 최강 1마리(-2), ★3은 적 전체(-2). 몇 장을 두든 전투당 1회.', descEn:'Battle start: lowers enemy ATK — ★1: strongest enemy (-1), ★2: strongest enemy (-2), ★3: ALL enemies (-2). Once per battle no matter how many you field.', flavor:'얼굴에 과즙 한 방!', flavorEn:'Juice to the face!'},
+    trigger:'onBattleStart', desc:'전투 시작 시: 적의 공격력을 깎는다. ★3부터 과녁이 적 전체로 넓어지고, 그 뒤로는 감소량이 고정된 채 공격력·체력만 오른다. 몇 장을 두든 전투당 1회.', descEn:'Battle start: lowers enemy ATK. From ★3 the target widens to ALL enemies; beyond that the reduction stays fixed while only its own ATK/HP grow. Once per battle no matter how many you field.', flavor:'얼굴에 과즙 한 방!', flavorEn:'Juice to the face!'},
   flytrap: {id:'flytrap', name:'파리지옥', nameEn:'Flytrap', emoji:'🪤', tier:3, role:'검사', cost:4, atk:2, hp:2,
     trigger:'onBattleStart', desc:'전투 시작 시: 체력이 가장 낮은 적에게 3 데미지 (몇 장을 두든 전투당 1회, 최고 레벨 기준).', descEn:'Battle start: deals 3 damage to the enemy with the lowest HP (once per battle, highest level counts).', flavor:'약해진 먹잇감은 덥석!', flavorEn:'Weakened prey? CHOMP.'},
   chili: {id:'chili', name:'고추', nameEn:'Chili', emoji:'🌶️', tier:3, role:'검사', cost:4, atk:3, hp:3,
@@ -1085,7 +1098,7 @@ const PLANTS = {
     trigger:'onBattleStart', desc:'전투 시작 시: 모든 아군 체력+1.', descEn:'Battle start: all allies gain +1 HP.', flavor:'모아둔 햇살로 모두에게 광합성 축복을', flavorEn:'Stored sunshine, shared with the whole garden.'},
 
   mushroom: {id:'mushroom', name:'버섯', nameEn:'Mushroom', emoji:'🍄', tier:5, role:'장군', cost:6, atk:2, hp:3,
-    trigger:'onFaint', desc:'쓰러질 때: 모든 아군에게 공격+1/체력+1 부여.', descEn:'On faint: all allies gain +1 ATK/+1 HP.', flavor:'장군은 스러져도 포자는 전장에 남는다', flavorEn:'The general falls, but the spores fight on.'},
+    trigger:'onFaint', desc:'쓰러질 때: 남은 아군 전체에게 공격+1/체력+1 부여.', descEn:'On faint: all remaining allies gain +1 ATK/+1 HP.', flavor:'장군은 스러져도 포자는 전장에 남는다', flavorEn:'The general falls, but the spores fight on.'},
 
   // --- 확장 A: 죽어있던 시너지 살리기 (장군 2호, 마법사 3호) ---
   elm: {id:'elm', name:'느티나무', nameEn:'Zelkova', emoji:'🌳', tier:5, role:'장군', cost:6, atk:1, hp:6,
@@ -1341,6 +1354,54 @@ function computeLeveledStats(plant, level){
   };
 }
 
+/* ---- 도감 ★레벨 표 전용 스케일 (설계안-도감_별레벨표.md 4절) ----
+   표시 전용이다. 전투 로직은 이 표를 절대 읽지 않는다 — 읽는 순간
+   "전투 코드를 안 건드린다"는 전제가 무너진다. 효과 수치는 simulateBattle
+   안에 인라인으로 흩어져 있고, 여기 숫자가 그것과 어긋나면
+   sim_codex_check.js가 어느 식물 몇 성인지 짚어서 실패시킨다.
+   amt(lv)=검증 대상 수치, ko/en=표시용 포맷(둘 다 (n, lv)로 호출된다). */
+const CODEX_SCALING = {
+  dandelion: { amt: lv => Math.round(1 * levelMult(lv)),
+    ko: n => `적 1마리 공격 -${n}`,      en: n => `1 enemy ATK -${n}` },
+  clover:    { amt: lv => Math.max(1, Math.min(5, Math.round(lv))), // 수치(+2/+2)가 아니라 대상 수가 자란다.
+    // 클램프(1~5)는 게임 코드(`cnt = Math.max(1, Math.min(5, Math.round(bestLevel)))`)를
+    // 그대로 미러링한 것이다 — 게임이 리터럴 5로 박아둔 클램프라(MAX_LEVEL 변수를 참조하지
+    // 않음) MAX_LEVEL이 나중에 커져도 게임 자체는 여전히 5에서 멈춘다. 그래서 여기서 클램프를
+    // 빼면 오히려 실제 게임 동작과 어긋난다 — 유지하는 쪽이 맞다.
+    ko: n => `아군 ${n}명 +2/+2`,        en: n => `${n} all${n===1?'y':'ies'} +2/+2` },
+  weed:      { amt: lv => Math.round((BALANCE.TEAM_SIZE - 1) * levelMult(lv)),  // 정원 만석(TEAM_SIZE)에서 자신을 뺀 아군 수 — 표 아래 각주로 밝힌다
+    ko: n => `자신 공격 +${n}`,          en: n => `self ATK +${n}` },
+  cactus:    { amt: lv => Math.round(2 * levelMult(lv)),
+    ko: n => `반사 ${n}`,                en: n => `${n} reflect` },
+  rose:      { amt: lv => Math.round(1 * levelMult(lv)),            // 반사량과 공격력 감소량이 같은 값이다
+    ko: n => `반사 ${n} · 공격 -${n}`,   en: n => `${n} reflect · ATK -${n}` },
+  succulent: { amt: lv => Math.round(2 * levelMult(lv)),
+    ko: n => `자신 체력 +${n}`,          en: n => `self HP +${n}` },
+  tomato:    { amt: lv => (lv >= 3 ? 2 : Math.round(1 * levelMult(lv))), // ★3부터 고정 — 의도된 밸런스다
+    ko: (n, lv) => lv >= 3 ? `적 전체 공격 -${n}` : `최강 1마리 공격 -${n}`,
+    en: (n, lv) => lv >= 3 ? `ALL enemies ATK -${n}` : `strongest enemy ATK -${n}` },
+  flytrap:   { amt: lv => Math.round(3 * levelMult(lv)),
+    ko: n => `${n} 데미지`,              en: n => `${n} dmg` },
+  chili:     { amt: lv => Math.round(1 * levelMult(lv)),
+    ko: n => `화상 +${n}`,               en: n => `+${n} burn` },
+  maple:     { amt: lv => Math.round(2 * levelMult(lv)),
+    ko: n => `${n} 데미지`,              en: n => `${n} dmg` },
+  sunflower: { amt: lv => Math.round(1 * levelMult(lv)),
+    ko: n => `아군 전체 체력 +${n}`,     en: n => `all allies HP +${n}` },
+  mushroom:  { amt: lv => Math.round(1 * levelMult(lv)),            // 쓰러질 때 발동 — 그 순간 이미 죽은 자신은 제외한, 남은 아군에게만 적용된다(게임 로그: "남은 아군 전체")
+    ko: n => `남은 아군 전체 +${n}/+${n}`, en: n => `remaining allies +${n}/+${n}` },
+  elm:       { amt: lv => Math.round(1 * levelMult(lv)),
+    ko: n => `아군 전체 체력 +${n}`,     en: n => `all allies HP +${n}` },
+  grapevine: { amt: lv => Math.round(1 * levelMult(lv)),
+    ko: n => `아군 공격 +${n}`,          en: n => `an ally ATK +${n}` },
+  bamboo:    { amt: lv => Math.round(1 * levelMult(lv)),
+    ko: n => `견고 +${n}`,               en: n => `Sturdy +${n}` },
+  reed:      { amt: lv => Math.round(2 * levelMult(lv)),
+    ko: n => `보호막 ${n}`,              en: n => `${n} shield` },
+  pine:      { amt: lv => Math.round(2 * levelMult(lv)),            // 쓰러질 때 발동 — 그 순간 이미 죽은 자신은 제외한, 남은 아군에게만 적용된다(게임 로그: "남은 아군 체력")
+    ko: n => `남은 아군 전체 체력 +${n}`, en: n => `remaining allies HP +${n}` },
+};
+
 /* ======================= 상태 ======================= */
 // 실제 값은 맨 위 BALANCE 조절판에서 수정한다 (아래는 기존 코드가 쓰는 별칭)
 const BENCH_SIZE = BALANCE.BENCH_SIZE;
@@ -1582,9 +1643,9 @@ function makeBossTeam(wave){
 // 세션 내내 "쉽다↔어렵다"를 오가며 개별 수치를 흔드는 대신, 플레이어가 직접 고른다.
 // 적 전체 스탯에 곱해지는 단일 배율 — 튜닝된 개별 수치는 그대로 두고 위에 얇게 얹는다.
 const DIFFICULTY = {
-  relaxed: {emoji:'😌', name:'느긋하게', nameEn:'Relaxed', mult:1.06}, // 0.95→1.06 (2026-08): 상점 균등화(FLAT_SHOP_FROM)로 다시 쉬워져 재조정 — 13.3%(목표 12~20%, 봇 1500판). 이력은 밸런스리포트 13·15절
-  normal:  {emoji:'⚔️', name:'보통',     nameEn:'Normal',  mult:1.16}, // 1.08→1.16 (2026-08): 균등화 재조정 — 6.8%(목표 4~8%, 봇 1500판)
-  hard:    {emoji:'🔥', name:'어렵게',   nameEn:'Hard',    mult:1.25}, // 1.15→1.25 (2026-08): 균등화 재조정 — 1.2%(목표 1~3%, 봇 1500판). 배율-클리어율 곡선은 적 스탯 반올림 때문에 계단형이라 미세조정이 안 먹는 구간이 있음. 아래는 이전 튜닝 메모.
+  relaxed: {emoji:'😌', name:'느긋하게', nameEn:'Relaxed', mult:1.06}, // 0.95→1.06 (2026-08): 상점 균등화(FLAT_SHOP_FROM)로 다시 쉬워져 재조정. 고스트전 삭제(64차) 후 재측정 18.8%(목표 15~23%, 봇 1500판). 이력은 밸런스리포트 13·15·16절
+  normal:  {emoji:'⚔️', name:'보통',     nameEn:'Normal',  mult:1.16}, // 1.08→1.16 (2026-08): 균등화 재조정. 고스트전 삭제 후 7.4%(목표 5~10%, 봇 1500판)
+  hard:    {emoji:'🔥', name:'어렵게',   nameEn:'Hard',    mult:1.25}, // 1.15→1.25 (2026-08): 균등화 재조정. 고스트전 삭제 후 2.3%(목표 1~4%, 봇 1500판). 배율-클리어율 곡선은 적 스탯 반올림 때문에 계단형이라 미세조정이 안 먹는 구간이 있음. 아래는 이전 튜닝 메모.
                                // 5인 벽 부활안(w17)은 봇 실측에서 "보스 전 절벽+보스 김빠짐" 재현이라 기각, 배율 단독 상향이
                                // 페이싱 모양(보스=최난)을 유지: 봇 클리어 0.2%, 보스 승률 5.6%. 여전히 쉬우면 1.25, 벽 같으면 1.13
 };
@@ -2330,6 +2391,33 @@ function codexNav(delta){
 }
 function openCodexCard(id){ codexCard = id; render(); }
 function closeCodexCard(){ codexCard = null; render(); }
+// 도감 카드 상세의 ★1~★5 표. 스탯은 게임 함수를 그대로 부르고(하드코딩 없음),
+// 효과 문구만 CODEX_SCALING에서 가져온다.
+function codexScaleRowsHTML(p){
+  const sc = CODEX_SCALING[p.id];
+  const rows = [];
+  for(let lv = 1; lv <= BALANCE.MAX_LEVEL; lv++){
+    const s = computeLeveledStats(p, lv);
+    let eff = '—';
+    if(sc){ const n = sc.amt(lv); eff = T(sc.ko(n, lv), sc.en(n, lv)); }
+    rows.push(`<tr>`
+      + `<td class="cs-lv"><span class="level-star">${'★'.repeat(lv)}</span></td>`
+      + `<td class="cs-atk">${s.atk}</td>`
+      + `<td class="cs-hp">${s.hp}</td>`
+      + `<td class="cs-eff">${eff}</td></tr>`);
+  }
+  return rows.join('');
+}
+function codexScaleTableHTML(p){
+  // 잡초만 아군 수에 비례해 단일 숫자가 안 나온다 → 표기 기준을 밝힌다.
+  const note = p.id === 'weed'
+    ? `<div class="cs-note">${T(`※ 정원이 다 찼을 때(아군 ${BALANCE.TEAM_SIZE - 1}명) 기준`,`※ Assumes a full garden (${BALANCE.TEAM_SIZE - 1} allies)`)}</div>`
+    : '';
+  return `<div class="cx-scale-wrap"><table class="cx-scale">
+      <thead><tr><th>${T('★','★')}</th><th>${T('공격','ATK')}</th><th>${T('체력','HP')}</th><th>${T('효과','Effect')}</th></tr></thead>
+      <tbody>${codexScaleRowsHTML(p)}</tbody>
+    </table>${note}</div>`;
+}
 function codexHTML(){
   if(codexCard){
     const p = getPlantDef(codexCard);
@@ -2346,8 +2434,8 @@ function codexHTML(){
         <span class="cx-role">${roleName(p.role)}</span>
         <span class="cx-role">💰 ${T(`${p.cost}골드`,`${p.cost} gold`)}</span>
       </div>
-      <div class="cx-stats"><span class="atk">${T(`⚔ 공격 ${p.atk}`,`⚔ ATK ${p.atk}`)}</span><span class="hp">${T(`❤ 체력 ${p.hp}`,`❤ HP ${p.hp}`)}</span></div>
       <div class="cx-desc"><b>${T('능력','Ability')}</b>${L(p,'desc') || T('평범하지만 든든한 기본기.','Plain but dependable fundamentals.')}</div>
+      ${codexScaleTableHTML(p)}
       ${p.flavor ? `<div class="cx-flavor">“${L(p,'flavor')}”</div>` : ''}
     </div>`;
   }
