@@ -1126,12 +1126,21 @@ const PLANTS = {
     trigger:'onBattleStart', desc:'전투 시작 시: 맨 앞 아군에게 보호막 2 (피해 2 흡수).', descEn:'Battle start: the front ally gains a 2-point shield (absorbs 2 damage).', flavor:'바람 앞에서 눕는 것도 전략', flavorEn:'Lying low before the wind is also a strategy.'},
   pine: {id:'pine', name:'소나무', nameEn:'Pine', emoji:'🌲', tier:5, role:'수호자', cost:6, atk:2, hp:8,
     trigger:'onFaint', desc:'쓰러질 때: 남은 아군 전체 체력+2.', descEn:'On faint: all remaining allies gain +2 HP.', flavor:'사시사철 푸른 기운을 남기고 간다', flavorEn:'Evergreen to the very end.'},
+
+  // --- 확장 C: 운빨 2종 (설계안-운빨식물_2종.md) ---
+  // playerOnly: 적 팀 풀에서 제외된다(poolForWave). 내가 산 도박은 납득되지만
+  // 적이 굴린 주사위에 지는 건 참가하지도 않은 도박에서 지는 것이라 체감이 다르다.
+  balsam: {id:'balsam', name:'봉선화', nameEn:'Balsam', emoji:'🌸', tier:3, role:'검사', cost:4, atk:2, hp:3, playerOnly:true,
+    trigger:'onBattleStart', desc:'전투 시작 시: 30% 확률로 자신 공격력 +8. 빗나가면 아무 일도 없다.', descEn:'Battle start: 30% chance to gain +8 ATK — otherwise nothing.', flavor:'손끝이 닿는 순간, 터질지 말지는 씨앗만 안다', flavorEn:'The moment you touch it, only the seed knows.'},
+  watermelon: {id:'watermelon', name:'수박', nameEn:'Watermelon', emoji:'🍉', tier:4, role:'수호자', cost:5, atk:2, hp:2, playerOnly:true,
+    trigger:'onBattleStart', desc:'전투 시작 시: 50% 확률로 자신 체력 +18. 빗나가면 아무 일도 없다.', descEn:'Battle start: 50% chance to gain +18 HP — otherwise nothing.', flavor:'두드려봐야 소용없다 — 갈라봐야 안다', flavorEn:'Knocking tells you nothing. Only cutting does.'},
 };
 const PLANT_LIST = Object.values(PLANTS);
 
 /* ===== 고웨이브 전용 "카운터" 적 유닛 (플레이어 구매 불가) =====
-   기존 PLANTS/합성/벤치 시스템과 완전히 분리된 별도 객체. poolForWave()가 참조하는
-   PLANT_LIST에는 절대 포함되지 않으므로 상점에는 나오지 않는다.
+   기존 PLANTS/합성/벤치 시스템과 완전히 분리된 별도 객체. 상점 추첨(rollShopPlant)이 보는
+   PLANT_LIST에 포함되지 않으므로 상점에는 나오지 않는다.
+   (반대 방향 장치도 있다 — PLANTS 안의 playerOnly:true 는 적 팀 풀에서 빠진다.)
    문제가 생기면 이 블록과 makeEnemyTeam()의 강제 스폰 부분, simulateBattle()의
    debuffShield/dmgShield/onFaintCurse 분기만 되돌리면 롤백된다. */
 // 주의: 카운터 유닛의 role은 플레이어 역할과 겹치면 안 된다 — 플레이어 '수호자' 시너지(푸른 방패)가
@@ -1413,6 +1422,12 @@ const CODEX_SCALING = {
     ko: n => `보호막 ${n}`,              en: n => `${n} shield` },
   pine:      { amt: lv => Math.round(2 * levelMult(lv)),            // 쓰러질 때 발동 — 그 순간 이미 죽은 자신은 제외한, 남은 아군에게만 적용된다(게임 로그: "남은 아군 체력")
     ko: n => `남은 아군 전체 체력 +${n}`, en: n => `remaining allies HP +${n}` },
+  // 운빨 2종 — 효과 열은 "잭팟 보너스"를 보여준다. 공격/체력 열에 바닥값이 이미 있으므로
+  // 더하면 최종값이 된다(대나무의 "견고 +N"과 같은 문법). 확률은 ★와 무관하게 고정이다.
+  balsam:    { amt: lv => Math.round(8 * levelMult(lv)),
+    ko: n => `30%로 공격 +${n}`,         en: n => `30% chance: +${n} ATK` },
+  watermelon:{ amt: lv => Math.round(18 * levelMult(lv)),
+    ko: n => `50%로 체력 +${n}`,         en: n => `50% chance: +${n} HP` },
 };
 
 /* ======================= 상태 ======================= */
@@ -1436,10 +1451,12 @@ let state = {
   lastResult: null,
 };
 
+// 적 팀 구성용 풀. 상점은 이 함수를 쓰지 않는다(rollShopPlant가 PLANT_LIST를 직접 본다) —
+// 그래서 playerOnly 필터를 여기 한 곳에만 걸면 "상점엔 나오고 적 팀엔 안 나온다"가 성립한다.
 function poolForWave(wave){
   // 웨이브가 오를수록 높은 티어 등장
   const maxTier = Math.min(5, 1 + Math.floor(wave/BALANCE.TIER_UNLOCK_WAVES));
-  return PLANT_LIST.filter(p=>p.tier<=maxTier);
+  return PLANT_LIST.filter(p=>p.tier<=maxTier && !p.playerOnly);
 }
 
 // 웨이브에 해당하는 티어 가중치 행을 찾는다 (BALANCE.TIER_ODDS)
@@ -2037,6 +2054,24 @@ function simulateBattle(playerTeamRaw, enemyTeamRaw, log){
             const amt = Math.round(2 * mult);
             front._shield = (front._shield||0) + amt;
             log.push(T(`🌾 갈대가 ${pn(front)} 앞에 바람막이를 세운다! 보호막 ${amt}`,`🌾 Reed raises a windbreak in front of ${pn(front)}! Shield ${amt}`));
+          }
+        } else if(plant.id==='balsam'){
+          // 운빨 2종: 전투마다 한 번 굴린다. 대입(=)이 아니라 누적(+=)이어야
+          // 특전 보너스(bonusAtk)가 살아남는다. 꽝도 로그를 남긴다 — 도박꾼은 꽝이 곧 사건이다.
+          if(Math.random() < 0.30){
+            const amt = Math.round(8 * mult);
+            u.atk += amt;
+            log.push(T(`🌸 봉선화 꼬투리가 팡! 터졌다! (공격력 +${amt})`,`🌸 The balsam pod bursts open! (+${amt} ATK)`));
+          } else {
+            log.push(T(`🌸 봉선화 꼬투리를 건드렸지만… 조용하다.`,`🌸 You brush the balsam pod… nothing.`));
+          }
+        } else if(plant.id==='watermelon'){
+          if(Math.random() < 0.50){
+            const amt = Math.round(18 * mult);
+            u.hp += amt; u.maxHp += amt;   // maxHp를 빼먹으면 현재체력이 최대치를 넘어 표시가 깨진다
+            log.push(T(`🍉 수박을 쩍 갈랐더니 새빨간 속이 꽉! (체력 +${amt})`,`🍉 The watermelon splits open — packed and ripe! (+${amt} HP)`));
+          } else {
+            log.push(T(`🍉 수박을 갈라보니… 허옇게 설익었다.`,`🍉 The watermelon splits open… pale and unripe.`));
           }
         }
       }
