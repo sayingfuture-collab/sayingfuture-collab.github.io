@@ -183,8 +183,18 @@ var CONFIG = {
              // 싸우는 동안은 절대 안 걸리고 작정하고 계속 도망치는 꼼수만 막는다.
              // 완전히 빼면 안 된다 — 보스전은 스폰이 0.25배라 무한 도망이 최적 전략이 된다.
              bossRecycleMult: 2,
+             // 링 스폰에 나오는 종류의 고정 순서. for...in 은 엔진마다 순회 순서가
+             // 달라 봇 재현성을 깨므로 이 저장소에서 금지다 — 그래서 여기에 적어 둔다.
+             // 여기 없는 적은 링 스폰에 안 나온다. 적을 추가하고 이 표에 안 넣으면
+             // 조용히 안 나오게 되므로, 표와 실제를 대조하는 테스트를 같이 뒀다.
+             order: ['mouse', 'rat', 'fat'],
              hpPerMin: 0.22,   // 1분마다 적 체력 +22%
              bossSpawnMult: 0.25,   // 보스전 동안 일반 스폰을 줄여 1대1에 가깝게 둔다
+             // 보스를 잡으면 이 시간에 걸쳐 0.25배에서 1배로 직선으로 돌아온다.
+             // 즉시 되돌리면 보스에 자원을 다 쓴 직후에 떼가 한꺼번에 몰려온다 —
+             // 사람 기록에서 보스1 직후 6~8분에 판이 끝나던 이유 중 하나다.
+             // 계단을 하나 더 만들지 않으려고 즉시가 아니라 직선으로 올린다.
+             bossEaseSec: 20,
              // 분 단위 "분당 마릿수" 표. 사이 시간은 직선 보간, 표 끝을 넘으면 마지막 값 유지.
              // 0분 170은 3-A 플레이테스트에서 "좀 쉽다"고 한 지금 값 그대로다 — 여기서 올려 간다.
              // 5단계 측정: 보스 직후 6~7분에 131→293마리로 불어나 거기서 판이 끝났다.
@@ -203,11 +213,11 @@ var CONFIG = {
               showSec: 0.45 },                       // 폭발 잔상 길이
   enemies: {
     mouse: { emoji: '\u{1F401}', name: '생쥐', hp: 10, speed: 48, radius: 9,  contact: 6,  xp: 1, size: 20,
-             color: '#8a6a4a', fromMin: 0, coin: 1 },
+             color: '#8a6a4a', fromMin: 0, coin: 1, weight: 1, rampMin: 0 },
     rat:   { emoji: '\u{1F400}', name: '시궁쥐', hp: 16, speed: 88, radius: 10, contact: 8,  xp: 2, size: 22,
-             color: '#6f7f8f', fromMin: 3, coin: 2 },   // 빠른 적 — 무리에서 먼저 도착한다
+             color: '#6f7f8f', fromMin: 3, coin: 2, weight: 1, rampMin: 1 },   // 빠른 적 — 무리에서 먼저 도착한다
     fat:   { emoji: '\u{1F42D}', name: '뚱쥐', hp: 60, speed: 32, radius: 16, contact: 14, xp: 5, size: 34,
-             color: '#a8683f', fromMin: 5, coin: 5 },   // 느리지만 단단하고 아프다
+             color: '#a8683f', fromMin: 5, coin: 5, weight: 1, rampMin: 4 },   // 느리지만 단단하고 아프다
     mole:  { emoji: '\u{1F43E}', name: '두더지', hp: 30, speed: 0, radius: 13, contact: 12, xp: 3, size: 26,
              color: '#7a5a3a', fromMin: 6, coin: 3,
              viaWarn: true,       // 화면 밖 링이 아니라 예고를 거쳐서만 나온다
@@ -572,6 +582,8 @@ function World(config, metaLevels){
   this.grid = new Grid(config.grid.cellSize, config.grid.cols, config.grid.rows);
   this.gameOver = false;
   this.cleared = false;   // 마지막 보스를 잡았는가
+  // 보스를 잡은 뒤 스폰이 완만하게 돌아오는 유예의 끝 시각(초). 0 이면 유예 없음.
+  this.bossEaseUntil = 0;
   this.elapsed = 0;      // 판 시작부터의 누적 시간(초)
   this.viewHalfW = 640;    // ensureGridCovers 가 실제 화면 크기로 갱신한다
   this.viewHalfH = 400;
@@ -964,6 +976,7 @@ World.prototype.reset = function(starterId){
   this.nukesTaken = 0;
   this.gameOver = false;
   this.cleared = false;
+  this.bossEaseUntil = 0;
   this.elapsed = 0;
   this.spawnAcc = 0;
   this.bossIndex = 0;
@@ -1929,6 +1942,8 @@ World.prototype.bossTick = function(){
   if (this.boss && !this.boss.active){
     this.boss = null;
     this.bossIndex++;
+    // 잡은 순간부터 유예 시작 — spawnRate 가 이 시각까지 배수를 끌어올린다
+    this.bossEaseUntil = this.elapsed + this.config.spawn.bossEaseSec;
     if (this.bossIndex >= this.config.bosses.length) this.cleared = true;
   }
   if (this.boss) return;                          // 이미 싸우는 중
@@ -1962,30 +1977,56 @@ World.prototype.spawnRate = function(){
     rate = table[i] + (table[i + 1] - table[i]) * f;
   }
   if (this.boss) rate *= this.config.spawn.bossSpawnMult;   // 보스전에는 잡졸을 줄인다
+  else if (this.elapsed < this.bossEaseUntil){
+    // 보스를 막 잡았다 — 0.25배에서 1배로 직선으로 돌아온다
+    var ease = this.config.spawn.bossEaseSec;
+    var m = this.config.spawn.bossSpawnMult;
+    var t = 1 - (this.bossEaseUntil - this.elapsed) / ease;   // 0 → 1
+    rate *= m + (1 - m) * t;
+  }
   return rate / 60;
 };
 
-// 지금 나올 수 있는 종류 중 하나를 고른다. 늦게 등장하는 종류일수록 드물게 나온다.
+/* 시각에 따른 스폰 가중치. rampMin 동안 0 에서 weight 까지 서서히 차오른다.
+
+   왜 필요했나: 예전에는 풀린 종류를 균등하게 뽑았다. 그래서 5분이 되는 순간
+   뚱쥐가 곧장 스폰의 3분의 1이 되고 평균 스폰 체력이 13 에서 28.7 로 뛰었다.
+   사람 기록 33판에서 보스1 을 잡은 18판이 거의 전부 6~8분에 죽었고,
+   봇도 같은 것을 재현했다(계획/18-난이도-조사결과.md).
+   9분부터는 예전과 같은 비율이 된다 — 후반을 물렁하게 만드는 것이 아니라
+   계단을 오르막으로 바꾸는 것이다. */
+World.prototype.spawnWeightAt = function(id, minutes){
+  var t = this.config.enemies[id];
+  if (!t || t.fromMin === undefined || minutes < t.fromMin) return 0;
+  var w = t.weight === undefined ? 1 : t.weight;
+  if (!t.rampMin) return w;
+  var f = (minutes - t.fromMin) / t.rampMin;
+  return f >= 1 ? w : w * f;
+};
+
+/* 지금 나올 수 있는 종류 중 하나를 가중치로 고른다.
+   늦게 등장하는 종류일수록 처음에는 드물게 나온다.
+   (이 주석은 예전에도 그렇게 적혀 있었는데 코드는 균등 추첨이었다.
+    의도는 처음부터 있었고 구현만 없었다.)
+
+   난수는 예전과 똑같이 한 번만 뽑는다 — 뽑는 횟수가 달라지면 그 뒤의 모든
+   뽑기가 밀려서, 기준선과의 비교가 "구성을 바꾼 효과" 가 아니게 된다. */
 World.prototype.pickSpawnType = function(){
-  var types = this.config.enemies;
+  var order = this.config.spawn.order;
   var minutes = this.elapsed / 60;
-  // 후보 수를 먼저 센다 (배열을 만들지 않기 위해 두 번 훑는다)
-  var n = 0, id;
-  for (id in types){
-    if (types[id].viaWarn) continue;                       // 예고를 거쳐서만 나오는 종류
-    if (types[id].fromMin !== undefined && minutes >= types[id].fromMin) n++;
+  var total = 0, i;
+  for (i = 0; i < order.length; i++) total += this.spawnWeightAt(order[i], minutes);
+  // total<=0 이라도 난수를 한 번 소비한다 — 어느 경로로 빠지든 이 함수가 쓰는
+  // 난수 호출 횟수가 같아야 봇 재현성이 지켜진다. 지금은 생쥐 가중치가 항상 1이라
+  // 이 분기에 실제로 들어오지 않지만, 나중에 weight:0 이나 fromMin>0 인 종류가
+  // 생겨도 조용히 깨지지 않도록 미리 맞춰 둔다.
+  if (total <= 0) { this.random(); return order[0]; }        // 아직 아무것도 안 풀린 시각
+  var r = this.random() * total;
+  for (i = 0; i < order.length; i++){
+    r -= this.spawnWeightAt(order[i], minutes);
+    if (r < 0) return order[i];
   }
-  if (n === 0) return 'mouse';
-  var k = Math.floor(this.random() * n);
-  if (k >= n) k = n - 1;
-  var seen = 0;
-  for (id in types){
-    if (types[id].viaWarn) continue;
-    if (types[id].fromMin === undefined || minutes < types[id].fromMin) continue;
-    if (seen === k) return id;
-    seen++;
-  }
-  return 'mouse';
+  return order[order.length - 1];          // 부동소수 오차로 끝까지 흘러온 경우
 };
 
 // 적이 나타나는(그리고 회수되어 되돌아가는) 화면 밖 링의 반지름.
@@ -3501,7 +3542,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '02e4ea3';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = '254b765';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
