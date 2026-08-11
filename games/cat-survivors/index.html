@@ -292,8 +292,22 @@ var CONFIG = {
             cooldownMs: 5000, radius: 60, radiusPerLv: 8,
             durationSec: 2.5, slowPct: 40, tickSec: 0.5 },
     tail: { kind: 'orbit', name: '꼬리 회전', desc: '내 주위를 도는 공', emoji: '\u{1F300}', maxLevel: 5,
+            /* 공 반경 18 → 26 (2026-08-11). **피해는 일부러 안 올렸다.**
+               20단계 시험대에서 세 상황 전부 꼴찌였고(순위합 26), 원인을 재 보니
+               "약하게 때린다" 가 아니라 **안 맞는다** 였다 — 제자리에 서면 적의
+               62.5% 가 0~40px 에 몰리는데 고리는 94(진화하면 188)를 돈다.
+               그래서 세기 대신 **닿는 넓이**를 키웠다(띠가 ±18 → ±26).
+               실측(진화형): 붙어서 59 → 84 · 도망 102 → 122.
+
+               피해 8 → 12 도 재 봤다(붙 88 / 도 151 로 조금 더 좋다). 안 쓴 이유는
+               '무기 균형: 몸 주변만 덮는 무기는 뻗어나가는 무기보다 세지 않다' 를
+               넘기 때문이다(단일 대상 이론 DPS 24.6 → 36.9, 천장은 정전기 26.7).
+               그 규칙의 자가 목적과 어긋난다는 것은 6·8단계가 이미 적어 뒀지만
+               (ρ≈0.16), 규칙을 고치는 것과 무기를 세게 하는 것을 **한 작업에서
+               같이 하지는 않는다.** 반경만으로도 목적은 달성됐다.
+               ⚠️ 반경을 더 키우면(34) 진화형 그림이 폰 가로의 29% 를 먹는다. */
             damage: 8, cooldownMs: 0,     // 상시 발동 (재타격 간격은 적마다 따로)
-            orbitRadius: 70, orbitRadiusPerLv: 6, ballRadius: 18,
+            orbitRadius: 70, orbitRadiusPerLv: 6, ballRadius: 26,
             rotSpeed: 3.0,                // 초당 회전 각도(라디안)
             hitCooldownMs: 650 },         // 같은 적 재타격 간격 — 상시 고리를 얇게 유지한다
     tornado: { kind: 'projectile', name: '토네이도', desc: '적을 끌어당기며 굴러간다', emoji: '\u{1F32A}\u{FE0F}', maxLevel: 5,
@@ -359,7 +373,12 @@ var CONFIG = {
                count: 2,
                // 궤도 반경은 weaponRadius 를 안 탄다(fireOrbit 이 직접 계산한다).
                // 그래서 radius 배율을 fireOrbit 의 그 줄에 따로 건다.
-               /* pushPerSec 는 맞은 적이 재타격 간격 동안 밀려나는 초당 거리다.
+               /* pushPerSec 는 **이 무기가 미는 총량**이다(공 하나가 아니라).
+                  fireOrbit 이 공 수로 나눠 쓴다 — 안 나누면 공을 늘리는 순간
+                  미는 힘이 같이 곱해져서 "손 놓고 서 있어도 안 죽는" 판이 된다.
+                  실제로 2026-08-11 에 그렇게 터뜨렸다(그 줄의 주석 참고).
+
+                  맞은 적이 재타격 간격 동안 밀려나는 초당 거리다.
 
                   220 이었는데 110 으로 낮췄다(2026-08-11). 두 가지가 같이 걸렸다.
 
@@ -1967,14 +1986,23 @@ World.prototype.fireOrbit = function(id, dt){
   // 값이 있는지를 typeof 로 묻고 부호는 그대로 넘긴다. 관문에서 "당기는 꼬리" 를
   // 실험하려고 음수를 넣었을 때 여기서든 moveEnemies 의 가드에서든 부호가 잘리면
   // 실험이 **조용히** 무시되어 관문이 "효과가 없네" 로 잘못 읽는다.
-  this.galePush = (this.isEvolved(id) && evo && typeof evo.pushPerSec === 'number')
-                  ? evo.pushPerSec : 0;
   /* 공 수. 진화표의 count 를 그대로 쓴다(없으면 evoMult 가 1 을 준다).
      자리 배열 길이를 넘지 않게 자른다 — 표에 5 를 적어도 조용히 4 로만 돈다. */
   var n = Math.round(this.evoMult(id, 'count'));
   if (n < 1) n = 1;
   if (n > this.orbitXs.length) n = this.orbitXs.length;
   this.orbitN = n;
+  /* 밀어내기는 **공 수로 나눈다** — pushPerSec 는 "공 하나가 미는 힘" 이 아니라
+     "이 무기가 미는 총량" 이다.
+
+     안 나누면 공을 늘리는 순간 미는 총량이 같이 곱해진다. 실제로 그렇게 터졌다:
+     공을 2개로 늘린 날(2026-08-11), 우유 바다와 같이 들고 **손을 놓고 서 있어도
+     16분을 안 죽었다**(공 1개일 때 321초 · 우유만 들면 315초). 밀어내기가
+     초당 110 에서 220 이 되면서 적이 영영 못 닿게 된 것이다.
+     6단계가 "가만히 서 있는 게 정답이 됐다" 로 적어 둔 그 사고이고,
+     19단계에 이어 세 번째다. 이번엔 곱셈이 아니라 나눗셈으로 막는다. */
+  this.galePush = (this.isEvolved(id) && evo && typeof evo.pushPerSec === 'number')
+                  ? evo.pushPerSec / n : 0;
   var i;
   // ① 자리를 전부 먼저 정한다. 공들은 원을 n 등분한 자리에 고르게 놓인다.
   for (i = 0; i < n; i++){
@@ -4500,7 +4528,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = 'a47ed00';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = '51faff3';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
