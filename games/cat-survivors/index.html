@@ -3256,6 +3256,96 @@ var WEAPON_SPRITES = {
 var WEAPON_SPRITE_IDS = ['claw','yarn','bone','laser','catnip','milk','tail',
                          'tornado','zap','friend','box'];
 
+/* ── 21단계: 기본형 무기 그림 ───────────────────────────────────
+   19단계에서 진화형만 도트를 찍었더니 **거꾸로가 됐다** — 진화하는 순간
+   동그라미가 그림으로 바뀌니 좋은데, 그 전까지는 기본 무기가 초라해 보인다.
+   판을 시작해서 5성을 찍기 전까지가 대부분의 시간인데 그 시간이 제일 밋밋했다.
+
+   여섯 장만 그린다. 나머지 넷은 "안 그린" 게 아니라 **여기서 그릴 게 아니다**:
+     레이저 = 직선, 정전기 = 연쇄 선, 우유 = 장판.
+       셋 다 길이가 매번 달라서 16×16 한 장을 놓을 자리가 없다. 늘리면 도트가
+       뭉개지고, 가운데 한 장만 찍으면 선이 안 이어진다. 선 긋는 방식 자체를
+       바꿔야 하는 별개 작업이다.
+     고양이 친구 = 이미 전신 고양이 그림(SPRITES.cat)으로 걸어다닌다. 할 일이 없다.
+
+   진화형과 표를 갈라 놓은 이유는 **id 가 겹치기 때문**이다. 'yarn' 은 기본형
+   털뭉치이면서 진화형 실타래 폭풍이다. 한 표에 넣으려면 'yarn_base' 같은
+   접미사를 붙여야 하는데, 그러면 그리는 쪽에서 매번 문자열을 이어붙이게 된다.
+
+   ⚠️ 진화형과 규칙이 같다: 16×16 고정, 첫 줄·마지막 줄을 비우지 않는다
+      (비우면 그림이 판정 중심에서 뜬다), 색은 WEAPON_PALETTE 글자만 쓴다.
+      팔레트는 배경 세 벌 열다섯 색에 대고 대비를 재서 고른 것이라
+      새 색을 넣으면 그 검증이 무효가 된다.
+
+   ⚠️ 기본형은 진화형보다 **단순해야** 한다. 여기서 공들이면 진화가 안 보인다.
+      각 그림에 "진화형과 무엇이 다른가" 를 적어 둔다. */
+var BASE_SPRITES = {
+  // 앞발 할퀴기 — 가는 자국 셋. 진화형(곰발)은 이게 굵어지고 주황 불이 붙는다.
+  claw: [
+    '.....W....W....W','.....W....W....W','....W....W....W.','....W....W....W.',
+    '...W....W....W..','...W....W....W..','..W....W....W...','..W....W....W...',
+    '.W....W....W....','.W....W....W....','W....W....W.....','W....W....W.....',
+    '....W....W......','....W....W......','...W....W.......','...W....W.......'
+  ],
+  /* 털뭉치 — 분홍 공에 감긴 실 두 줄. 진화형(실타래 폭풍)은 실이 사방으로 풀려 날린다.
+     ⚠️ 이 그림은 화면에서 **24px** 로 그려진다 — 도트 하나가 1.5px 다.
+        처음엔 얇은 실을 여러 겹 감았는데 그 크기에서 전부 뭉개져 **분홍 도넛**
+        하나가 됐다(2026-08-11 실측). 그래서 감긴 줄을 두 줄로 줄이고 2칸 굵기로
+        키웠다. 광택(W)은 납작한 원과 구별하려고 넣은 것이다. */
+  yarn: [
+    '.....pppppp.....','...pppppppppp...','..ppWWpppppppp..','.ppWWWppppppppp.',
+    '.pWWWpppppppppp.','ppWWppppppppPPpp','pppppppppppPPppp','ppppppppppPPpppp',
+    'pppppppppPPppppp','ppppppppPPppPPpp','pppppppPPppPPppp','.pppppPPppPPppp.',
+    '.ppppPPppPPpppp.','..ppPPppPPpppp..','...pppppppppp...','.....pppppp.....'
+  ],
+  /* 생선뼈 — 통통한 머리에 갈비 두 쌍, 갈래 꼬리. 진화형(참치뼈)은 눈구멍까지
+     있는 큰 생선 통뼈가 된다. 세로 방향은 진화형과 맞췄다.
+     ⚠️ 처음엔 머리도 뼈처럼 가늘게 그렸더니 24px 에서 **졸라맨**이 됐다 —
+        갈비 두 쌍이 팔다리로, 가는 머리가 머리통으로 읽혔다. 머리를 꽉 찬
+        덩어리로 만들어서 "사람" 실루엣을 깼다. */
+  bone: [
+    '.....nnnnnn.....','...nnnnnnnnnn...','..nnnnnnnnnnnn..','..nnnnnNNnnnnn..',
+    '...nnnnnnnnnn...','.....nnnnnn.....','.nnnnnnnnnnnnnn.','.nnnnnnnnnnnnnn.',
+    '.....nNNNNn.....','..nnnnnnnnnnnn..','..nnnnnnnnnnnn..','.....nNNNNn.....',
+    '......nnnn......','....nn....nn....','..nnn......nnn..','..nn........nn..'
+  ],
+  // 캣닢 폭발 — 잎 한 장. 진화형(캣닢 폭풍)은 이게 넉 장이 되어 바람개비로 돈다.
+  catnip: [
+    '.......gg.......','......gGGg......','.....ggGGgg.....','....ggGGGGgg....',
+    '...ggGgGGgGgg...','..ggGggGGggGgg..','..gGgggGGgggGg..','.gGggggGGggggGg.',
+    '.gGggggGGggggGg.','..gGgggGGgggGg..','..ggGggGGggGgg..','...ggGgGGgGgg...',
+    '....ggGGGGgg....','.....ggGGgg.....','......gGGg......','.......gg.......'
+  ],
+  // 꼬리 회전 — 보라 구슬. 왼쪽 위 광택과 오른쪽 아래 그늘로 납작한 원과 구별한다.
+  // 진화형(회오리 꼬리)은 이 구슬을 바람 획이 둘러 감는다.
+  tail: [
+    '.....vvvvvv.....','...vvvvvvvvvv...','..vvWWvvvvvvvv..','.vvWWWvvvvvvvvv.',
+    '.vWWWvvvvvvvvVV.','vvWWvvvvvvvvvVVv','vvvvvvvvvvvvvVVv','vvvvvvvvvvvvvVVv',
+    'vvvvvvvvvvvvVVvv','vvvvvvvvvvvVVVvv','vvvvvvvvvVVVVvvv','.vvvvvvVVVVVvvv.',
+    '.vvvvVVVVVVvvvv.','..vvVVVVVVVvvv..','...vVVVVVVVVv...','.....VVVVVV.....'
+  ],
+  /* 토네이도 — 가는 획이 안으로 감기는 나선 두 바퀴 반. 진화형(태풍)은 같은
+     소용돌이가 **굵은 두 갈래**가 되고 가운데에 흰 눈이 생긴다.
+     ⚠️ 두 번 갈아엎었다(2026-08-11). 첫판은 동심원 두 겹이라 화면에서 **과녁**
+        처럼 보였고(가운데 빈 자리가 네모로 읽혔다), 둘째 판은 진화형에서 획 하나만
+        지운 거라 **진화해도 달라진 게 안 보였다.**
+     ⚠️ 눈으로 찍으면 세 번째도 동심원이 된다. 회오리로 읽히려면 반지름이 계속
+        줄어야 하는데 손으로는 그게 안 지켜진다. 그래서 아르키메데스 나선
+        (r 8.4 → 1.0, 2.25 바퀴, 시작각 300°)을 계산해서 구웠다.
+        시작각 300° 인 이유는 **첫 줄과 마지막 줄이 둘 다 차는 각이 이것뿐**이기
+        때문이다(15° 간격으로 전부 훑어서 확인). 줄이 비면 그림이 판정 중심에서 뜬다. */
+  tornado: [
+    '............c...','............cc..','.....ccccc...cc.','...ccc...ccc..cc',
+    '..cc.......c...c','..c...ccc..cc..c','.cc..cc.cc..c..c','.c...c...c..c..c',
+    '.c...c..cc..c..c','.c...c.....cc..c','.cc..cc...cc...c','..c...ccccc...cc',
+    '..cc.........cc.','...cc.......cc..','....cccc.cccc...','.......ccc......'
+  ]
+};
+
+/* 훑는 고정 순서(for...in 금지). 진화형 목록과 달리 **부분집합**이라
+   evolutionOrder 와 대조할 수 없다 — 대신 "무기표에 있는 id 인가" 만 검사한다. */
+var BASE_SPRITE_IDS = ['claw','yarn','bone','catnip','tail','tornado'];
+
 /* 적 typeId → 어떤 그림을 어떤 색으로, 좌우를 뒤집을지.
    tint 는 PAL_MOB 위에 덮어쓸 글자만 적는다. */
 var ENEMY_ART = {
@@ -3294,6 +3384,7 @@ root.CatArt = {
   SPRITES: SPRITES, SPRITE_IDS: SPRITE_IDS,
   WEAPON_PALETTE: WEAPON_PALETTE,
   WEAPON_SPRITES: WEAPON_SPRITES, WEAPON_SPRITE_IDS: WEAPON_SPRITE_IDS,
+  BASE_SPRITES: BASE_SPRITES, BASE_SPRITE_IDS: BASE_SPRITE_IDS,
   ENEMY_ART: ENEMY_ART, ENEMY_IDS: ENEMY_IDS,
   mobPalette: mobPalette,
   GROUND_KEYS: GROUND_KEYS,
@@ -3806,6 +3897,20 @@ var WEAPON_ICON = {};
   }
 })();
 
+/* 21단계: 기본형도 같은 방식으로 굽는다. 표만 다르고 절차는 위와 똑같다.
+   판이 따로인 이유는 id 가 겹치기 때문이다 — WEAPON_BAKED.yarn 은 실타래 폭풍,
+   BASE_BAKED.yarn 은 털뭉치다. 한 판에 담으면 하나가 다른 하나를 덮어쓴다. */
+var BASE_BAKED = {};
+(function bakeBaseArt(){
+  if (!ART.BASE_SPRITE_IDS || !ART.BASE_SPRITES || !ART.WEAPON_PALETTE) return;
+  for (var i = 0; i < ART.BASE_SPRITE_IDS.length; i++){
+    var id = ART.BASE_SPRITE_IDS[i];
+    var rows = ART.BASE_SPRITES[id];
+    if (!validDecorRows(rows)) continue;   // 한 장이 망가져도 나머지는 살린다
+    BASE_BAKED[id] = bakeFrame(rows, ART.WEAPON_PALETTE, null);
+  }
+})();
+
 /* 우유 바다는 화면 세로 절반을 덮는 장판이다(반경 = viewHalfH, 폰에서 390px 안팎).
    16×16 을 가운데 한 장 찍으면 안 보이고, 반경만큼 통째로 늘리면 도트 하나가
    50px 짜리 덩어리가 된다. 4배로 키운 타일을 반복 패턴으로 만들어 판정 반경 안을 채운다.
@@ -4040,8 +4145,10 @@ function render(){
     if (ppx < -CULL || ppy < -CULL || ppx > viewW + CULL || ppy > viewH + CULL) continue;
     /* 진화형(실타래 폭풍·참치뼈·태풍)은 동그라미 대신 그림으로 그린다.
        판정 반경을 그대로 지름으로 쓰면 실타래(반경 8)가 16px 라 모양이 안 읽힌다 —
-       작은 것만 최소 크기로 올린다. 태풍(반경 26)은 판정 그대로 52px 다. */
-    var pimg = world.isEvolved(pj.weaponId) ? WEAPON_BAKED[pj.weaponId] : null;
+       작은 것만 최소 크기로 올린다. 태풍(반경 26)은 판정 그대로 52px 다.
+       21단계: 기본형에도 그림이 생겼다. 둘 다 없으면 아래 동그라미로 떨어진다. */
+    var pimg = world.isEvolved(pj.weaponId) ? WEAPON_BAKED[pj.weaponId]
+                                            : BASE_BAKED[pj.weaponId];
     if (pimg){
       var psz = pj.radius * 2;
       if (psz < 24) psz = 24;
@@ -4067,16 +4174,21 @@ function render(){
     ctx.closePath();
     ctx.fill();
     ctx.globalAlpha = 1;
-    /* 곰발 후리기(진화형) — 발톱 자국 석 줄을 스윙 방향으로 눕혀 얹는다.
+    /* 발톱 자국 석 줄을 스윙 방향으로 눕혀 얹는다.
        부채꼴은 지우지 않는다. 그건 "어디까지 닿는가" 를 보여주는 것이고,
-       그림은 "무엇이 지나갔는가" 를 보여주는 것이라 역할이 다르다. */
-    if (WEAPON_BAKED.claw && world.isEvolved('claw')){
+       그림은 "무엇이 지나갔는가" 를 보여주는 것이라 역할이 다르다.
+       21단계: 기본형(가는 자국)과 진화형(굵은 자국 + 주황 불)이 같은 자리를 쓴다.
+       ⚠️ 진화형이 먼저다 — 진화하면 둘 다 있으므로 순서를 뒤집으면 안 그려진다. */
+    var clawImg = world.isEvolved('claw') ? WEAPON_BAKED.claw : BASE_BAKED.claw;
+    if (clawImg){
       var cs = world.swingRadius;
       ctx.save();
       ctx.translate(viewW / 2, viewH / 2);
       ctx.rotate(ang);
-      ctx.globalAlpha = 0.95 * swingT;
-      ctx.drawImage(WEAPON_BAKED.claw, 0, -cs / 2, cs, cs);
+      // 기본형은 옅게 얹는다. 부채꼴(0.35)보다는 진하되 진화형(0.95)만큼
+      // 존재감을 주면 5성을 찍었을 때 달라진 게 안 느껴진다.
+      ctx.globalAlpha = (world.isEvolved('claw') ? 0.95 : 0.7) * swingT;
+      ctx.drawImage(clawImg, 0, -cs / 2, cs, cs);
       ctx.restore();
     }
   }
@@ -4117,11 +4229,15 @@ function render(){
   if (world.blastTimer > 0 && world.blastShow > 0){
     var blastT = world.blastTimer / world.blastShow;   // 1 → 0
     var bx = world.blastX - camX, by = world.blastY - camY;
-    /* 캣닢 폭풍(진화형) — 고리 안을 잎 바람개비로 채운다. 고리는 그대로 둔다(판정 범위).
-       blastWeaponId 에는 'nuke' 도 들어오는데, 핵폭탄은 무기가 아니라 진화가 없다.
-       isEvolved('nuke') 는 false 를 돌려주므로 여기서 저절로 걸러진다. */
+    /* 고리 안을 잎으로 채운다 — 기본형은 잎 한 장, 진화형(캣닢 폭풍)은 바람개비.
+       고리는 그대로 둔다(판정 범위).
+       blastWeaponId 에는 'nuke' 도 들어오는데, 핵폭탄은 무기가 아니다.
+       isEvolved('nuke') 가 false 인 데다 BASE_BAKED 에도 'nuke' 가 없어서
+       양쪽 모두에서 저절로 걸러진다 — ⚠️ 나중에 핵폭탄 그림을 그리게 되면
+       그때는 여기에 그림이 붙는다는 뜻이므로 이 자리를 다시 볼 것. */
     var blastImg = world.isEvolved(world.blastWeaponId)
-                 ? WEAPON_BAKED[world.blastWeaponId] : null;
+                 ? WEAPON_BAKED[world.blastWeaponId]
+                 : BASE_BAKED[world.blastWeaponId];
     if (blastImg){
       var bsz = world.blastR * 2 * (1.15 - 0.15 * blastT);
       ctx.globalAlpha = 0.85 * blastT;
@@ -4176,6 +4292,12 @@ function render(){
       if (world.isEvolved('tail') && WEAPON_BAKED.tail){
         var tsz = CONFIG.weapons.tail.ballRadius * 2 * 1.6;
         ctx.drawImage(WEAPON_BAKED.tail, obx - tsz / 2, oby - tsz / 2, tsz, tsz);
+      } else if (BASE_BAKED.tail){
+        /* 기본형 구슬은 그림이 곧 공이라 판정 반경을 그대로 지름으로 쓴다.
+           진화형의 1.6 배는 바람 획이 그림 바깥에 있어서 둔 여유라, 여기 쓰면
+           공이 판정보다 커 보인다 — 안 맞았는데 맞은 것처럼 읽힌다. */
+        var bsz2 = CONFIG.weapons.tail.ballRadius * 2;
+        ctx.drawImage(BASE_BAKED.tail, obx - bsz2 / 2, oby - bsz2 / 2, bsz2, bsz2);
       } else {
         ctx.fillStyle = '#c9b4ff';
         ctx.beginPath();
@@ -4528,7 +4650,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '51faff3';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = '866ddd9';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
