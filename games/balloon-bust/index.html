@@ -97,22 +97,24 @@
   }
   #balloonWrap:disabled{cursor:default}
   #balloon{
-    display:block;width:110px;height:130px;
-    background:radial-gradient(circle at 35% 28%, #ff9aa8 0%, var(--balloon) 45%, #d63a52 100%);
-    border-radius:50% 50% 50% 50% / 55% 55% 45% 45%;
-    position:relative;
+    display:block;width:110px;height:140px;
+    overflow:visible;
+    transform-origin:50% 50%;
     will-change:transform;
     filter:drop-shadow(0 8px 24px rgba(255,90,110,.35));
   }
-  #balloon::after{ /* 매듭 */
-    content:'';position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);
-    border:6px solid transparent;border-top:10px solid #c23349;
-  }
+  #blBase .blMid{stop-color:var(--balloon)} /* 표현 속성 속 var()를 안 푸는 엔진 대비 — CSS 선언은 어디서나 동작 */
   #balloon.popped{visibility:hidden}
-  .shard{ /* 터짐 파편 */
-    position:absolute;width:14px;height:14px;border-radius:40% 60% 55% 45%;
-    background:var(--balloon);pointer-events:none;
+  .shard{ /* 터짐 파편 — 찢어진 고무 조각 */
+    position:absolute;pointer-events:none;
+    background:linear-gradient(115deg,#ff8a99 0%,var(--balloon) 38%,#c9354c 100%);
   }
+  /* 찢긴 조각 2종 */
+  .shard.s1{clip-path:polygon(52% 0%,100% 34%,86% 78%,34% 100%,0% 52%,16% 18%)}
+  .shard.s2{clip-path:polygon(14% 0%,88% 10%,100% 58%,62% 100%,22% 84%,0% 38%)}
+  /* 말린 긴 띠 2종 */
+  .shard.s3{clip-path:polygon(32% 0%,72% 8%,50% 30%,80% 56%,46% 78%,64% 100%,20% 90%,42% 64%,12% 36%,38% 16%)}
+  .shard.s4{clip-path:polygon(46% 0%,76% 16%,40% 34%,70% 54%,34% 72%,60% 100%,24% 86%,48% 64%,18% 40%,32% 18%)}
   #flash{
     position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:5;
   }
@@ -203,7 +205,58 @@
   </header>
   <button id="backBtn"></button>
   <div id="mult" aria-hidden="true">1.00×</div>
-  <button id="balloonWrap" type="button" aria-describedby="hintBig hintSub"><span id="balloon" aria-hidden="true"></span></button>
+  <button id="balloonWrap" type="button" aria-describedby="hintBig hintSub"><svg id="balloon" aria-hidden="true" viewBox="0 0 110 140" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <path id="blBody" d="M55 1 C84 1 108 19 108 46 C108 73 97 95 77 109 C70 114 62 115 61 120 L49 120 C48 115 40 114 33 109 C13 95 2 73 2 46 C2 19 26 1 55 1 Z"/>
+      <path id="blKnot" d="M49 112 L61 112 L61 126 C66.5 130 67.5 136 61.5 138 C57.5 139.3 55.8 138 55 135.8 C53.8 138 50.5 138.8 47.5 137 C42.5 134.5 44 130 49 126 Z"/>
+      <radialGradient id="blBase" cx="35%" cy="28%" r="80%">
+        <stop offset="0%"   stop-color="#ffb9c1"/>
+        <stop offset="40%"  class="blMid"/>
+        <stop offset="84%"  stop-color="#e0405a"/>
+        <stop offset="100%" stop-color="#ab2841"/>
+      </radialGradient>
+      <radialGradient id="blEdge" cx="48%" cy="42%" r="64%">
+        <stop offset="58%"  stop-color="#4d0c1c" stop-opacity="0"/>
+        <stop offset="88%"  stop-color="#4d0c1c" stop-opacity=".22"/>
+        <stop offset="100%" stop-color="#3a0716" stop-opacity=".44"/>
+      </radialGradient>
+      <radialGradient id="blSheen">
+        <stop offset="0%"   stop-color="#fff" stop-opacity=".17"/>
+        <stop offset="70%"  stop-color="#fff" stop-opacity=".045"/>
+        <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="blSpec">
+        <stop offset="0%"   stop-color="#fff" stop-opacity=".95"/>
+        <stop offset="45%"  stop-color="#fff" stop-opacity=".6"/>
+        <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="blRimFill" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="55%"  stop-color="#ffd3b8" stop-opacity="0"/>
+        <stop offset="100%" stop-color="#ffd3b8" stop-opacity=".30"/>
+      </linearGradient>
+      <radialGradient id="blSub">
+        <stop offset="0%"   stop-color="#ff9a80" stop-opacity=".5"/>
+        <stop offset="100%" stop-color="#ff9a80" stop-opacity="0"/>
+      </radialGradient>
+      <mask id="blRimMask">
+        <use href="#blBody" fill="#fff"/>
+        <use href="#blBody" fill="#000" transform="translate(-2.2,-2.8)"/>
+      </mask>
+      <clipPath id="blClip"><use href="#blBody"/></clipPath>
+    </defs>
+    <g id="blKnotG">
+      <use href="#blKnot" fill="#b32c42"/>
+      <ellipse cx="53" cy="131" rx="4" ry="2.6" fill="#ff8f9d" opacity=".38"/>
+    </g>
+    <use href="#blBody" fill="url(#blBase)"/>
+    <g clip-path="url(#blClip)">
+      <use href="#blBody" fill="url(#blEdge)"/>
+      <ellipse cx="55" cy="104" rx="31" ry="17" fill="url(#blSub)"/>
+      <ellipse cx="38" cy="41" rx="25" ry="33" fill="url(#blSheen)" transform="rotate(-18 38 41)"/>
+      <ellipse cx="36" cy="31" rx="8" ry="11" fill="url(#blSpec)" transform="rotate(-24 36 31)"/>
+    </g>
+    <use href="#blBody" fill="url(#blRimFill)" mask="url(#blRimMask)"/>
+  </svg></button>
   <div id="hint">
     <div class="big" id="hintBig"></div>
     <div class="sub" id="hintSub"><span id="hintSub1"></span><br><span id="hintSub2"></span></div>
@@ -424,7 +477,7 @@
   const $ = id => document.getElementById(id);
   const balloon = $('balloon'), multEl = $('mult'), stage = $('stage'),
         toast = $('toast'), toastSub = $('toastSub'), flash = $('flash'),
-        dots = $('dots'), wrap = $('balloonWrap');
+        dots = $('dots'), wrap = $('balloonWrap'), knotG = $('blKnotG');
 
   function renderBestLine(){
     if(lastPct != null){
@@ -610,6 +663,8 @@
     const sx = (Math.random()-0.5) * shakeAmt;
     const sy = (Math.random()-0.5) * shakeAmt;
     balloon.style.transform = `scale(${scale}) translate(${sx}px,${sy}px)`;
+    // 목·매듭은 고무가 두꺼워 거의 안 늘어난다 — 몸통 배율을 상쇄해 화면상 크기를 고정
+    knotG.setAttribute('transform', `translate(55,120) scale(${(1/scale).toFixed(4)}) translate(-55,-120)`);
     // 배경 가열
     const heat = Math.min((mult - 1) / 6, 1);
     stage.style.background = `linear-gradient(180deg, var(--bg) ${100-heat*60}%, var(--bg-hot))`;
@@ -662,17 +717,21 @@
     balloon.classList.add('popped');
     if(prefersReducedMotion) return;
     const rect = balloon.getBoundingClientRect();
-    const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+    const cx = rect.left + rect.width/2, cy = rect.top + rect.height * 0.43; // 박스 중앙이 아니라 몸통 중심(60/140)
     for(let i=0;i<10;i++){
       const s = document.createElement('div');
-      s.className = 'shard';
-      s.style.left = cx+'px'; s.style.top = cy+'px';
+      const strip = i < 4;                                    // 10개 중 4개는 말린 긴 띠
+      s.className = 'shard ' + (strip ? (i%2 ? 's3' : 's4') : (i%2 ? 's1' : 's2'));
+      const w = strip ?  6 + Math.random()*4  : 10 + Math.random()*12;
+      const h = strip ? 20 + Math.random()*14 :  9 + Math.random()*11;
+      s.style.width = w+'px'; s.style.height = h+'px';
+      s.style.left = (cx - w/2)+'px'; s.style.top = (cy - h/2)+'px';
       document.body.appendChild(s);
       const ang = Math.random()*Math.PI*2, dist = 60+Math.random()*120;
       s.animate([
         {transform:'translate(0,0) rotate(0)', opacity:1},
         {transform:`translate(${Math.cos(ang)*dist}px,${Math.sin(ang)*dist+60}px) rotate(${Math.random()*360}deg)`, opacity:0}
-      ], {duration:600, easing:'cubic-bezier(.2,.8,.4,1)'});
+      ], {duration:600, easing:'cubic-bezier(.2,.8,.4,1)', fill:'forwards'});
       setTimeout(()=>s.remove(), 620);
     }
     flash.animate([{opacity:0.7},{opacity:0}], {duration:250});
@@ -739,6 +798,7 @@
     usedStutters = [];
     balloon.classList.remove('popped');
     balloon.style.transform = 'scale(1)';
+    knotG.removeAttribute('transform');
     balloon.style.filter = '';
     balloon.style.opacity = '';
     stage.style.background = '';
