@@ -918,6 +918,18 @@ function World(config, metaLevels){
     var dx = p.x - e.x, dy = p.y - e.y;
     var d2 = dx * dx + dy * dy;
     if (d2 > p.pullRadius * p.pullRadius || d2 < 1e-6) return;
+    /* 회오리가 **지나온 쪽** 의 적은 안 끈다.
+
+       예전에는 방향을 안 봐서 뒤에 있던 적까지 앞으로 끌어왔고, 그것들이 끌려오는
+       길에 플레이어를 그대로 통과했다. 사용자 신고(2026-08-11): "뒤에 애들이
+       끌려오다가 나를 맞추는 경우가 엄청 많아".
+       실측(태풍 만렙·적 30마리·60초·3씨드): 분당 38번 맞는 중 **20번(52%)** 이
+       끌려온 적이었다. 끌리는 적의 81% 가 뒤쪽이었다.
+       이 줄을 넣으면 분당 맞는 횟수 38 → 25, 피해 418 → 263 이다.
+
+       덤으로 태풍의 초당 딜이 789 → 451 이 되어 "2위의 2.4배" 였던 쏠림도 풀린다
+       (계획/20-무기밸런스-조사.md 발견 4). */
+    if ((e.x - p.x) * p.vx + (e.y - p.y) * p.vy < 0) return;
     var d = Math.sqrt(d2);
     var step = p.pullSpeed * self._pullDt;
     if (step > d) step = d;          // 중심을 지나쳐 튕기지 않게
@@ -2244,9 +2256,17 @@ World.prototype.checkLevelUp = function(){
 World.prototype.rollChoices = function(){
   var cfg = this.config;
   var pool = [];
-  var id;
-  // 무기 (2단계는 claw 하나뿐 — 3단계에서 6종이 더 붙는다)
-  for (id in cfg.weapons){
+  var id, ii;
+  /* 무기·패시브 둘 다 **고정 순서 배열**로 훑는다.
+     예전에는 for-in 이었다. 이 저장소가 weaponOrder 를 배열로 만든 이유가
+     "for-in 은 엔진마다 순서가 달라 봇 시뮬 재현성이 깨진다" 인데, 정작
+     **카드 후보를 모으는 이 자리**가 for-in 이었다 — 뽑기 결과를 정하는 곳이라
+     여기가 흔들리면 같은 씨드가 다른 판이 된다(2026-08-11 정리).
+     V8 은 문자열 키를 선언 순서로 주므로 지금 결과는 안 바뀐다. 봇 12판 출력이
+     바이트까지 같은 것을 확인했다. 이건 다른 엔진에 대한 보험이다. */
+  for (ii = 0; ii < WEAPON_IDS.length; ii++){
+    id = WEAPON_IDS[ii];
+    if (!cfg.weapons[id]) continue;
     var wst = this.weapons[id];
     var owned = !!wst;
     var lv = owned ? wst.level : 0;
@@ -2257,7 +2277,9 @@ World.prototype.rollChoices = function(){
                 desc: this.weaponCardDesc(id, lv + 1) });
   }
   // 패시브
-  for (id in cfg.passives){
+  for (ii = 0; ii < PASSIVE_IDS.length; ii++){
+    id = PASSIVE_IDS[ii];
+    if (!cfg.passives[id]) continue;
     var plv = this.passives[id];
     if (plv >= cfg.passives[id].maxLevel) continue;
     if (plv === 0 && this.passiveSlotsUsed() >= cfg.level.slotsPassive) continue;
@@ -4478,7 +4500,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '4d238f4';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = 'a47ed00';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
