@@ -3221,23 +3221,37 @@ function continueToReward(){
     render(true);
     return;
   }
-  // 이벤트 웨이브(5·10·15·25…) 승리: 확정 골드를 주고 특전 선택 화면으로
-  if(state.lastResult==='win' && isEventWave(state.wave)){
-    state.gold += BALANCE.REWARD_FIXED.win;
-    // 3택은 여기서 한 번만 뽑아 state에 넣는다. renderEvent에서 뽑으면 화면을 다시 그릴
-    // 때마다(언어 전환 등) 선택지가 바뀌어, 원하는 특전이 나올 때까지 돌릴 수 있었다.
-    state.perkChoices = pickPerkChoices(3);
-    state.phase='event';
-    render(true);
-    return;
-  }
+  // 이벤트 웨이브(5·10·15·20·25…) 승리: 확정 골드를 주고 특전 선택 화면으로.
+  // 웨이브 20은 위 클리어 분기가 먼저 가로채므로 여기 안 온다 — continueEndless가 대신 태운다.
+  if(state.lastResult==='win' && isEventWave(state.wave)){ enterEventReward(); return; }
   state.phase='reward';
   render(true);
 }
 
 // 클리어 후 "무한 모드 계속"을 고르면 원래 흐름(보상 선택)으로 복귀한다.
 function continueEndless(){
+  // 승리 화면에서만 진행한다. 예전엔 phase만 바꿔서 두 번 불려도 무해했지만, 아래에서
+  // 골드와 특전 3택을 주게 된 뒤로는 **두 번 부르면 골드가 두 번 들어가고 3택이 다시 뽑힌다.**
+  // 나가는 화면이 170ms 남아 있어 키보드 Enter/Space로 재활성화될 수 있고, render()가 즉시
+  // 저장하므로 중복분이 영구히 남는다. proceedAfterReward의 같은 가드와 같은 이유다.
+  if(state.phase!=='victory') return;
+  // 클리어 웨이브(20)도 이벤트 웨이브지만, 위 승리 분기가 continueToReward의 이벤트 분기보다
+  // 먼저 return하므로 그냥 두면 웨이브 20만 특전을 못 받는다 — isEventWave만 고쳐선 안 낫는다.
+  // 그래서 여기서 한 번 더 태운다. 판을 접는 쪽(새 게임)에는 안 준다:
+  // 특전도 골드도 다음 웨이브가 있어야 쓸 데가 있고, 승리 화면은 그 갈림길이다.
+  if(state.lastResult==='win' && isEventWave(state.wave)){ enterEventReward(); return; }
   state.phase='reward';
+  render(true);
+}
+
+// 이벤트 웨이브 보상 진입 — 확정 골드 + 특전 3택.
+// 부르는 곳이 둘이다: 보통은 continueToReward, 웨이브 20만 승리 화면을 거쳐 continueEndless.
+function enterEventReward(){
+  state.gold += BALANCE.REWARD_FIXED.win;
+  // 3택은 여기서 한 번만 뽑아 state에 넣는다. renderEvent에서 뽑으면 화면을 다시 그릴
+  // 때마다(언어 전환 등) 선택지가 바뀌어, 원하는 특전이 나올 때까지 돌릴 수 있었다.
+  state.perkChoices = pickPerkChoices(3);
+  state.phase='event';
   render(true);
 }
 
@@ -3775,7 +3789,13 @@ const PERKS = {
   bigspender:{emoji:'🏪', name:'큰손', nameEn:'Big Spender', desc:'상점에 더 좋은 티어가 빨리 등장', descEn:'Higher tiers show up in the shop sooner',
     avail:()=> (state.shopTierBoost||0) < 4 && (state.wave + 1) < BALANCE.FLAT_SHOP_FROM, apply:()=>{ state.shopTierBoost=(state.shopTierBoost||0)+2; }},
 };
-function isEventWave(wave){ return wave>=5 && wave%5===0 && !isBossWave(wave); }
+// 보스 웨이브(20·30·40…)도 이벤트 웨이브다. 예전엔 `&& !isBossWave(wave)`로 뺐는데,
+// 그러면 **가장 어려운 판에서만 특전이 끊기고** 무한 모드 간격이 5→10웨이브로 벌어졌다.
+// 비교 대상(Balatro·StS·SAP·Backpack Battles)은 넷 다 보스에 더 주거나 보스를 안 만든다 —
+// "보스라서 뺀다"는 어디에도 없다. 근거는 조사-보상리듬_비교.md.
+// 클리어율에는 안 닿는다: 특전은 그 웨이브를 **이긴 뒤** 오므로 웨이브 20의 특전은
+// 클리어 이후에 도착한다. 움직이는 건 무한 모드뿐이고 sim_endless_check가 그 기대치를 잡는다.
+function isEventWave(wave){ return wave>=5 && wave%5===0; }
 function pickPerkChoices(n){
   const pool = Object.keys(PERKS).filter(id => PERKS[id].avail());
   for(let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
@@ -3801,7 +3821,7 @@ function perkStripHTML(){
   return `<div class="perk-strip">${T('🎁 특전:','🎁 Perks:')} ${chips}</div>`;
 }
 function renderEvent(){
-  // 3택은 continueToReward에서 이미 뽑아 state에 담아뒀다 — 여기서 뽑으면 화면을 다시
+  // 3택은 enterEventReward에서 이미 뽑아 state에 담아뒀다 — 여기서 뽑으면 화면을 다시
   // 그릴 때마다(언어 전환 등) 선택지가 새로 섞여 원하는 특전이 나올 때까지 돌릴 수 있다.
   // 아래는 event 단계에서 저장된 구버전 세이브를 불러온 경우의 폴백.
   if(!Array.isArray(state.perkChoices) || !state.perkChoices.length){
@@ -3975,7 +3995,16 @@ function migrateState(s){
   if(!Array.isArray(s.shopBonus))  s.shopBonus  = new Array(BALANCE.SHOP_SIZE).fill(0);
   if(!Array.isArray(s.shopFrozen)) s.shopFrozen = new Array(BALANCE.SHOP_SIZE).fill(false);
   s.perks = Array.isArray(s.perks) ? s.perks.filter(id => PERKS[id]) : [];
-  if(s.perkChoices != null && !Array.isArray(s.perkChoices)) s.perkChoices = null;
+  // 3택은 배열 여부만 보면 부족하다 — 없는 ID 3개가 든 저장이면 renderEvent의 "비었으면 다시
+  // 뽑는다" 폴백이 길이 3을 보고 안 돌고, 그리기 단계에서 0장이 되어 진행이 막힌다.
+  // 유효 ID만 남기고 중복을 없앤 뒤, 모자라면 아예 버려서 폴백이 새로 뽑게 한다.
+  if(s.perkChoices != null){
+    const seen = {};
+    const clean = Array.isArray(s.perkChoices)
+      ? s.perkChoices.filter(id => PERKS[id] && !seen[id] && (seen[id]=1))
+      : [];
+    s.perkChoices = clean.length === 3 ? clean : null;
+  }
   // 전투 중 저장인데 적 팀이 없으면 재생할 수가 없다 — 상점으로 되돌린다
   if(s.phase==='battling' && !Array.isArray(s._enemyTeamPreview)) s.phase = 'shop';
   if(!Array.isArray(s.lastLog)) s.lastLog = [];
