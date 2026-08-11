@@ -84,6 +84,19 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
    "못 사는 것"인지 라벨을 읽기 전엔 구분이 안 된다. 불투명하게 두고
    기존 강조색(포커스 아웃라인과 동일)으로 테두리만 준다. */
 .card.sel{ opacity:1; cursor:default; border-color:#f7efd8; box-shadow:0 0 0 2px #f7efd8 inset }
+/* 진화 카드 — 최대 4장이다(무기 슬롯이 4개라 그 이상은 못 나온다).
+   3택 카드 폭(170px)을 그대로 쓰면 375px 폰에서 한 줄에 한 장씩 네 줄이 되어
+   스크롤해야 다 볼 수 있다 — 고르는 화면에서 안 보이는 선택지는 없는 선택지다.
+   폭을 줄여 한 줄에 두 장씩, 두 줄로 끝나게 한다. */
+/* 기준폭 130px 은 가장 좁은 폰(320px)에서 두 장이 한 줄에 들어가는 한계다:
+   화면 320 − 오버레이 좌우 여백 40 = 280, 130 + 130 + 칸 사이 12 = 272. */
+.card.evo{ flex:1 1 130px; max-width:190px; padding:12px 8px }
+.card.evo .nm{ font-size:15px; word-break:keep-all }
+.card.evo .lv{ font-size:12px; opacity:.7 }
+.card.evo .ds{ font-size:12px; margin-top:6px; word-break:keep-all }
+/* 진화형 그림. 16×16 도트라 확대할 때 흐려지면 안 된다(캔버스의 imageSmoothing 과 같은 뜻). */
+.evoIco{ width:44px; height:44px; display:block; margin:0 auto;
+         image-rendering:pixelated; image-rendering:crisp-edges }
 /* 일시정지 버튼 — 폰 엄지로 닿아야 하므로 최소 44px */
 #pauseBtn{
   position: fixed; top: 10px; right: 10px; z-index: 5;
@@ -163,6 +176,7 @@ var CONFIG = {
   player: { maxHp: 100, speed: 180, radius: 12, pickupRange: 45 },
   grid:   { cellSize: 64, cols: 40, rows: 30 },
   pools:  { enemies: 400, projectiles: 300, gems: 600, particles: 200, fields: 12, warns: 24, nukes: 8,
+            boxes: 2,          // 상자는 동시에 최대 하나지만 여유를 둔다
             companions: 2 },   // 고양이 친구는 한 마리지만 풀 규칙을 그대로 따른다
   input:  { stickMax: 45 },                          // 조이스틱 최대 밀기 거리(px)
   render: { cullMargin: 40, maxDpr: 2 },             // 화면 밖 여유, 픽셀비 상한
@@ -211,6 +225,17 @@ var CONFIG = {
               pickupRadius: 26, size: 30,
               maxAlive: 3,                           // 무한히 쌓아두지 못하게
               showSec: 0.45 },                       // 폭발 잔상 길이
+  /* 보스 상자. 5분·10분 보스를 잡으면 그 자리에 떨어진다.
+     15분 쥐왕은 최종전이라 없다 — 한 판에 진화는 최대 2개다.
+
+     5성 무기가 없을 때의 회복·코인은 "헛탕을 없애려고" 두는 것이다.
+     3택이라 5분까지 무기 하나를 5성 찍는 게 확실하지 않은데, 상자를 먹었는데
+     아무 일도 안 일어나면 "보스를 잡을 이유" 를 만들려던 기능이 정반대로 작동한다.
+     회복을 고른 것은 5단계 측정이 남긴 것이기도 하다 — 회복 수단이 없으면
+     보스전 승패를 화력이 아니라 남은 체력이 가른다. */
+  bossBox: { emoji: '\u{1F381}', pickupRadius: 26,
+             healPct: 0.4,      // 최대 체력의 몇 할을 채우나
+             coins: 300 },      // 한 판 수입이 2,300~4,100 인 것을 보고 잡았다
   enemies: {
     mouse: { emoji: '\u{1F401}', name: '생쥐', hp: 10, speed: 48, radius: 9,  contact: 6,  xp: 1, size: 20,
              color: '#8a6a4a', fromMin: 0, coin: 1, weight: 1, rampMin: 0 },
@@ -297,6 +322,68 @@ var CONFIG = {
               seekRange: 260,    // 이 안에 적이 있을 때만 달려든다
               biteRadius: 16 },  // 이만큼 가까워지면 문다
   },
+  /* 진화표. 무기가 5성이고 보스 상자를 먹으면 이 모양이 된다.
+
+     배율(damage·radius·count)은 evoMult 가 읽어 전투 함수에 곱한다.
+     rule 이 있는 셋은 배율로 안 되는 것이라 Task 3 에서 따로 만든다.
+
+     ⚠️ 여기 숫자는 출발점이다. Task 8 의 관문에서 재고 조정한다.
+     지금 못 박으면 무엇이 효과를 냈는지 못 가린다. */
+  evolutions: {
+    claw:    { name: '곰발 후리기',   desc: '피해가 두 배, 더 멀리 닿는다',
+               damage: 2,   radius: 1.5 },
+    yarn:    { name: '실타래 폭풍',   desc: '맞을 때마다 갈라진다',
+               // 맞은 자리에서 좌우 이 각도로 두 개가 갈라진다. 갈라진 것은 다시
+               // 안 갈라진다(무한 증식 방지) — splitProjectile 이 split 표시를 단다.
+               rule: 'split', splitDeg: 35 },
+    bone:    { name: '참치뼈',        desc: '한 번에 두 배로 던진다',
+               count: 2 },
+    laser:   { name: '햇빛 모으기',   desc: '앞뒤로 두 줄, 피해도 폭도 두 배',
+               // 둘째 줄은 정반대 방향이다(fireBeam). 레이저의 약점이 "앞만 본다"
+               // 라서 뒤를 덮는 것이 수치를 올리는 것보다 크게 달라진다.
+               damage: 2,   width: 2,   count: 2 },
+    catnip:  { name: '캣닢 폭풍',     desc: '더 넓게, 두 배로 터진다',
+               damage: 2,   radius: 1.6 },
+    milk:    { name: '우유 바다',     desc: '화면 절반이 우유가 된다',
+               rule: 'sea' },
+    tail:    { name: '회오리 꼬리',   desc: '공이 둘, 두 배로 돌고 적을 밀어낸다',
+               /* 공 수. 20단계 시험대에서 꼬리 회전이 세 상황 전부 꼴찌였다
+                  (순위합 29, 2위와 7 차이). 재타격 간격은 **공마다** 따로 세므로
+                  둘째 공이 첫째의 간격에 걸리지 않는다(_onOrbitCandidate). */
+               count: 2,
+               // 궤도 반경은 weaponRadius 를 안 탄다(fireOrbit 이 직접 계산한다).
+               // 그래서 radius 배율을 fireOrbit 의 그 줄에 따로 건다.
+               /* pushPerSec 는 맞은 적이 재타격 간격 동안 밀려나는 초당 거리다.
+
+                  220 이었는데 110 으로 낮췄다(2026-08-11). 두 가지가 같이 걸렸다.
+
+                  ① 우유 바다와 겹치면 손을 놓고 제자리에 서 있어도 3분을 버티고
+                     체력이 한 칸도 안 깎였다(각각은 +1.5초·+5~24초인데 겹치면 +170초).
+                     이건 새 문제가 아니다 — weapons.milk 주석이 적어 둔 것처럼 6단계에서
+                     우유 가동률을 75%→50% 로 낮춰 고쳤던 그 조합이 진화 둘로 되살아난 것이다.
+                     한 판에 상자가 정확히 2개라 "고를 수 있는 두 개" 로 딱 채워진다.
+                     봇은 이 조합을 60판 중 0회 골라서 관문이 구조적으로 못 봤다.
+
+                  ② 낮췄더니 꼬리 피해가 오히려 늘었다. 220 은 적을 살상 고리
+                     바깥으로 너무 멀리 던져서 덜 때린다.
+                     실측(10분 스폰율·60초·제자리): 진화 전 대비 220=1.83배 ·
+                     160=2.23배 · 110=2.50배 · 80=0.93배(붕괴).
+                     110 이 무한 유지를 깨면서(180초+ → 15~18초) 피해는 제일 높다. */
+               rule: 'gale', radius: 2, pushPerSec: 110 },
+    tornado: { name: '태풍',          desc: '두 배로 크고 두 배로 빨아들인다',
+               damage: 2,   radius: 2,   pull: 2 },
+    zap:     { name: '번개',          desc: '두 배로 튀고 두 배로 아프다',
+               damage: 2,   chain: 2 },
+    // 원래 "고양이 삼형제(3마리)" 였는데 companion 이 단일 필드라 담을 자리가 없다.
+    // 한 무기 때문에 그 구조를 흔드는 대신 한 마리를 사납게 만든다(2026-08-10 결정).
+    friend:  { name: '들고양이',      desc: '더 자주, 더 멀리, 두 배로 문다',
+               damage: 2,   cooldown: 0.6,   seek: 1.6 }
+  },
+  /* 진화를 훑는 고정 순서. for...in 은 엔진마다 순서가 달라 봇 재현성을 깬다.
+     무기를 추가하고 여기 안 적으면 그 무기는 5성을 찍어도 상자가 헛탕이 된다 —
+     그래서 무기 목록과 일치하는지 테스트로 대조한다. */
+  evolutionOrder: ['claw','yarn','bone','laser','catnip','milk','tail',
+                   'tornado','zap','friend'],
   passives: {
     claws:   { name: '발톱갈이', emoji: '\u{1F52A}', maxLevel: 5, damagePct: 8 },
     tuna:    { name: '참치캔',   emoji: '\u{1F96B}', maxLevel: 5, maxHpAdd: 15 },
@@ -524,6 +611,32 @@ Stepper.prototype.advance = function(deltaMs){
   return steps;
 };
 
+/* 한 투사체가 "이미 때린 적" 을 몇 마리까지 기억하는가.
+
+   예전에는 이 기억을 **적 쪽**에 도장 한 칸(lastProjStamp)으로 뒀는데, 겹친 투사체가
+   둘이면 서로 도장을 덮어써서 같은 적을 매 프레임 다시 때렸다. 8단계 최종 리뷰가
+   찾아서 "다음 밸런스 작업으로 이월" 로 적어 둔 것이고(계획/8-...-측정결과.md §이월),
+   생선뼈가 `counts: 2` + `pierce: 999` 라 정확히 여기에 걸렸다 —
+   2026-08-11 실측: 표에 적힌 30 짜리가 **720**(24배), 레벨 3→4 에서 56배.
+
+   그래서 기억을 **투사체 쪽**으로 옮긴다. 적의 stamp 는 스폰마다 새로 매기므로
+   풀이 자리를 재활용해도 헷갈리지 않는다.
+   기억이 꽉 차면 그 투사체는 더 안 때린다 — 관통을 다 쓴 것과 같이 다룬다.
+
+   64 로 잡은 근거(2026-08-11 실측, 참치뼈 만렙 = 동시 4발 · 관통 999 · 3분):
+     적 100마리 유지 → 한 투사체가 기억한 최대 **36마리**, 캡 도달 0회.
+     적 400마리를 반경 460 안에 욱여넣으면 캡에 닿는다 — 실제 판은 15분에
+     적 68~81마리라(봇 60판) 여기까지 갈 일이 없다.
+   ⚠️ 적 수를 크게 늘리거나 관통 무기를 더 만들면 이 수를 다시 재고 올릴 것.
+      캡에 닿아도 게임이 안 멈추고 **조용히** 피해만 사라진다. */
+var PROJ_HIT_CAP = 64;
+
+function projAlreadyHit(p, enemyStamp){
+  if (p.hitN >= PROJ_HIT_CAP) return true;
+  for (var i = 0; i < p.hitN; i++) if (p.hitIds[i] === enemyStamp) return true;
+  return false;
+}
+
 /* ================================================================
    World — 게임 상태 전체. DOM 을 모르므로 Node 에서도 그대로 돈다.
    ================================================================ */
@@ -542,8 +655,11 @@ function World(config, metaLevels){
     // 필드를 늘리면 spawnEnemy 도 반드시 같이 고칠 것 (풀 잔존값).
     return { x: 0, y: 0, hp: 0, maxHp: 0, typeId: '', speed: 0,
              radius: 0, contact: 0, xp: 0, hitFlash: 0, contactCd: 0,
-             lastProjStamp: 0, slowT: 0, slowPct: 0, orbitCd: 0,
-             tornadoCd: 0, chainStamp: 0, stamp: 0 };
+             slowT: 0, slowPct: 0,
+             // 꼬리 회전 재타격 간격 — 공마다 따로 센다. 한 칸으로 두면 공을 늘려도
+             // 두 번째 공이 첫 번째의 간격에 걸려 아무 일도 안 일어난다.
+             orbitCds: [0, 0, 0, 0],
+             tornadoCd: 0, chainStamp: 0, beamStamp: 0, stamp: 0 };
   });
   this.gems = new Pool(config.pools.gems, function(){
     return { x: 0, y: 0, xp: 0 };
@@ -553,7 +669,11 @@ function World(config, metaLevels){
     // 풀이 객체를 재활용하므로 한쪽만 고치면 이전 투사체의 값이 샌다.
     return { x: 0, y: 0, vx: 0, vy: 0, dmg: 0, radius: 0,
              life: 0, pierce: 0, stamp: 0, weaponId: '', turnAt: 0,
-             pullRadius: 0, pullSpeed: 0, hitCd: 0 };
+             pullRadius: 0, pullSpeed: 0, hitCd: 0,
+             // 이미 때린 적들의 stamp. 자리는 미리 잡아 두고 hitN 까지만 쓴다.
+             hitIds: new Array(PROJ_HIT_CAP), hitN: 0,
+             // 실타래 폭풍이 갈라 놓은 것인가. true 면 다시 안 갈라진다.
+             split: false };
   });
   this.fields = new Pool(config.pools.fields, function(){
     return { x: 0, y: 0, radius: 0, tickDmg: 0, life: 0,
@@ -577,6 +697,11 @@ function World(config, metaLevels){
     return { x: 0, y: 0 };
   });
   this.nukeAcc = 0;   // ☢️ 맵 아이템 낙하 누적 시간(초)
+  this.boxes = new Pool(config.pools.boxes, function(){
+    return { x: 0, y: 0 };
+  });
+  this.pendingEvolve = 0;   // 1 이면 진화 카드를 고르는 중 — 셸이 이걸 보고 판을 멈춘다
+  this.boxesTaken = 0;      // 이 판에서 먹은 상자 수 (봇 관문이 이걸 본다)
   this.projStamp = 0;   // 투사체마다 주는 고유 번호 (같은 적을 두 번 때리지 않게)
   this.xp = 0;
   this.grid = new Grid(config.grid.cellSize, config.grid.cols, config.grid.rows);
@@ -615,13 +740,20 @@ function World(config, metaLevels){
   this.starter = 'claw';   // 이 판을 시작한 무기. reset 이 바꾼다.
   this.weapons = { claw: { level: 1, cdLeft: 0 } };
   this.weaponOrder = ['claw'];   // 발동 순서 고정 (for-in 은 순서가 엔진 마음이라 봇 시뮬 재현성이 깨진다)
+  // 진화한 무기 {id: true}. 한 판에 최대 2개(보스 상자가 5분·10분 두 번뿐).
+  this.evolved = {};
   this.swingTimer = 0;   // 할퀴기 스윙 이펙트 남은 시간(초) — 렌더 전용, 판정과 무관
   this.swingRadius = 0;  // 그 스윙의 반경. _hitRadius 는 무기들이 돌려쓰는 판정용이라 렌더가 읽으면 안 된다
   this.swingDir = { x: 1, y: 0 };   // 그 스윙이 향한 방향. aimDir 는 다른 무기가 덮어쓴다
   this.beamTimer = 0;                 // 빔 잔상 남은 시간(초) — 렌더 전용
-  this.beamDir = { x: 1, y: 0 };      // 쏜 순간의 방향 (그 뒤 조준이 바뀌어도 잔상은 유지)
+  /* 쏜 순간의 방향들 (그 뒤 조준이 바뀌어도 잔상은 유지). 햇빛 모으기(진화)는
+     앞뒤로 두 줄이라 자리를 미리 잡아 두고 beamN 까지만 쓴다. */
+  this.beamDirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }];
+  this.beamN = 0;
   this.beamLen = 0;
   this.beamHalfW = 0;
+  // 이번 발동 번호. 빔이 둘이라 겹치는 자리의 적을 두 번 때리지 않게 적에 찍는다.
+  this.beamStamp = 0;
   this.blastTimer = 0;   // 폭발 이펙트 남은 시간(초) — 렌더 전용
   this.blastX = 0;
   this.blastY = 0;
@@ -632,10 +764,17 @@ function World(config, metaLevels){
   this.blastShow = 0;        // 이번 폭발의 연출 길이(초)
   this.blastWeaponId = '';   // 이번 폭발을 낸 무기 id
   this.orbitAngle = 0;   // 꼬리 공의 현재 각도(라디안)
-  this.orbitX = 0;
-  this.orbitY = 0;
+  /* 공 자리. 회오리 꼬리(진화)는 둘이라 자리를 미리 잡아 두고 orbitN 까지만 쓴다.
+     셸이 이걸 읽어 그린다 — 공 수가 코어와 그림에서 갈리면 안 때리는 공이 보인다. */
+  this.orbitXs = [0, 0, 0, 0];
+  this.orbitYs = [0, 0, 0, 0];
+  this.orbitN = 0;
   this.orbitR = 0;
   this._orbitCd = 0;
+  /* 회오리 꼬리(진화)가 맞은 적을 바깥으로 미는 초당 거리(px). 0 이면 안 민다.
+     fireOrbit 이 매 프레임 다시 정하므로, 꼬리를 안 들었거나 진화 전이면 0 이다.
+     미는 일 자체는 moveEnemies 가 한다 — 이유는 그 함수의 주석에 적었다. */
+  this.galePush = 0;
   /* 정전기 연쇄 —
      대상 고르기는 격자 순회로, 때리기는 순회가 전부 끝난 뒤에 한다.
      격자 콜백 안에서 damageEnemy 를 부르면 죽은 적이 풀로 돌아가며 바깥 순회가
@@ -663,7 +802,12 @@ function World(config, metaLevels){
   this.chainShow = 0;    // 이번 잔상의 전체 길이(초)
   this.chainN = 0;       // 이번에 맞은 대상 수
   var zapCfg = config.weapons.zap;
-  var zapMax = zapCfg ? zapCfg.chainCount + 1 : 1;   // 첫 대상 + 연쇄 횟수
+  // 첫 대상 + 연쇄 횟수. ⚠️ 진화하면 연쇄가 chain 배로 늘어나므로 진화 뒤 최대치로
+  // 잡아 둔다. 안 그러면 Float64Array 범위를 넘는 쓰기가 조용히 버려지고
+  // (예외가 안 난다) 렌더가 그 칸을 undefined 로 읽어 번개가 NaN 자리에 그려진다.
+  var zapEvo = config.evolutions && config.evolutions.zap
+             ? (config.evolutions.zap.chain || 1) : 1;
+  var zapMax = zapCfg ? Math.round(zapCfg.chainCount * zapEvo) + 1 : 1;
   this.chainX = new Float64Array(zapMax);
   this.chainY = new Float64Array(zapMax);
 
@@ -697,16 +841,21 @@ function World(config, metaLevels){
     self.damageEnemy(e, self._hitDmg, 'claw');
   };
 
-  // 빔 판정 콜백 — 후보 원 안의 적을 선분까지의 정확한 거리(사영+수직)로 거른다
+  /* 빔 판정 콜백 — 후보 원 안의 적을 선분까지의 정확한 거리(사영+수직)로 거른다.
+     검사 중인 줄의 번호는 _bmI 로 전달한다. 햇빛 모으기는 앞뒤 두 줄이라
+     플레이어 바로 옆의 적이 두 줄 모두에 걸린다 — beamStamp 로 한 번만 때린다. */
+  this._bmI = 0;
   this._onBeamCandidate = function(e){
     if (!e.active) return;
-    var p = self.player, d = self.beamDir;
+    if (e.beamStamp === self.beamStamp) return;      // 이번 발동에 이미 맞았다
+    var p = self.player, d = self.beamDirs[self._bmI];
     var ex = e.x - p.x, ey = e.y - p.y;
     var along = ex * d.x + ey * d.y;                 // 빔 방향으로 얼마나 갔나
     if (along < 0 || along > self.beamLen) return;   // 뒤쪽이거나 사거리 밖
     var perp = ex * d.y - ey * d.x;                  // 빔 축에서 옆으로 벗어난 거리
     if (perp < 0) perp = -perp;
     if (perp > self.beamHalfW + e.radius) return;
+    e.beamStamp = self.beamStamp;
     self.damageEnemy(e, self._hitDmg, 'laser');   // 이 콜백은 fireBeam 만 부른다
   };
 
@@ -733,13 +882,18 @@ function World(config, metaLevels){
     self.damageEnemy(e, f.tickDmg, f.weaponId);
   };
 
-  // 꼬리 회전 판정 콜백 — 공 반경 안의 적을 때리고 적마다 재타격 간격을 건다
+  /* 꼬리 회전 판정 콜백 — 공 반경 안의 적을 때리고 적마다 재타격 간격을 건다.
+     검사 중인 공의 번호는 _obI 로 전달한다. 재타격 간격을 **공마다** 따로 세는 것이
+     핵심이다: 한 칸이면 회오리 꼬리의 둘째 공이 첫째 공의 간격에 걸려 아무 일도
+     안 하고, 그건 투사체 도장 한 칸이 만들었던 것과 같은 종류의 함정이다. */
+  this._obI = 0;
   this._onOrbitCandidate = function(e){
-    if (!e.active || e.orbitCd > 0) return;
-    var dx = e.x - self.orbitX, dy = e.y - self.orbitY;
+    var i = self._obI;
+    if (!e.active || e.orbitCds[i] > 0) return;
+    var dx = e.x - self.orbitXs[i], dy = e.y - self.orbitYs[i];
     var r = self._hitRadius + e.radius;
     if (dx * dx + dy * dy > r * r) return;
-    e.orbitCd = self._orbitCd;
+    e.orbitCds[i] = self._orbitCd;
     self.damageEnemy(e, self._hitDmg, 'tail');   // 이 콜백은 fireOrbit 만 부른다
   };
 
@@ -769,14 +923,16 @@ function World(config, metaLevels){
     if (!e.active) return;
     /* 두 갈래다.
        ① 재타격형(토네이도, hitCd > 0): 회오리 안에 머무는 동안 간격마다 다시 때린다.
-          lastProjStamp 는 "한 투사체가 같은 적을 두 번 안 때린다" 는 규칙이라
-          재타격과 정면으로 충돌하므로 여기서는 쓰지 않는다.
+          "한 투사체가 같은 적을 두 번 안 때린다" 는 규칙과 정면으로 충돌하므로
+          여기서는 그 기억을 쓰지 않는다.
           pierce 도 깎지 않는다 — 재타격마다 깎으면 회오리가 도중에 사라진다.
-       ② 보통 투사체(털뭉치·생선뼈): 예전 그대로 도장 하나에 한 번. */
+       ② 보통 투사체(털뭉치·생선뼈): 한 적당 한 번. 투사체가 직접 기억한다
+          (PROJ_HIT_CAP 주석 참고 — 적 쪽에 도장 한 칸으로 두면 겹친 투사체가
+           서로 덮어써서 매 프레임 다시 때린다). */
     if (p.hitCd > 0){
       if (e.tornadoCd > 0) return;             // 아직 재타격 간격 안이다
     } else {
-      if (e.lastProjStamp === p.stamp) return; // 이 투사체에는 이미 맞았다
+      if (projAlreadyHit(p, e.stamp)) return;  // 이 투사체에는 이미 맞았다
     }
     var dx = e.x - p.x, dy = e.y - p.y;
     var r = p.radius + e.radius;
@@ -784,11 +940,21 @@ function World(config, metaLevels){
     if (p.hitCd > 0){
       e.tornadoCd = p.hitCd;
     } else {
-      e.lastProjStamp = p.stamp;
+      p.hitIds[p.hitN++] = e.stamp;
       p.pierce--;
     }
     // 털뭉치·생선뼈·토네이도가 이 콜백을 같이 쓴다 — p.weaponId 로 구분한다.
     self.damageEnemy(e, p.dmg, p.weaponId);
+    /* 실타래 폭풍 — 맞은 자리에서 좌우로 갈라진다.
+       갈라진 것(p.split)은 다시 안 갈라진다: 안 막으면 적이 많을수록 무한 증식해
+       투사체 풀이 터진다. 투사체 풀은 적 격자와 별개라 여기서 spawn 해도
+       바깥 순회(forEachNear)가 흔들리지 않는다. */
+    if (!p.split && self.isEvolved(p.weaponId)){
+      var ev = self.config.evolutions[p.weaponId];
+      // 맞은 적 e 를 같이 넘긴다 — 갈라진 것을 그 적의 판정 원 **바깥**에서 태워야
+      // 자기를 낳아 준 적을 한 번 더 안 때린다(진화표에 없는 3배 딜의 원인이었다).
+      if (ev && ev.rule === 'split') self.splitProjectile(p, ev, e);
+    }
   };
 }
 World.prototype.setRandom = function(fn){ this.random = fn; };
@@ -826,11 +992,11 @@ World.prototype.spawnEnemy = function(typeId, x, y){
   e.speed = t.speed;  e.radius = t.radius;
   e.contact = t.contact;                e.xp = t.xp;
   e.hitFlash = 0;     e.contactCd = 0;
-  e.lastProjStamp = 0;
   e.slowT = 0;        e.slowPct = 0;
-  e.orbitCd = 0;
-  e.tornadoCd = 0;    // 토네이도 재타격 간격 (꼬리 회전의 orbitCd 와 같은 방식)
+  for (var oi = 0; oi < e.orbitCds.length; oi++) e.orbitCds[oi] = 0;
+  e.tornadoCd = 0;    // 토네이도 재타격 간격 (꼬리 회전의 orbitCds 와 같은 방식)
   e.chainStamp = 0;   // 정전기 연쇄가 "이번 발동에 이미 골랐다" 를 찍는 자리
+  e.beamStamp = 0;    // 레이저가 "이번 발동에 이미 맞혔다" 를 찍는 자리 (빔이 둘이라 필요하다)
   // 스폰마다 오르는 일련번호. 동료가 목표를 붙잡을 때 "이 슬롯이 아직 그 적인가"를
   // 이걸로 확인한다. 참조만 붙들면 죽은 목표의 자리에 스폰된 새 적을 쫓아간다.
   e.stamp = ++this.enemyStamp;
@@ -855,7 +1021,12 @@ World.prototype.moveEnemies = function(dt){
     var e = items[i];
     if (!e.active) continue;
     if (e.hitFlash > 0) e.hitFlash -= dt;
-    if (e.orbitCd > 0) e.orbitCd -= dt;
+    // 공마다 재타격 간격이 따로 흐른다. 어느 하나라도 남아 있으면 "방금 맞았다" 로 본다
+    // (밀어내기가 그 창을 쓴다).
+    var orbHot = false;
+    for (var oi = 0; oi < e.orbitCds.length; oi++){
+      if (e.orbitCds[oi] > 0){ e.orbitCds[oi] -= dt; orbHot = true; }
+    }
     if (e.tornadoCd > 0) e.tornadoCd -= dt;
     var sp = e.speed;
     if (e.slowT > 0){
@@ -869,6 +1040,18 @@ World.prototype.moveEnemies = function(dt){
     if (step > len) step = len;          // 지나쳐서 플레이어 주위를 진동하지 않게
     e.x += dx / len * step;
     e.y += dy / len * step;
+    /* 회오리 꼬리(진화) 밀어내기 —
+       속도가 아니라 위치를 직접 옮긴다. 적의 이동은 바로 윗줄처럼 매 프레임
+       플레이어를 향해 다시 계산되므로 속도를 만져도 다음 프레임에 지워진다.
+       미는 창은 "맞은 뒤 재타격 간격(orbitCds)" 이다. 맞은 그 프레임에만 밀면
+       220 × 1/60 = 3.7px 라 눈에도 안 보이고 적이 다가오는 속도도 못 이긴다.
+       ⚠️ 여기(update 안, rebuildGrid 앞)에서 옮겨야 격자와 안 어긋난다. */
+    // 부호를 그대로 쓴다 — 음수면 밖으로 미는 대신 안으로 당긴다(관문 실험용).
+    if (this.galePush !== 0 && orbHot){
+      var push = this.galePush * dt;
+      e.x -= dx / len * push;            // dx·dy 는 적→플레이어 방향이라 부호를 뒤집는다
+      e.y -= dy / len * push;
+    }
   }
 };
 // 플레이어에 닿은 적이 피해를 준다.
@@ -987,11 +1170,15 @@ World.prototype.reset = function(starterId){
   this.swingRadius = 0;
   this.swingDir.x = 1; this.swingDir.y = 0;
   this.beamTimer = 0;
+  this.beamN = 0;
+  this.beamStamp = 0;
   this.blastTimer = 0;
   this.blastShow = 0;
   this.blastWeaponId = '';
   this.orbitAngle = 0;
-  this.orbitX = 0; this.orbitY = 0; this.orbitR = 0;
+  this.orbitN = 0; this.orbitR = 0;
+  for (var obi = 0; obi < this.orbitXs.length; obi++){ this.orbitXs[obi] = 0; this.orbitYs[obi] = 0; }
+  this.galePush = 0;   // 진화가 풀리므로 밀어내기도 꺼 둔다 (fireOrbit 이 매 프레임 다시 정한다)
   this.chainTimer = 0;
   this.chainShow = 0;
   this.chainN = 0;
@@ -1011,6 +1198,9 @@ World.prototype.reset = function(starterId){
   this.warnAcc = 0;
   this.nukes.releaseAll();
   this.nukeAcc = 0;
+  this.boxes.releaseAll();
+  this.pendingEvolve = 0;
+  this.boxesTaken = 0;
   this.projStamp = 0;
   this.xp = 0;
   this.level = 1;
@@ -1029,6 +1219,7 @@ World.prototype.reset = function(starterId){
   // reset 은 판당 한 번이라 여기서 객체를 새로 만들어도 된다.
   this.weapons = {};
   this.weaponOrder.length = 0;
+  this.evolved = {};
   this.weapons[this.starter] = { level: 1, cdLeft: 0 };
   this.weaponOrder.push(this.starter);
   this.benchMode = false;
@@ -1071,8 +1262,21 @@ World.prototype.snapshot = function(){
   if (this.pendingChoices > 0 && Array.isArray(this.rolledChoices)){
     choices = this.rolledChoices.map(function(c){ return [c.kind, c.id]; });
   }
+  // 진화는 판 전체를 지배하는 상태다. 18단계의 보스 유예와 달리 반드시 저장한다 —
+  // 빠지면 이어하기 했을 때 무기가 통째로 원래대로 돌아간다.
+  // evolutionOrder 고정 순서로 훑어 배열로 담는다(for...in 금지).
+  var evolved = [];
+  for (i = 0; i < this.config.evolutionOrder.length; i++){
+    var eid = this.config.evolutionOrder[i];
+    if (this.evolved[eid] === true) evolved.push(eid);
+  }
+  var boxes = [];
+  var bitems = this.boxes.items;
+  for (i = 0; i < bitems.length; i++){
+    if (bitems[i].active) boxes.push([bitems[i].x, bitems[i].y]);
+  }
   return {
-    v: 1,
+    v: 2,
     elapsed: this.elapsed,
     level: this.level,
     xp: this.xp,
@@ -1090,7 +1294,10 @@ World.prototype.snapshot = function(){
     passives: passives,
     boss: (this.boss && this.boss.active)
             ? { typeId: this.boss.typeId, hp: this.boss.hp } : null,
-    dmg: dmg
+    dmg: dmg,
+    evolved: evolved,
+    boxes: boxes,
+    pendingEvolve: this.pendingEvolve ? 1 : 0
   };
 };
 
@@ -1126,7 +1333,8 @@ World.prototype.recordSummary = function(){
 
 // 스냅샷으로 판을 되돌린다. 못 쓸 스냅샷이면 아무것도 안 하고 false.
 World.prototype.restore = function(s){
-  if (!s || typeof s !== 'object' || s.v !== 1) return false;
+  // v1(19단계 이전 저장)도 계속 읽는다 — 지금 사람들이 실제로 갖고 있는 저장이다.
+  if (!s || typeof s !== 'object' || (s.v !== 1 && s.v !== 2)) return false;
   if (typeof s.elapsed !== 'number' || !isFinite(s.elapsed) || s.elapsed < 0) return false;
   if (typeof s.level !== 'number' || !isFinite(s.level) || s.level < 1) return false;
   if (!Array.isArray(s.weaponOrder) || !s.weaponOrder.length ||
@@ -1230,6 +1438,30 @@ World.prototype.restore = function(s){
     }
     if (choicesOk) this.rolledChoices = restoredChoices;
   }
+
+  /* v1 저장(19단계 이전)에는 이 셋이 없다. 없으면 "진화 없음" 으로 읽는다 —
+     지금 사람들이 갖고 있는 저장이라 버리면 안 된다. */
+  this.evolved = {};
+  if (Array.isArray(s.evolved)){
+    for (i = 0; i < s.evolved.length; i++){
+      var evid = s.evolved[i];
+      // 저장은 사람이 고칠 수 있는 곳이다. CONFIG 에 있는 이름만 받는다.
+      if (typeof evid === 'string' && this.config.evolutions[evid]) this.evolved[evid] = true;
+    }
+  }
+  this.boxes.releaseAll();
+  if (Array.isArray(s.boxes)){
+    for (i = 0; i < s.boxes.length; i++){
+      var bp = s.boxes[i];
+      if (!Array.isArray(bp) || bp.length !== 2) continue;
+      if (!isFinite(bp[0]) || !isFinite(bp[1])) continue;
+      var nb = this.boxes.spawn();
+      if (!nb) break;
+      nb.x = bp[0]; nb.y = bp[1];
+    }
+  }
+  this.pendingEvolve = (s.pendingEvolve === 1 && this.evolveCandidates().length > 0) ? 1 : 0;
+
   return true;
 };
 
@@ -1330,9 +1562,36 @@ World.prototype.weaponDamageAt = function(id, lv){
   return this.weaponBaseDamageAt(id, lv) * (1 + pct / 100) * this.metaMult.damage;
 };
 
-// 무기의 최종 피해량(현재 레벨).
+World.prototype.isEvolved = function(id){
+  return this.evolved[id] === true;
+};
+
+/* 진화 배율. 진화 안 했거나 그 무기의 진화표에 그 항목이 없으면 1 이다.
+   1 을 돌려주므로 부르는 쪽이 조건 없이 곱하기만 하면 된다 — 전투 함수마다
+   if 를 흩뿌리면 하나 빠뜨렸을 때 조용히 안 걸린다. */
+World.prototype.evoMult = function(id, key){
+  if (this.evolved[id] !== true) return 1;
+  var e = this.config.evolutions[id];
+  if (!e) return 1;
+  var v = e[key];
+  return typeof v === 'number' ? v : 1;
+};
+
+World.prototype.evolve = function(id){
+  if (!this.config.evolutions[id]) return false;
+  if (this.evolved[id] === true) return false;
+  this.evolved[id] = true;
+  return true;
+};
+
+/* 전투용 피해. 진화 배율은 여기 한 곳에서만 건다 — 전투 경로 아홉 자리가
+   전부 이 함수를 거치므로(1466·1483·1503·1516·1545·1563·1611·1634),
+   여기에 걸면 하나도 안 빠진다.
+   표시용 weaponDamageAt 에는 안 건다. 도감·레벨업 카드가 그걸 쓰는데,
+   진화 배율이 새면 진화 안 한 무기의 숫자까지 부풀어 보인다. */
 World.prototype.weaponDamage = function(id){
-  return this.weaponDamageAt(id, this.weapons[id].level);
+  return this.weaponDamageAt(id, this.weapons[id].level)
+         * this.evoMult(id, 'damage');
 };
 
 // 레벨 lv 에서 그 무기의 "두 번째 수치". 없으면 null.
@@ -1381,7 +1640,8 @@ World.prototype.pickupRange = function(){
 //    대해 부르지 않으므로 문제가 없지만, 화면에 띄우려면 weaponFeatureAt() 를 쓸 것.
 World.prototype.weaponRadius = function(id){
   var w = this.config.weapons[id];
-  return w.radius + (this.weapons[id].level - 1) * (w.radiusPerLv || 0);
+  return (w.radius + (this.weapons[id].level - 1) * (w.radiusPerLv || 0))
+         * this.evoMult(id, 'radius');
 };
 
 // 가장 가까운 살아있는 적 쪽으로 aimDir 를 맞춘다. 적이 없으면 이동 방향을 쓴다.
@@ -1446,7 +1706,11 @@ World.prototype.weaponCooldown = function(id){
   var np = this.config.passives.nap;
   var mult = 1 - this.passives.nap * np.cooldownPct / 100;
   if (mult < np.minMult) mult = np.minMult;
-  return this.config.weapons[id].cooldownMs / 1000 * mult;
+  // 진화 배율은 그 무기의 진화표에 cooldown 이 적혀 있을 때만 걸린다.
+  // evoMult 는 없으면 1 을 돌려주므로 진화 안 한 무기의 쿨타임은 그대로다 —
+  // 이 함수는 무기 전체가 쓰기 때문에 여기서 새면 게임 속도가 통째로 흔들린다.
+  return this.config.weapons[id].cooldownMs / 1000 * mult
+         * this.evoMult(id, 'cooldown');
 };
 
 // 종류에 따라 실제 발동 함수로 넘긴다. 무기를 추가하면 여기에 한 줄이 붙는다.
@@ -1482,7 +1746,7 @@ World.prototype.fireClaw = function(id){
 World.prototype.fireProjectile = function(id){
   var cfg = this.config.weapons[id];
   var lv = this.weapons[id].level;
-  var n = cfg.counts[Math.min(lv, cfg.counts.length) - 1];
+  var n = cfg.counts[Math.min(lv, cfg.counts.length) - 1] * this.evoMult(id, 'count');
   var dmg = this.weaponDamage(id);
   this.aimAtNearest();
   var baseAng = Math.atan2(this.aimDir.y, this.aimDir.x);
@@ -1498,16 +1762,35 @@ World.prototype.fireBeam = function(id){
   var cfg = this.config.weapons[id];
   var lv = this.weapons[id].level;
   this.aimAtNearest();
-  this.beamDir.x = this.aimDir.x;
-  this.beamDir.y = this.aimDir.y;
+  /* 줄 수. 햇빛 모으기(진화)는 2 줄이고, 둘째 줄은 **정반대 방향**이다.
+     레이저의 약점이 "앞만 본다" 라서 뒤를 덮는 것이 제일 크게 달라진다.
+     자리 배열 길이를 넘지 않게 자른다. */
+  var n = Math.round(this.evoMult(id, 'count'));
+  if (n < 1) n = 1;
+  if (n > this.beamDirs.length) n = this.beamDirs.length;
+  this.beamN = n;
+  var i;
+  for (i = 0; i < n; i++){
+    var s = i === 0 ? 1 : -1;
+    this.beamDirs[i].x = this.aimDir.x * s;
+    this.beamDirs[i].y = this.aimDir.y * s;
+  }
   this.beamLen = cfg.length + (lv - 1) * cfg.lengthPerLv;
-  this.beamHalfW = cfg.width / 2;
+  // 빔 폭은 cfg.width 를 직접 쓰므로 weaponRadius 의 진화 배율이 안 걸린다 —
+  // 햇빛 모으기(width) 는 여기서 곱해야 실제로 넓어진다.
+  this.beamHalfW = cfg.width / 2 * this.evoMult(id, 'width');
   this.beamTimer = cfg.showMs / 1000;
   this._hitDmg = this.weaponDamage(id);
+  // 이번 발동 번호. 두 줄이 겹치는 자리(플레이어 바로 옆)의 적을 두 번 안 때리게 한다.
+  this.beamStamp++;
   // 선분 전체를 감싸는 원으로 후보를 좁힌 뒤, 콜백이 선분까지의 거리를 정확히 잰다
-  var midX = this.player.x + this.beamDir.x * this.beamLen / 2;
-  var midY = this.player.y + this.beamDir.y * this.beamLen / 2;
-  this.grid.forEachNear(midX, midY, this.beamLen / 2 + this.maxEnemyR, this._onBeamCandidate);
+  for (i = 0; i < n; i++){
+    this._bmI = i;
+    var d = this.beamDirs[i];
+    var midX = this.player.x + d.x * this.beamLen / 2;
+    var midY = this.player.y + d.y * this.beamLen / 2;
+    this.grid.forEachNear(midX, midY, this.beamLen / 2 + this.maxEnemyR, this._onBeamCandidate);
+  }
 };
 
 // 가장 가까운 적의 자리에서 원형 폭발. 적이 없으면 발밑에서 터진다.
@@ -1541,10 +1824,43 @@ World.prototype.blastAt = function(x, y, radius, damage, showSec, colorKey){
 // 발밑에 장판을 깐다.
 World.prototype.fireField = function(id){
   var cfg = this.config.weapons[id];
+  var evo = this.config.evolutions[id];
+  // 우유 바다 — 배율이 아니라 규칙이 바뀐다(반경이 화면 절반, 지속이 갱신).
+  var sea = this.isEvolved(id) && evo && evo.rule === 'sea';
+  if (sea){
+    /* 이미 깔려 있으면 새로 깔지 않고 그 장판의 지속만 되돌린다.
+       장판이 겹겹이 쌓이면 같은 적이 장판 수만큼 맞아 피해가 몇 배가 된다 —
+       화면 절반짜리 장판이라 겹침이 사고가 아니라 기본값이 된다. */
+    var fitems = this.fields.items;
+    for (var fi = 0; fi < fitems.length; fi++){
+      var old = fitems[fi];
+      if (old.active && old.weaponId === id){
+        old.life = cfg.durationSec;
+        /* 자리와 피해도 같이 되돌린다.
+           ⚠️ 지금 이 세 줄은 한 번도 안 돈다 — 낮잠(nap.minMult 0.7) 을 만렙으로
+           찍어도 우유 쿨타임은 3.5초라 지속 2.5초짜리 장판이 **항상 먼저 꺼진다.**
+           하지만 뒤 태스크의 관문에서 쿨타임이 2.5초 밑으로 내려가는 순간 이 가지가
+           살아나는데, 그때 자리를 안 옮기면 우유 바다가 처음 깐 자리에 영구히
+           못 박혀 플레이어를 안 따라오고, tickDmg 를 안 되돌리면 그 뒤의
+           발톱갈이 레벨업이 우유에만 안 붙는다. */
+        old.x = this.player.x;  old.y = this.player.y;
+        old.tickDmg = this.weaponDamage(id) * cfg.tickSec;
+        /* 반경도 되돌린다. 이게 빠져 있으면, 진화하기 **전에** 깔린 작은 장판(92)이
+           살아 있는 채로 진화 후 캐스트가 오는 순간 그 장판이 영원히 갱신되면서
+           우유 바다가 끝까지 작은 채로 남는다 — 큰 장판이 아예 안 생긴다.
+           지금 수치(쿨 5.0초 > 지속 2.5초)에서는 장판이 먼저 꺼져 도달하지 않지만,
+           녹화 도구가 쿨을 0 으로 만들자 바로 재현됐다. 한 줄이면 막힌다. */
+        old.radius = this.viewHalfH;
+        return old;
+      }
+    }
+  }
   var f = this.fields.spawn();
   if (!f) return null;              // 풀이 꽉 찼으면 조용히 넘어간다
   f.x = this.player.x;  f.y = this.player.y;
-  f.radius = this.weaponRadius(id);
+  // 화면 세로의 절반. core 는 ensureGridCovers 로 이미 화면 크기를 알고 있으므로
+  // 새 상수를 만들지 않고 그 값을 쓴다.
+  f.radius = sea ? this.viewHalfH : this.weaponRadius(id);
   f.tickDmg = this.weaponDamage(id) * cfg.tickSec;   // 초당 피해 × 간격
   f.life = cfg.durationSec;
   f.tickLeft = 0;                   // 깔리자마자 한 번 때린다
@@ -1560,14 +1876,38 @@ World.prototype.fireOrbit = function(id, dt){
   var lv = this.weapons[id].level;
   this.orbitAngle += cfg.rotSpeed * dt;
   if (this.orbitAngle > Math.PI * 2) this.orbitAngle -= Math.PI * 2;
-  this.orbitR = cfg.orbitRadius + (lv - 1) * cfg.orbitRadiusPerLv;
-  this.orbitX = this.player.x + Math.cos(this.orbitAngle) * this.orbitR;
-  this.orbitY = this.player.y + Math.sin(this.orbitAngle) * this.orbitR;
+  // 궤도 반경은 weaponRadius 를 안 탄다 — 여기서 직접 계산하므로 진화 배율도 여기서 건다.
+  this.orbitR = (cfg.orbitRadius + (lv - 1) * cfg.orbitRadiusPerLv)
+                * this.evoMult(id, 'radius');
+  // 회오리 꼬리면 맞은 적을 민다. 미는 일은 moveEnemies 가 한다(격자와 안 어긋나게).
+  var evo = this.config.evolutions[id];
+  // 값이 있는지를 typeof 로 묻고 부호는 그대로 넘긴다. 관문에서 "당기는 꼬리" 를
+  // 실험하려고 음수를 넣었을 때 여기서든 moveEnemies 의 가드에서든 부호가 잘리면
+  // 실험이 **조용히** 무시되어 관문이 "효과가 없네" 로 잘못 읽는다.
+  this.galePush = (this.isEvolved(id) && evo && typeof evo.pushPerSec === 'number')
+                  ? evo.pushPerSec : 0;
+  /* 공 수. 진화표의 count 를 그대로 쓴다(없으면 evoMult 가 1 을 준다).
+     자리 배열 길이를 넘지 않게 자른다 — 표에 5 를 적어도 조용히 4 로만 돈다. */
+  var n = Math.round(this.evoMult(id, 'count'));
+  if (n < 1) n = 1;
+  if (n > this.orbitXs.length) n = this.orbitXs.length;
+  this.orbitN = n;
+  var i;
+  // ① 자리를 전부 먼저 정한다. 공들은 원을 n 등분한 자리에 고르게 놓인다.
+  for (i = 0; i < n; i++){
+    var a = this.orbitAngle + i * Math.PI * 2 / n;
+    this.orbitXs[i] = this.player.x + Math.cos(a) * this.orbitR;
+    this.orbitYs[i] = this.player.y + Math.sin(a) * this.orbitR;
+  }
   this._hitDmg = this.weaponDamage(id);
   this._hitRadius = cfg.ballRadius;
   this._orbitCd = cfg.hitCooldownMs / 1000;
-  this.grid.forEachNear(this.orbitX, this.orbitY,
-                        cfg.ballRadius + this.maxEnemyR, this._onOrbitCandidate);
+  // ② 그 다음에 때린다. 때리는 도중에 적이 풀로 돌아가므로 자리 계산과 섞으면 안 된다.
+  for (i = 0; i < n; i++){
+    this._obI = i;
+    this.grid.forEachNear(this.orbitXs[i], this.orbitYs[i],
+                          cfg.ballRadius + this.maxEnemyR, this._onOrbitCandidate);
+  }
 };
 
 /* 정전기 — 첫 대상을 맞히고 근처 적으로 튄다.
@@ -1586,8 +1926,11 @@ World.prototype.fireChain = function(id){
   first.chainStamp = this.chainStamp;
 
   // ① 대상 고르기 — 여기서는 절대 때리지 않는다
+  // 연쇄 횟수는 cfg.chainCount 를 직접 쓰므로 진화 배율을 여기서 건다.
+  // (생성자의 chainX/chainY 길이도 이 최대치에 맞춰 잡아 뒀다)
+  var chainCount = Math.round(cfg.chainCount * this.evoMult(id, 'chain'));
   var cur = first, i;
-  for (i = 0; i < cfg.chainCount; i++){
+  for (i = 0; i < chainCount; i++){
     this._chainFrom = cur;
     this._chainBest = null;
     this._chainBestSq = cfg.chainRange * cfg.chainRange;
@@ -1639,7 +1982,9 @@ World.prototype.fireCompanion = function(id){
 
   // 가장 가까운 적 **하나**만 고른다 — 한 번에 한 마리다(AC-4).
   // 격자가 아니라 선형 훑기다: 쿨타임 1.2초에 한 번뿐이고 aimAtNearest 도 같은 방식이다.
-  var best = null, bestSq = cfg.seekRange * cfg.seekRange;
+  // 들고양이(진화)는 더 멀리 찾는다. seekRange 는 여기서만 쓰여 다른 경로가 없다.
+  var seek = cfg.seekRange * this.evoMult(id, 'seek');
+  var best = null, bestSq = seek * seek;
   var items = this.enemies.items;
   for (var i = 0; i < items.length; i++){
     var e = items[i];
@@ -1720,17 +2065,64 @@ World.prototype.spawnProjectile = function(id, vx, vy, dmg, cfg){
   this.projStamp++;
   p.x = this.player.x;  p.y = this.player.y;
   p.vx = vx;            p.vy = vy;
-  p.dmg = dmg;          p.radius = cfg.radius;
+  p.dmg = dmg;
+  // 투사체는 weaponRadius 를 안 탄다(그 함수는 radiusPerLv 가 있는 무기용이다).
+  // 태풍(tornado.radius) 은 여기서 곱해야 실제로 커진다.
+  p.radius = cfg.radius * this.evoMult(id, 'radius');
   p.life = cfg.lifeSec; p.pierce = cfg.pierce;
   p.stamp = this.projStamp;
   p.weaponId = id;
   p.turnAt = cfg.boomerang ? cfg.lifeSec / 2 : 0;   // 0이면 직진만
   // 끌어당김·재타격이 없는 무기는 반드시 0 으로 덮어쓴다. 안 그러면 토네이도가 쓰던
   // 슬롯을 물려받은 털뭉치가 적을 빨아들이고 무한히 재타격한다(풀 잔존값).
-  p.pullRadius = cfg.pullRadius || 0;
-  p.pullSpeed  = cfg.pullSpeed  || 0;
-  p.hitCd = cfg.hitCooldownMs ? cfg.hitCooldownMs / 1000 : 0;   // 0 이면 lastProjStamp 방식
+  // 태풍(tornado.pull) 은 범위와 세기를 함께 키운다.
+  p.pullRadius = (cfg.pullRadius || 0) * this.evoMult(id, 'pull');
+  p.pullSpeed  = (cfg.pullSpeed  || 0) * this.evoMult(id, 'pull');
+  p.hitCd = cfg.hitCooldownMs ? cfg.hitCooldownMs / 1000 : 0;   // 0 이면 "한 적당 한 번" 방식
+  p.hitN = 0;        // 풀 잔존값 방어 — 앞판이 때린 적 목록을 물려받으면 새 것이 못 때린다
+  p.split = false;   // 풀 잔존값 방어 — 앞판의 갈라진 투사체가 남으면 새 것이 안 갈라진다
   return p;
+};
+
+/* 실타래 폭풍 — 맞은 자리에서 좌우 ±splitDeg 로 두 개가 갈라진다.
+   spawnProjectile 을 못 쓴다: 그 함수는 투사체를 **플레이어 자리**에 만드는데
+   갈라진 것은 맞은 자리에서 나가야 한다. 그래서 여기서 필드를 전부 덮어쓴다
+   (풀이 객체를 재활용하므로 하나라도 빠뜨리면 이전 투사체의 값이 샌다).
+
+   ⚠️ 태우는 자리는 **맞은 적 e 의 판정 원 바깥**이다. 맞은 자리(p.x·p.y)에서
+   그대로 태우면 도장이 새것이라 자기를 낳아 준 적을 한 번 더 때린다 —
+   안 죽는 적(보스)에게 한 방이 3배가 되는데 그 3배는 진화표 어디에도 안 적혀
+   있어서 뒤 태스크의 밸런스 관문이 표를 보고는 절대 못 찾는다. */
+World.prototype.splitProjectile = function(p, evo, e){
+  var wcfg = this.config.weapons[p.weaponId];
+  if (!wcfg) return;
+  var speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+  var base = Math.atan2(p.vy, p.vx);
+  var off = (evo.splitDeg || 0) * Math.PI / 180;
+  // 충돌은 거리 <= p.radius + e.radius 로 판정하므로 그보다 1px 밖에서 태우면
+  // 이미 안 닿는다. 갈라진 것은 거기서 바깥으로 나아가므로 다시 안 닿는다.
+  var out = e.radius + p.radius + 1;
+  for (var s = -1; s <= 1; s += 2){
+    var q = this.projectiles.spawn();
+    if (!q) return;                 // 풀이 꽉 찼으면 조용히 넘어간다 (게임이 멈추면 안 된다)
+    var a = base + s * off;
+    q.x = e.x + Math.cos(a) * out; q.y = e.y + Math.sin(a) * out;
+    q.vx = Math.cos(a) * speed;    q.vy = Math.sin(a) * speed;
+    q.dmg = p.dmg;                 q.radius = p.radius;
+    q.life = wcfg.lifeSec;         q.pierce = wcfg.pierce;
+    /* 때린 적 목록을 비운다. 원본 것을 물려주면 갈라진 투사체가 원본이 스쳐 간 적을
+       영영 못 때린다. (2026-08-11 이전에는 이 자리가 "도장을 새로 매긴다" 였다 —
+       기억이 적 쪽 한 칸이던 시절의 방어였고, 그 방식 자체를 PROJ_HIT_CAP 으로 바꿨다.) */
+    q.hitN = 0;
+    this.projStamp++;
+    q.stamp = this.projStamp;
+    // weaponId 를 원본 그대로 둔다. 딜량이 원래 무기 이름으로 쌓여야
+    // 결과 화면의 무기 비중이 진화 전후로 쪼개지지 않는다(명세가 정한 것).
+    q.weaponId = p.weaponId;
+    q.turnAt = 0;                  // 갈라진 것은 안 돌아온다
+    q.pullRadius = 0;  q.pullSpeed = 0;  q.hitCd = 0;
+    q.split = true;                // 다시 안 갈라진다 — 무한 증식 방지
+  }
 };
 
 // 투사체를 옮기고, 수명이 끝나거나 관통을 다 쓰면 회수한다.
@@ -1940,11 +2332,13 @@ World.prototype.bossTick = function(){
   if (this.benchMode) return;
   // 죽은 보스 정리 (damageEnemy 가 풀로 돌려보내면 active 가 false 가 된다)
   if (this.boss && !this.boss.active){
+    var deadX = this.boss.x, deadY = this.boss.y;
     this.boss = null;
     this.bossIndex++;
     // 잡은 순간부터 유예 시작 — spawnRate 가 이 시각까지 배수를 끌어올린다
     this.bossEaseUntil = this.elapsed + this.config.spawn.bossEaseSec;
     if (this.bossIndex >= this.config.bosses.length) this.cleared = true;
+    else this.dropBossBox(deadX, deadY);   // 마지막 보스는 안 준다 — 판이 끝나므로 먹을 수가 없다
   }
   if (this.boss) return;                          // 이미 싸우는 중
   var list = this.config.bosses;
@@ -2139,6 +2533,71 @@ World.prototype.updateNukes = function(dt){
   }
 };
 
+/* 보스를 잡은 자리에 상자를 떨어뜨린다. 난수를 안 쓴다 —
+   여기서 한 번이라도 쓰면 이후 모든 스폰·드롭이 밀려 기준선 비교가 깨진다. */
+World.prototype.dropBossBox = function(x, y){
+  if (this.benchMode) return;
+  var it = this.boxes.spawn();
+  if (!it) return;
+  it.x = x; it.y = y;
+};
+
+/* 지금 진화할 수 있는 무기들. 5성이면서 아직 안 진화한 것.
+   weaponOrder 는 "얻은 순서" 고 보유한 무기만 들어 있어 그대로 쓴다 —
+   for...in 으로 훑으면 엔진마다 순서가 달라 봇 재현성이 깨진다. */
+World.prototype.evolveCandidates = function(){
+  var out = [];
+  for (var i = 0; i < this.weaponOrder.length; i++){
+    var id = this.weaponOrder[i];
+    if (!this.config.evolutions[id]) continue;
+    if (this.evolved[id] === true) continue;
+    if (this.weapons[id].level < this.config.weapons[id].maxLevel) continue;
+    out.push(id);
+  }
+  return out;
+};
+
+/* 상자를 밟았는지 검사한다. 밟으면 5성 무기가 있는지 보고 갈린다. */
+World.prototype.updateBoxes = function(dt){
+  if (this.benchMode) return;
+  if (this.pendingEvolve > 0) return;      // 이미 고르는 중이면 또 먹지 않는다
+  var cfg = this.config.bossBox;
+  var p = this.player;
+  var eat = cfg.pickupRadius + this.config.player.radius;
+  var items = this.boxes.items;
+  for (var i = 0; i < items.length; i++){
+    var it = items[i];
+    if (!it.active) continue;
+    var dx = p.x - it.x, dy = p.y - it.y;
+    if (dx * dx + dy * dy > eat * eat) continue;
+    this.boxes.release(it);
+    this.boxesTaken++;
+    if (this.evolveCandidates().length > 0){
+      this.pendingEvolve = 1;              // 셸이 카드를 띄운다
+    } else {
+      // 5성이 없다 — 헛탕을 만들지 않는다
+      p.hp += p.maxHp * cfg.healPct;
+      if (p.hp > p.maxHp) p.hp = p.maxHp;
+      this.coins += cfg.coins;
+    }
+    return;                                // 한 프레임에 하나만 먹는다
+  }
+};
+
+World.prototype.applyEvolve = function(id){
+  this.evolve(id);
+  this.pendingEvolve = 0;
+};
+
+/* 진화를 안 하고 카드만 닫는다. 셸의 방어용 — 후보가 하나도 없는데 카드가 떴을 때
+   판을 살리려고 부른다(도달하면 안 되는 경로다).
+   셸이 world.pendingEvolve 를 직접 0 으로 쓰면 안 되기 때문에 여기 둔다 —
+   이 저장소는 "셸은 core 를 읽고 메서드만 부른다" 를 지켜 왔고, 그 경계가 한 줄씩
+   무너지면 나중에 어디까지가 core 의 규칙인지 아무도 못 가린다. */
+World.prototype.cancelEvolve = function(){
+  this.pendingEvolve = 0;
+};
+
 // 화면 밖 링에서 적을 생성한다. 초당 수는 spawnRate 곡선이 정한다.
 World.prototype.spawnTick = function(dt){
   if (this.gameOver || this.benchMode) return;
@@ -2176,6 +2635,7 @@ World.prototype.update = function(dt){
   this.updateWarns(dt);
   this.nukeTick(dt);
   this.updateNukes(dt);
+  this.updateBoxes(dt);
 };
 // 화면 크기에 맞춰 격자를 키운다. CONFIG 의 cols/rows 는 최소값으로 쓴다.
 // (격자가 화면보다 좁으면 화면 가장자리의 적이 충돌 후보에서 조용히 빠진다)
@@ -2242,7 +2702,15 @@ var CAT_SKINS = {
   // 고양이 친구는 고양이다. 따로 그리지 않고 다른 색으로 그린다.
   // 플레이어와 헷갈리면 안 되므로 주황(치즈)과 확실히 먼 회색으로 잡았다.
   friend: { d:'#39424e', f:'#8b98a8', F:'#67727f', h:'#a9b5c2',
-            w:'#d7dee6', p:'#e8a7ad', k:'#1a1116', e:'#6fd46f', s:'#ffffff' }
+            w:'#d7dee6', p:'#e8a7ad', k:'#1a1116', e:'#6fd46f', s:'#ffffff' },
+  /* 19단계: 들고양이(고양이 친구의 진화형). 필드에서는 얼굴 그림(WEAPON_SPRITES.friend)이
+     아니라 전신 고양이를 계속 쓴다 — 머리만 떠다니면 안 되기 때문이다. 대신 색을 갈아
+     끼워 "같은 친구가 사나워졌다" 를 보여준다. king1/king2 가 같은 그림에 팔레트만
+     바꾼 것과 완전히 같은 수법이다.
+     회색 친구보다 어둡게 잡고 눈만 붉게 남긴다. 치즈(주황)·친구(회색) 어느 쪽과도
+     한눈에 구분돼야 세 마리가 같이 있을 때 누가 누군지 알 수 있다. */
+  feral:  { d:'#1d1a22', f:'#4e4a5c', F:'#332f3e', h:'#6d6880',
+            w:'#9a94a8', p:'#c2707a', k:'#0d0a10', e:'#ff5a3c', s:'#ffe3b0' }
 };
 
 /* ── 16단계: 바닥과 장식 ──────────────────────────────────────────
@@ -2494,6 +2962,142 @@ var SPRITES = {
 
 var SPRITE_IDS = ['mouse','rat','fat','mole','king','king3','cat','catBlink'];
 
+/* ── 19단계: 진화형 무기와 보스 상자 ─────────────────────────────
+   지금까지 투사체는 전부 ctx.arc — 그냥 동그라미였다. 태풍이 토네이도보다
+   큰 동그라미이기만 하면 "진화했다" 가 안 느껴진다. 그래서 진화형만 도트를 찍는다.
+
+   생물용 SPRITES/SPRITE_IDS 와 일부러 갈라 놓았다. 저쪽은 팔레트를 갈아끼워
+   같은 그림을 다른 색으로 쓰는 구조(king1/king2, 고양이/고양이친구)라서
+   그림 하나에 팔레트가 여럿 붙는다. 이쪽은 그림마다 색이 고정이고 프레임도
+   한 장뿐이라, 같은 자료구조에 넣으면 둘 중 하나가 늘 억지가 된다.
+
+   전부 16×16 이다. 투사체가 작아서 이보다 크면 그릴 자리가 남고,
+   이보다 작으면 원본 동그라미와 구별이 안 된다.
+
+   ⚠️ 격자에 빈 줄을 두지 않는다. 11단계에서 king3 만 아래 3줄이 비어
+      그림이 판정 중심에서 6px 떠 있었다 — 테스트가 첫/마지막 줄을 검사한다. */
+
+/* 진화형 공용 팔레트. 배경(GROUND_PALETTES) 세 벌 열다섯 색 전부에 대고
+   대비비를 재서 골랐다. 각 그림의 주된 색은 최저 대비 2.5 이상이고,
+   그보다 낮은 것(F·k·B·V·G·P)은 밝은 색에 둘러싸인 테두리·그늘로만 쓴다.
+   밤 배경(#1a2233 계열)이 가장 어두우므로 대비는 낮 배경(#405232)이 최악이다. */
+var WEAPON_PALETTE = {
+  W:'#fff6e8',   // 가장 밝은 흰 — 발톱 심·번개 심·우유
+  w:'#ffd86a',   // 금빛 — 발톱 여운·상자 리본
+  r:'#ff7a4a',   // 주황 — 발톱 끝·집광점
+  y:'#fff2a8',   // 햇빛 노랑
+  p:'#ff9fd4',   // 밝은 분홍 — 실
+  P:'#c65a97',   // 짙은 분홍 — 감긴 실
+  n:'#f3ead2',   // 뼈
+  N:'#b9ac8c',   // 뼈 그늘
+  g:'#9ae86a',   // 캣닢 잎
+  G:'#4e9b3a',   // 캣닢 잎맥
+  M:'#a9c4dc',   // 우유 그늘 (푸른빛)
+  v:'#c9b4ff',   // 보라 — 꼬리 공 (원본 꼬리 공 색 그대로)
+  V:'#8a68e0',   // 짙은 보라 — 공 속
+  c:'#cfe6f5',   // 하늘 — 바람 획
+  C:'#6f9ec4',   // 짙은 하늘 — 바람 그늘·렌즈 테
+  z:'#ffe66a',   // 번개 노랑 (원본 연쇄 선 색 그대로)
+  Z:'#ff9d2e',   // 번개 테두리 주황
+  f:'#8b98a8',   // 들고양이 털 (고양이 친구 회색 그대로)
+  F:'#5b6673',   // 들고양이 그늘
+  k:'#1a1116',   // 눈테·눈구멍·아가리
+  e:'#6fd46f',   // 눈동자
+  b:'#c08040',   // 상자 나무
+  B:'#8a5528'    // 상자 그늘
+};
+
+/* 그림 열한 장. 진화 10 + 상자 1.
+   ⚠️ 원본과 색만 다르면 안 된다 — 모양이 달라야 진화가 보인다.
+      원본이 무엇이었는지를 각 줄에 적어 둔다. */
+var WEAPON_SPRITES = {
+  // 곰발 후리기 ← 앞발 할퀴기(반투명 부채꼴). 발톱 자국 세 줄이 화면을 가로지른다.
+  claw: [
+    '....r....r....r.','....r....r....r.','....Ww...Ww...Ww','....Ww...Ww...Ww',
+    '...Ww...Ww...Ww.','..rWw..rWw..rWw.','..rWw..rWw..rWw.','..rWw..rWw..rWw.',
+    '.rWw..rWw..rWw..','.rWw..rWw..rWw..','.rWw..rWw..rWw..','..Ww...Ww...Ww..',
+    '.Ww...Ww...Ww...','.Ww...Ww...Ww...','.r....r....r....','.r....r....r....'
+  ],
+  // 실타래 폭풍 ← 털뭉치(분홍 동그라미). 감긴 실이 보이고 네 귀퉁이로 실이 풀려 날린다.
+  yarn: [
+    '.p............p.','..p..........p..','..p...PPPP...p..','...p.PppppP.p...',
+    '...PppPppPppP...','..PpWPppPppPpP..','..pPppPppPppPp..','..ppPppPppPppP..',
+    '..PppPppPppPpp..','..pPppPppPppPp..','..ppPppPppPppP..','...PppPppPppP...',
+    '...p.PppppP.p...','..p...PPPP...p..','..p..........p..','.p............p.'
+  ],
+  // 참치뼈 ← 생선뼈(크림색 동그라미). 두개골·갈비·꼬리지느러미가 다 있는 큰 생선 뼈.
+  bone: [
+    '......nnnn......','.....nNnnNn.....','....nnkNNknn....','....nNnnnnNn....',
+    '.....nnNNnn.....','..n...nnnn...n..','..nn.nnNNnn.nn..','...nnnnNNnnnn...',
+    '..nn.nnNNnn.nn..','..n...nnNn...n..','...n..nnnn..n...','...nn.nNNn.nn...',
+    '....n.nnnn.n....','......nNNn......','....nn.NN.nn....','...nn..NN..nn...'
+  ],
+  // 햇빛 모으기 ← 레이저 포인터(붉은 막대). 햇살이 렌즈에 들어와 한 점으로 모인다.
+  laser: [
+    '.y..y..y..y..y..','.y..y..y..y..y..','.y..y..y..y..y..','..CCCCCCCCCCCC..',
+    '.CWyyyyyyyyyyWC.','.CWyyyyWWyyyyWC.','..CCyyyyyyyyCC..','...CCyyyyyyCC...',
+    '....CCyyyyCC....','.....CyyyyC.....','......yyyy......','......yWWy......',
+    '.....yWWWWy.....','....yWWrrWWy....','.....yWWWWy.....','......yyyy......'
+  ],
+  // 캣닢 폭풍 ← 캣닢 폭발(초록 고리). 잎 넉 장이 도는 바람개비다.
+  catnip: [
+    '..ggg.......gg..','.gGGGg.....gGGg.','gGGGGGg...gGGGGg','gGGGGGg..gGGGGGg',
+    '.gGGGGg.gGGGGGGg','..gGGGg.gGGGGGg.','...gGGg.gggggg..','....ggggg.......',
+    '.......ggggg....','..gggggg.gGGg...','.gGGGGGg.gGGGg..','gGGGGGGg.gGGGGg.',
+    'gGGGGGg..gGGGGGg','gGGGGg...gGGGGGg','.gGGg.....gGGGg.','..gg.......ggg..'
+  ],
+  // 우유 바다 ← 우유 웅덩이(흰 동그라미). 가장자리까지 꽉 찬 우유에 물결이 진다.
+  milk: [
+    '...WWWWWWWWWW...','.WWWWWWWWWWWWWW.','WWWWWWMMWWWWWWMM','WWWWWWWWWWWWWWWW',
+    'WWWWMMWWWWWWMMWW','WWWWWWWWWWWWWWWW','WWMMWWWWWWMMWWWW','WWWWWWWWWWWWWWWW',
+    'MMWWWWWWMMWWWWWW','WWWWWWWWWWWWWWWW','WWWWWWMMWWWWWWMM','WWWWWWWWWWWWWWWW',
+    'WWWWMMWWWWWWMMWW','WWWWWWWWWWWWWWWW','.WWWMMWWWWWWMMW.','...WWWWWWWWWW...'
+  ],
+  // 회오리 꼬리 ← 꼬리 회전(보라 동그라미). 공을 회오리가 둘러 감는다.
+  tail: [
+    '.....cccc.......','...cc....cc.....','..c........c....','.c....vvv...c...',
+    '.c...vvvvv..c...','c...vvVVVvv..c..','c..vvVVVVVvv.c..','c..vvVVVVVvv.c..',
+    '..c.vvVVVVVvv..c','..c..vvVVVvv...c','...c..vvvvv...c.','...c...vvv...c..',
+    '....c.......c...','.....cc...cc....','......cccc......','.......cc.......'
+  ],
+  // 태풍 ← 토네이도(하늘색 동그라미). 소용돌이 획이 두 겹이고 가운데에 눈이 있다.
+  tornado: [
+    '....CCcccC......','..CccccccccC....','.Cccccc...ccC...','.CccC......ccc..',
+    '.CC.........ccc.','.......ccc..ccc.','......ccccc.ccc.','.....ccWWcccc...',
+    '...ccccWWcc.....','.ccc.ccccc......','.ccc..ccc.......','.ccc.........CC.',
+    '..ccc......CccC.','...Ccc...cccccC.','....CccccccccC..','......CcccCC....'
+  ],
+  // 번개 ← 정전기(얇은 노란 선). 굵은 줄기 하나가 위에서 아래까지 내리꽂힌다.
+  zap: [
+    '........ZZZZZ...','.......ZzzzZ....','......ZzWzZ.....','.....ZzWzZ......',
+    '....ZzWzZ.......','...ZzWzZZZZZ....','..ZzWzzzzzzzZ...','..ZzzzzzzzzZZ...',
+    '.......ZzWzZ....','......ZzWzZ.....','.....ZzWzZ......','....ZzWzZ.......',
+    '...ZzWzZ........','..ZzWzZ.........','..ZzzZ..........','..ZZZ...........'
+  ],
+  // 들고양이 ← 고양이 친구(회색 고양이가 걸어다닌다). 노려보는 얼굴로 정면을 향한다.
+  // 색은 고양이 친구의 회색을 그대로 물려받아 "같은 친구가 사나워졌다" 로 읽힌다.
+  friend: [
+    '.FF..........FF.','.FfF........FfF.','.FfpF......FpfF.','.FfffFFFFFFfffF.',
+    '.FffffffffffffF.','FffffffffffffffF','FfkkkffffffkkkfF','FfkekffffffkekfF',
+    'FffkkffppffkkffF','FffffffppffffffF','FffffkkffkkffffF','.FfffWkkkkWfffF.',
+    '.FffffkkkkffffF.','..FffffkkffffF..','.FffffFFFFffffF.','.FFff......ffFF.'
+  ],
+  // 상자 — 보스가 떨어뜨린다. 원본이 없는 새 물건이라 젬(#5ad1e8 마름모)과
+  // 안 겹치게 잡았다. 리본이 금빛이라 어느 시간대에서도 눈에 띈다.
+  box: [
+    '....ww....ww....','...ww.w..w.ww...','....www..www....','.....wwwwww.....',
+    '.BBBBBBBBBBBBBB.','.BbbbbbwwbbbbbB.','.BbbbbbwwbbbbbB.','.BBBBBBBBBBBBBB.',
+    '.BbbbbbwwbbbbbB.','.BbbbbbwwbbbbbB.','.BbbbbbwwbbbbbB.','.BwwwwwwwwwwwwB.',
+    '.BbbbbbwwbbbbbB.','.BbbbbbwwbbbbbB.','.BbbbbbwwbbbbbB.','.BBBBBBBBBBBBBB.'
+  ]
+};
+
+/* 훑는 고정 순서. 앞의 열은 CONFIG.evolutionOrder 와 같은 순서고, 상자가 끝에 붙는다.
+   for...in 을 안 쓰려고 두는 것이며, 진화를 추가하고 그림을 안 그리면
+   테스트가 여기서 걸린다. */
+var WEAPON_SPRITE_IDS = ['claw','yarn','bone','laser','catnip','milk','tail',
+                         'tornado','zap','friend','box'];
+
 /* 적 typeId → 어떤 그림을 어떤 색으로, 좌우를 뒤집을지.
    tint 는 PAL_MOB 위에 덮어쓸 글자만 적는다. */
 var ENEMY_ART = {
@@ -2530,6 +3134,8 @@ root.CatArt = {
   MOB_KEYS: MOB_KEYS, PAL_MOB: PAL_MOB,
   CAT_SKIN_KEYS: CAT_SKIN_KEYS, CAT_SKINS: CAT_SKINS,
   SPRITES: SPRITES, SPRITE_IDS: SPRITE_IDS,
+  WEAPON_PALETTE: WEAPON_PALETTE,
+  WEAPON_SPRITES: WEAPON_SPRITES, WEAPON_SPRITE_IDS: WEAPON_SPRITE_IDS,
   ENEMY_ART: ENEMY_ART, ENEMY_IDS: ENEMY_IDS,
   mobPalette: mobPalette,
   GROUND_KEYS: GROUND_KEYS,
@@ -2994,15 +3600,68 @@ var ENEMY_BAKED = {};
   }
 })();
 
-/* 고양이. 플레이어와 고양이 친구가 같은 그림에 팔레트만 다르다. */
+/* 고양이. 플레이어와 고양이 친구가 같은 그림에 팔레트만 다르다.
+   feral(들고양이)은 고양이 친구의 진화형이다 — 그림은 그대로고 색만 사납다. */
 var CAT_BAKED = {
   cheese: bakeSet(ART.SPRITES.cat, ART.CAT_SKINS.cheese),
-  friend: bakeSet(ART.SPRITES.cat, ART.CAT_SKINS.friend)
+  friend: bakeSet(ART.SPRITES.cat, ART.CAT_SKINS.friend),
+  feral:  bakeSet(ART.SPRITES.cat, ART.CAT_SKINS.feral)
 };
 var CAT_BLINK = {
   cheese: bakeSet(ART.SPRITES.catBlink, ART.CAT_SKINS.cheese),
-  friend: bakeSet(ART.SPRITES.catBlink, ART.CAT_SKINS.friend)
+  friend: bakeSet(ART.SPRITES.catBlink, ART.CAT_SKINS.friend),
+  feral:  bakeSet(ART.SPRITES.catBlink, ART.CAT_SKINS.feral)
 };
+
+/* ── 19단계: 진화형 그림과 상자 ──────────────────────────────────
+   열한 장을 시작할 때 한 번만 굽는다. 적·고양이와 같은 방식(bakeFrame)이다.
+   bakeSet 을 안 쓰는 이유: 진화형·상자는 맞아서 번쩍이지 않으므로 flash 판
+   열한 장이 통째로 낭비다.
+
+   카드에 넣을 그림은 data URL 로도 같이 뽑아 둔다. 오버레이 카드는
+   innerHTML 로 만들어져서 캔버스를 그대로 끼울 자리가 없기 때문이다. */
+var WEAPON_BAKED = {};
+var WEAPON_ICON = {};
+(function bakeWeaponArt(){
+  if (!ART.WEAPON_SPRITE_IDS || !ART.WEAPON_SPRITES || !ART.WEAPON_PALETTE) return;
+  for (var i = 0; i < ART.WEAPON_SPRITE_IDS.length; i++){
+    var id = ART.WEAPON_SPRITE_IDS[i];
+    var rows = ART.WEAPON_SPRITES[id];
+    // 줄이 비었거나 문자열이 아니면 bakeFrame 의 row.charAt 이 죽는다.
+    // 그림 한 장 때문에 셸 블록 전체가 끊기면 게임이 아예 안 뜬다 — 그 한 장만 버린다.
+    if (!validDecorRows(rows)) continue;
+    var img = bakeFrame(rows, ART.WEAPON_PALETTE, null);
+    WEAPON_BAKED[id] = img;
+    // toDataURL 은 캔버스가 오염됐을 때만 던지는데(여기선 직접 찍은 픽셀뿐이라 안 그렇다),
+    // 실패해도 필드에 그리는 쪽은 살아 있어야 하므로 조용히 넘긴다.
+    try { WEAPON_ICON[id] = img.toDataURL(); } catch (e) {}
+  }
+})();
+
+/* 우유 바다는 화면 세로 절반을 덮는 장판이다(반경 = viewHalfH, 폰에서 390px 안팎).
+   16×16 을 가운데 한 장 찍으면 안 보이고, 반경만큼 통째로 늘리면 도트 하나가
+   50px 짜리 덩어리가 된다. 4배로 키운 타일을 반복 패턴으로 만들어 판정 반경 안을 채운다.
+   타일은 먼저 우유색으로 꽉 칠하고 그 위에 그림을 얹는다 — 원본 그림은 네 귀퉁이가
+   비어 있어서(둥근 웅덩이 모양) 그대로 이어 붙이면 이음매마다 구멍이 뚫린다. */
+var MILK_TILE_PX = 64;         // 16도트 × 4배
+var MILK_PATTERN = null;
+(function bakeMilkPattern(){
+  var src = WEAPON_BAKED.milk;
+  if (!src) return;
+  var c = document.createElement('canvas');
+  c.width = MILK_TILE_PX; c.height = MILK_TILE_PX;
+  var g = c.getContext('2d');
+  if (!g) return;
+  g.fillStyle = ART.WEAPON_PALETTE.W || '#fff6e8';
+  g.fillRect(0, 0, MILK_TILE_PX, MILK_TILE_PX);
+  g.imageSmoothingEnabled = false;   // 도트를 흐리게 늘리지 않는다
+  g.drawImage(src, 0, 0, MILK_TILE_PX, MILK_TILE_PX);
+  MILK_PATTERN = ctx.createPattern(c, 'repeat');
+})();
+
+// 🎁 상자 화면 크기. 16도트 × 3배 — 정수 배율이라 도트가 안 뭉개진다.
+// 판정(pickupRadius 26 + 고양이 반경)보다 조금 작아서 "닿았는데 안 먹힌다" 가 안 생긴다.
+var BOX_PX = 48;
 
 /* 고양이 걸음은 "움직인 거리" 로 센다. 시간으로 세면 서 있을 때도 다리가
    움직여서 미끄러지는 것처럼 보인다. */
@@ -3045,7 +3704,41 @@ function render(){
     var fd = fitems[fi];
     if (!fd.active) continue;
     var fx = fd.x - camX, fy = fd.y - camY;
-    if (fx < -CULL || fy < -CULL || fx > viewW + CULL || fy > viewH + CULL) continue;
+    /* 여백에 장판 반경을 더해서 잘라야 한다. 고정 CULL(40) 만 쓰면 우유 바다처럼
+       큰 장판(폰에서 반경 390)이 중심만 살짝 화면을 벗어나도 통째로 안 그려진다 —
+       아직 살아서 적을 늦추고 때리고 있는데 그림만 한 프레임에 사라진다.
+       장판을 깔고 한 방향으로 1초만 달리면 바로 일어나는 일이다.
+       진화 전 반경(92)에서는 40px 여유로 대충 가려져 안 드러났다. */
+    var fcull = CULL + fd.radius;
+    if (fx < -fcull || fy < -fcull || fx > viewW + fcull || fy > viewH + fcull) continue;
+    /* 우유 바다(진화형) — 판정 반경 안을 물결 타일로 채운다.
+       패턴 원점을 카메라만큼 밀어 world 좌표에 못 박는다. 안 그러면 걸어갈 때
+       물결이 화면에 붙어 따라와서 장판이 미끄러지는 것처럼 보인다(바닥 타일과 같은 이유).
+       투명도는 원래 웅덩이와 같은 0.35 를 지킨다 — 화면 절반을 덮는 것이라
+       조금만 더 진해도 그 안의 쥐가 안 보인다. */
+    if (MILK_PATTERN && world.isEvolved(fd.weaponId)){
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(fx, fy, fd.radius, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.globalAlpha = 0.35;
+      ctx.translate(snapPx(-(camX % MILK_TILE_PX)), snapPx(-(camY % MILK_TILE_PX)));
+      ctx.fillStyle = MILK_PATTERN;
+      ctx.fillRect(-MILK_TILE_PX, -MILK_TILE_PX,
+                   viewW + MILK_TILE_PX * 2, viewH + MILK_TILE_PX * 2);
+      ctx.restore();
+      // 테두리 — 어디까지가 우유인지 안 보이면 "밟고 있나" 를 판단할 수 없다.
+      // 반투명 장판은 가장자리가 특히 흐려서 이 선이 없으면 경계가 사라진다.
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = '#a9c4dc';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(fx, fy, fd.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 1;
+      continue;
+    }
     ctx.globalAlpha = 0.35;
     ctx.fillStyle = '#eef3ff';
     ctx.beginPath();
@@ -3090,6 +3783,38 @@ function render(){
     var nx = nk.x - camX, ny = nk.y - camY;
     if (nx < -CULL || ny < -CULL || nx > viewW + CULL || ny > viewH + CULL) continue;
     ctx.fillText(CONFIG.nukeItem.emoji, nx, ny);
+  }
+
+  /* 🎁 보스 상자 — 보스를 잡은 직후는 화면이 거의 비어 있어서, 가만히 놓인 그림
+     하나는 배경 장식으로 보고 지나치기 쉽다. 위아래로 떠오르게 하고 뒤에서
+     금빛 고리가 뛰게 해서 "이건 주우라고 놓은 것" 을 만든다.
+     ⚠️ 움직임은 world.elapsed(게임 시계)로만 만든다. world.rnd 를 한 번이라도
+     뽑으면 그 뒤의 모든 스폰·드롭이 밀려서, 보여주기만 하는 코드가 봇
+     재현성을 통째로 깨뜨린다(바닥 장식·폭죽에 적어 둔 것과 같은 규칙). */
+  var boxImg = WEAPON_BAKED.box;
+  var bxitems = world.boxes.items;
+  for (var bxi = 0; bxi < bxitems.length; bxi++){
+    var bx0 = bxitems[bxi];
+    if (!bx0.active) continue;
+    var bsx = bx0.x - camX, bsy = bx0.y - camY;
+    if (bsx < -CULL || bsy < -CULL || bsx > viewW + CULL || bsy > viewH + CULL) continue;
+    var bob = Math.sin(world.elapsed * 3) * 5;                       // 위아래 ±5px
+    var pulse = 0.25 + 0.3 * (1 + Math.sin(world.elapsed * 4)) / 2;  // 0.25 ~ 0.55
+    ctx.globalAlpha = pulse;
+    ctx.strokeStyle = '#ffd86a';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(bsx, bsy, CONFIG.bossBox.pickupRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 1;
+    if (boxImg){
+      ctx.drawImage(boxImg, bsx - BOX_PX / 2, bsy - BOX_PX / 2 + bob, BOX_PX, BOX_PX);
+    } else {
+      // 그림을 못 구웠을 때 — 상자가 화면에서 사라지면 보스를 잡은 보상이 통째로
+      // 안 보인다. 글꼴·정렬은 바로 위 핵폭탄 쪽에서 이미 맞춰 둔 그대로 쓴다.
+      ctx.fillText(CONFIG.bossBox.emoji, bsx, bsy + bob);
+    }
   }
 
   // 적 — 맞은 직후에는 흰색으로 번쩍인다
@@ -3145,6 +3870,16 @@ function render(){
     if (!pj.active) continue;
     var ppx = pj.x - camX, ppy = pj.y - camY;
     if (ppx < -CULL || ppy < -CULL || ppx > viewW + CULL || ppy > viewH + CULL) continue;
+    /* 진화형(실타래 폭풍·참치뼈·태풍)은 동그라미 대신 그림으로 그린다.
+       판정 반경을 그대로 지름으로 쓰면 실타래(반경 8)가 16px 라 모양이 안 읽힌다 —
+       작은 것만 최소 크기로 올린다. 태풍(반경 26)은 판정 그대로 52px 다. */
+    var pimg = world.isEvolved(pj.weaponId) ? WEAPON_BAKED[pj.weaponId] : null;
+    if (pimg){
+      var psz = pj.radius * 2;
+      if (psz < 24) psz = 24;
+      ctx.drawImage(pimg, ppx - psz / 2, ppy - psz / 2, psz, psz);
+      continue;
+    }
     ctx.fillStyle = PROJ_COLOR[pj.weaponId] || '#ffffff';
     ctx.beginPath();
     ctx.arc(ppx, ppy, pj.radius, 0, Math.PI * 2);
@@ -3164,19 +3899,49 @@ function render(){
     ctx.closePath();
     ctx.fill();
     ctx.globalAlpha = 1;
+    /* 곰발 후리기(진화형) — 발톱 자국 석 줄을 스윙 방향으로 눕혀 얹는다.
+       부채꼴은 지우지 않는다. 그건 "어디까지 닿는가" 를 보여주는 것이고,
+       그림은 "무엇이 지나갔는가" 를 보여주는 것이라 역할이 다르다. */
+    if (WEAPON_BAKED.claw && world.isEvolved('claw')){
+      var cs = world.swingRadius;
+      ctx.save();
+      ctx.translate(viewW / 2, viewH / 2);
+      ctx.rotate(ang);
+      ctx.globalAlpha = 0.95 * swingT;
+      ctx.drawImage(WEAPON_BAKED.claw, 0, -cs / 2, cs, cs);
+      ctx.restore();
+    }
   }
 
   // 레이저 잔상
   if (world.beamTimer > 0){
     var beamT = world.beamTimer / (CONFIG.weapons.laser.showMs / 1000);   // 1 → 0
-    ctx.save();
-    ctx.translate(viewW / 2, viewH / 2);
-    ctx.rotate(Math.atan2(world.beamDir.y, world.beamDir.x));
-    ctx.globalAlpha = 0.75 * beamT;
-    ctx.fillStyle = '#ff5a5a';
-    ctx.fillRect(0, -world.beamHalfW, world.beamLen, world.beamHalfW * 2);
-    ctx.globalAlpha = 1;
-    ctx.restore();
+    // 햇빛 모으기(진화형)는 붉은 포인터 자국이 아니라 노란 햇살이다.
+    var laserEvo = world.isEvolved('laser');
+    // 줄 수는 core 가 정한다(beamN). 여기서 세면 판정과 어긋난다.
+    for (var bmi = 0; bmi < world.beamN; bmi++){
+      var bdir = world.beamDirs[bmi];
+      var bang = Math.atan2(bdir.y, bdir.x);
+      ctx.save();
+      ctx.translate(viewW / 2, viewH / 2);
+      ctx.rotate(bang);
+      ctx.globalAlpha = 0.75 * beamT;
+      ctx.fillStyle = laserEvo ? '#fff2a8' : '#ff5a5a';
+      ctx.fillRect(0, -world.beamHalfW, world.beamLen, world.beamHalfW * 2);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+      /* 빛이 모이는 자리(집광점)를 띠 끝에 찍는다. 회전한 상태에서 그리면 그림까지
+         같이 누워서 렌즈가 뒤집혀 보이므로, 끝점을 직접 구해 세워서 그린다.
+         고양이 자리(띠의 시작)에 두지 않는 이유: 고양이는 이보다 나중에 그려져서 가려진다. */
+      if (laserEvo && WEAPON_BAKED.laser){
+        var lsz = 40;
+        ctx.globalAlpha = 0.95 * beamT;
+        ctx.drawImage(WEAPON_BAKED.laser,
+                      viewW / 2 + Math.cos(bang) * world.beamLen - lsz / 2,
+                      viewH / 2 + Math.sin(bang) * world.beamLen - lsz / 2, lsz, lsz);
+        ctx.globalAlpha = 1;
+      }
+    }
   }
 
   // 폭발 고리 (캣닢·핵폭탄) — 어느 무기가 터뜨렸는지는 core 가 알려준다.
@@ -3184,6 +3949,17 @@ function render(){
   if (world.blastTimer > 0 && world.blastShow > 0){
     var blastT = world.blastTimer / world.blastShow;   // 1 → 0
     var bx = world.blastX - camX, by = world.blastY - camY;
+    /* 캣닢 폭풍(진화형) — 고리 안을 잎 바람개비로 채운다. 고리는 그대로 둔다(판정 범위).
+       blastWeaponId 에는 'nuke' 도 들어오는데, 핵폭탄은 무기가 아니라 진화가 없다.
+       isEvolved('nuke') 는 false 를 돌려주므로 여기서 저절로 걸러진다. */
+    var blastImg = world.isEvolved(world.blastWeaponId)
+                 ? WEAPON_BAKED[world.blastWeaponId] : null;
+    if (blastImg){
+      var bsz = world.blastR * 2 * (1.15 - 0.15 * blastT);
+      ctx.globalAlpha = 0.85 * blastT;
+      ctx.drawImage(blastImg, bx - bsz / 2, by - bsz / 2, bsz, bsz);
+      ctx.globalAlpha = 1;
+    }
     ctx.globalAlpha = 0.55 * blastT;
     ctx.strokeStyle = BLAST_COLOR[world.blastWeaponId] || '#ffffff';
     ctx.lineWidth = 6;
@@ -3198,9 +3974,11 @@ function render(){
   // 판정용 스크래치(_hitDmg·_hitRadius)는 무기들이 돌려쓰므로 여기서 읽으면 안 된다.
   if (world.chainTimer > 0 && world.chainShow > 0 && world.chainN > 1){
     var chainT = world.chainTimer / world.chainShow;   // 1 → 0
+    // 번개(진화형)는 얇은 선이 아니라 굵은 줄기다 — 선 굵기부터 다르게 간다.
+    var zapImg = world.isEvolved('zap') ? WEAPON_BAKED.zap : null;
     ctx.globalAlpha = 0.9 * chainT;
     ctx.strokeStyle = '#ffe66a';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = zapImg ? 6 : 3;
     ctx.beginPath();
     ctx.moveTo(world.chainX[0] - camX, world.chainY[0] - camY);
     for (var ci = 1; ci < world.chainN; ci++){
@@ -3209,15 +3987,34 @@ function render(){
     ctx.stroke();
     ctx.globalAlpha = 1;
     ctx.lineWidth = 1;
+    // 튄 자리마다 번개가 내리꽂힌다. 선만으로는 "몇 마리에게 튀었는가" 가 안 보인다.
+    if (zapImg){
+      var zsz = 30;
+      ctx.globalAlpha = 0.95 * chainT;
+      for (var zi = 0; zi < world.chainN; zi++){
+        ctx.drawImage(zapImg, world.chainX[zi] - camX - zsz / 2,
+                              world.chainY[zi] - camY - zsz / 2, zsz, zsz);
+      }
+      ctx.globalAlpha = 1;
+    }
   }
 
-  // 꼬리 회전 공
+  // 꼬리 회전 공 — 공 수는 core 가 정한다(orbitN). 여기서 세면 판정과 어긋난다.
   if (world.weapons.tail){
-    ctx.fillStyle = '#c9b4ff';
-    ctx.beginPath();
-    ctx.arc(world.orbitX - camX, world.orbitY - camY,
-            CONFIG.weapons.tail.ballRadius, 0, Math.PI * 2);
-    ctx.fill();
+    for (var obi = 0; obi < world.orbitN; obi++){
+      var obx = world.orbitXs[obi] - camX, oby = world.orbitYs[obi] - camY;
+      // 회오리 꼬리(진화형) — 공을 바람이 감고 있는 그림이라, 공(판정 반경)이
+      // 그림 가운데에 오도록 바람 획만큼 여유를 두고 크게 그린다.
+      if (world.isEvolved('tail') && WEAPON_BAKED.tail){
+        var tsz = CONFIG.weapons.tail.ballRadius * 2 * 1.6;
+        ctx.drawImage(WEAPON_BAKED.tail, obx - tsz / 2, oby - tsz / 2, tsz, tsz);
+      } else {
+        ctx.fillStyle = '#c9b4ff';
+        ctx.beginPath();
+        ctx.arc(obx, oby, CONFIG.weapons.tail.ballRadius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
   }
 
   // 고양이 친구 — 플레이어보다 먼저 그려 뒤에 깔린다
@@ -3227,7 +4024,10 @@ function render(){
     if (!cm.active) continue;
     var cmx = cm.x - camX, cmy = cm.y - camY;
     if (cmx < -CULL || cmy < -CULL || cmx > viewW + CULL || cmy > viewH + CULL) continue;
-    catFrame('friend', 24, cmx, cmy);
+    /* 들고양이(진화형)는 전신 그림을 그대로 쓰고 색만 사나워진다.
+       진화형 그림(WEAPON_SPRITES.friend)은 16×16 얼굴이라 여기 끼우면
+       머리만 떠다닌다 — 그 그림은 진화 카드의 아이콘으로만 쓴다. */
+    catFrame(world.isEvolved('friend') ? 'feral' : 'friend', 24, cmx, cmy);
   }
 
   // 고양이 (아트 교체 지점)
@@ -3511,6 +4311,24 @@ var Sound = (function(){
     bossAppear: function(){
       tone(90, 60, 0.5, 'sawtooth', 0.18);
     },
+    /* 🎁 상자를 먹었다 — 뚜껑이 톡 열리는 짧은 두 음.
+       바로 뒤에 진화 소리(또는 회복)가 이어지므로 여기서 길게 끌면 겹쳐서 뭉갠다. */
+    boxPick: function(){
+      tone(520, 720, 0.07, 'triangle', 0.16);
+      setTimeout(function(){ tone(760, 1040, 0.10, 'triangle', 0.16); }, 70);
+    },
+    /* 진화 — 한 판에 많아야 두 번뿐인 순간이다. 레벨업(0.12~0.14)보다 확실히 크고
+       길어야 "방금 다른 일이 일어났다" 가 귀로 구분된다.
+       낮은 굉음을 깔고 그 위로 5음을 올린다. 음끼리 110ms 씩 어긋나게 둬서
+       한 번에 두 개 넘게 겹치지 않는다 — 동시에 다섯이 울리면 합쳐져 찢어진다. */
+    evolve: function(){
+      tone(110, 165, 0.55, 'sawtooth', 0.22);           // 아래를 받치는 굉음
+      tone(392, 392, 0.14, 'triangle', 0.26);
+      setTimeout(function(){ tone(523, 523, 0.14, 'triangle', 0.28); }, 110);
+      setTimeout(function(){ tone(659, 659, 0.14, 'triangle', 0.28); }, 220);
+      setTimeout(function(){ tone(784, 784, 0.14, 'triangle', 0.30); }, 330);
+      setTimeout(function(){ tone(1047, 1047, 0.5, 'triangle', 0.30); }, 440);
+    },
     // 게임오버 — 내려가는 톤
     gameOver: function(){
       tone(300, 120, 0.4, 'sawtooth', 0.14);
@@ -3542,7 +4360,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '254b765';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = 'edd86cf';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -3643,6 +4461,58 @@ function pick(c){
   if (world.pendingChoices > 0) showLevelUp();
 }
 
+/* ── 19단계: 진화 카드 ────────────────────────────────────────────
+   보스 상자를 먹었고 5성 무기가 있으면 core 가 pendingEvolve 를 세운다.
+   레벨업 3택 화면을 그대로 재사용한다 — 새 화면을 만들면 폰에서 검증된
+   자리(제목·카드·닫기)를 처음부터 다시 맞춰야 한다.
+   카드는 최대 4장이다(무기 슬롯이 4개라 5성이 다섯 개일 수 없다). */
+function showEvolve(){
+  var ids = world.evolveCandidates();
+  if (!ids.length){
+    /* 여기 오면 안 된다 — core 는 후보가 있을 때만 pendingEvolve 를 세우고,
+       저장 복원도 후보가 없으면 이 값을 버린다. 그래도 도달한다면 카드를
+       한 장도 못 그리는 화면에서 판이 영원히 멈춘다. 판을 살리는 쪽을 고른다. */
+    world.cancelEvolve();
+    return;
+  }
+  overlayTitle.textContent = '진화!';
+  overlayStat.textContent = '5성 무기 하나가 다른 것이 됩니다';
+  overlayBtn.style.display = 'none';
+  shopBtn.style.display = 'none';
+  rerollBtn.style.display = 'none';   // 진화는 다시 뽑기가 없다 — 후보가 곧 내가 키운 무기다
+  cardsEl.style.display = 'flex';
+  cardsEl.innerHTML = '';
+  for (var i = 0; i < ids.length; i++){
+    (function(id){
+      var base = CONFIG.weapons[id];
+      var evo = CONFIG.evolutions[id];
+      if (!base || !evo) return;
+      // 그림을 못 구웠으면 원래 무기 이모지로 떨어진다 — 카드가 빈 채로 뜨면 안 된다
+      var ico = WEAPON_ICON[id]
+        ? '<img class="evoIco" src="' + WEAPON_ICON[id] + '" alt="">'
+        : base.emoji;
+      var el = appendCard('<div class="ico">' + ico + '</div>' +
+                          '<div class="lv">' + base.emoji + ' ' + base.name + '</div>' +
+                          '<div class="nm">↓ ' + evo.name + '</div>' +
+                          '<div class="ds">' + evo.desc + '</div>',
+                          function(){ pickEvolve(id); }, false);
+      el.className += ' evo';
+    })(ids[i]);
+  }
+  overlay.classList.add('on');
+  paused = true;
+}
+
+function pickEvolve(id){
+  world.applyEvolve(id);            // core 가 진화시키고 pendingEvolve 를 내린다
+  Sound.evolve();
+  cardsEl.innerHTML = '';           // 진화 카드가 다음에 열리는 화면에 잠깐 비쳐선 안 된다
+  overlay.classList.remove('on');
+  paused = false;
+  lastTime = 0;                     // 정지한 동안 쌓인 시간을 버린다
+  // 레벨업이 같이 밀려 있으면 frame() 이 다음 프레임에 3택을 띄운다.
+}
+
 var isPauseScreen = false;   // 지금 오버레이가 일시정지 화면인가
 
 /* 지금 판을 저장한다. 끝난 판·측정 중·조작한 판은 저장하지 않는다.
@@ -3697,6 +4567,7 @@ function togglePause(){
   if (pendingRun) return;                                   // 이어할지 고르는 중
   if (atStartScreen) return;                                // 시작 화면 중
   if (world.pendingChoices > 0 && !isPauseScreen) return;   // 카드를 고르는 중
+  if (world.pendingEvolve > 0 && !isPauseScreen) return;    // 진화 카드를 고르는 중
   if (isPauseScreen) resumeFromPause();
   else { saveRun(); showPause(); }
 }
@@ -3978,6 +4849,11 @@ function codexWeapons(){
     codexSection(c.emoji + ' ' + c.name);
     codexRow(c.desc, '');
     codexRow('Lv.1 → Lv.' + max, 줄);
+    // 19단계: 5성을 찍고 보스 상자를 먹으면 무엇이 되는지. 15단계의 정신이
+    // "수치를 감추지 않는다" 였으므로 진화도 미리 다 보여준다 —
+    // 어느 무기를 5성까지 키울지가 곧 이 표를 보고 정하는 일이다.
+    var evo = CONFIG.evolutions[id];
+    if (evo) codexRow('5성 진화', evo.name + ' — ' + evo.desc);
   }
 }
 
@@ -4228,6 +5104,7 @@ var HIT_SOUND_IDS = DAMAGE_IDS.filter(function(id){
 
 var lastDmgTotal = 0;
 var lastBossAlive = false;
+var lastBoxesTaken = 0;   // 🎁 상자를 먹은 횟수 — 늘어난 프레임에 소리를 낸다
 var endScreenSounded = false;   // 게임오버·클리어 소리가 이미 났는지 — 상점 갔다 와도 다시 안 나게
 // 판을 새로 시작하거나 이어받는 모든 자리에서 반드시 불러야 한다. 안 부르면
 // 이어받은 판의 기존 딜량·보스 상태를 "방금 일어난 일"로 착각해 엉뚱한 소리가 난다
@@ -4237,6 +5114,9 @@ function syncSoundTrackers(){
   for (var i = 0; i < HIT_SOUND_IDS.length; i++) total += world.dmgBy[HIT_SOUND_IDS[i]];
   lastDmgTotal = total;
   lastBossAlive = !!(world.boss && world.boss.active);
+  // 이어받은 판이 이미 상자를 먹었으면 그 값에서 이어 센다 — 안 그러면 이어하자마자
+  // "상자 먹는 소리" 가 한 번 울린다(보스 등장 소리를 여기서 맞추는 것과 같은 이유).
+  lastBoxesTaken = world.boxesTaken;
   endScreenSounded = false;
   // 17단계: 클리어 폭죽도 같은 자리에서 되돌린다. 여기서 안 돌리면 다음 판에서
   // 다시 클리어해도 clearCelebrateAt 이 이전 판 값(0 아님)으로 남아 연출이 안 나온다.
@@ -4252,6 +5132,11 @@ function pollSoundTriggers(now){
   var bossAlive = !!(world.boss && world.boss.active);
   if (bossAlive && !lastBossAlive) Sound.bossAppear();
   lastBossAlive = bossAlive;
+
+  // 🎁 상자를 먹었다. 진화 소리는 카드를 고른 뒤에 따로 난다 — 여기서 같이 내면
+  // 아직 아무것도 안 고른 시점에 "진화했다" 로 들린다.
+  if (world.boxesTaken > lastBoxesTaken) Sound.boxPick();
+  lastBoxesTaken = world.boxesTaken;
 }
 
 /* 17단계: 클리어 폭죽 ------------------------------------------------------
@@ -4397,6 +5282,12 @@ function frame(now){
       if (celebrateElapsed >= CLEAR_CELEBRATE_MS) showCleared();
     }
     else if (world.gameOver){ showGameOver(); }
+    /* 진화를 레벨업보다 먼저 본다. 둘이 같은 프레임에 밀릴 수 있는데(한 프레임에
+       여러 스텝이 돌아, 레벨업이 뜬 스텝 뒤의 스텝에서 상자를 밟을 수 있다),
+       한 판에 두 번뿐인 쪽을 먼저 보여준다. 남은 하나는 고른 다음 프레임에 뜬다.
+       ⚠️ 여기와 togglePause 두 곳이 판을 멈추는 자리다. 하나만 넣으면 카드를
+       고르는 동안 쥐떼가 계속 다가온다. */
+    else if (world.pendingEvolve > 0){ showEvolve(); }
     else if (world.pendingChoices > 0){ showLevelUp(); }
   }
   var steps = stepper.advance(delta);        // 정지 중에도 그대로 흘린다
