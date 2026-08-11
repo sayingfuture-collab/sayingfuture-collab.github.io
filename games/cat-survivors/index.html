@@ -3331,6 +3331,21 @@ var BASE_SPRITES = {
     'vvvvvvvvvvvvVVvv','vvvvvvvvvvvVVVvv','vvvvvvvvvVVVVvvv','.vvvvvvVVVVVvvv.',
     '.vvvvVVVVVVvvvv.','..vvVVVVVVVvvv..','...vVVVVVVVVv...','.....VVVVVV.....'
   ],
+  /* 우유 웅덩이 — **장판 무늬**다. 위 그림들과 쓰임이 다르다:
+     한 장을 통째로 그리는 게 아니라 **이어 붙여 반복**해서 판정 반경 안을 채운다
+     (진화형 우유 바다가 쓰는 장치를 그대로 쓴다).
+     그래서 규칙이 하나 더 있다 — **네 귀퉁이를 비우면 안 된다.** 비우면 타일
+     이음매마다 구멍이 뚫린다. 위 그림들은 가운데 놓이는 물건이라 반대다.
+     진화형(우유 바다)은 물결이 빽빽하고, 이쪽은 방울 셋만 띄운 잔잔한 면이다.
+
+     ⚠️ 아이콘은 이 그림이 아니라 BASE_ICON_SPRITES.milk(우유잔)를 쓴다.
+        무늬를 카드에 넣으면 흰 네모 한 장으로만 보인다. */
+  milk: [
+    'WWWWWWWWWWWWWWWW','WWWWWWWWWWWWWWWW','WWMMWWWWWWWWWWWW','WMWWMWWWWWWWWWWW',
+    'WMWWMWWWWWWMMWWW','WWMMWWWWWWMWWMWW','WWWWWWWWWWMWWMWW','WWWWWWWWWWWMMWWW',
+    'WWWWWWWWWWWWWWWW','WWWWWWMMWWWWWWWW','WWWWWMWWMWWWWWWW','WWWWWMWWMWWWWWWW',
+    'WWWWWWMMWWWWWWWW','WWWWWWWWWWWWWWWW','WWWWWWWWWWWWWWWW','WWWWWWWWWWWWWWWW'
+  ],
   /* 토네이도 — 가는 획이 안으로 감기는 나선 두 바퀴 반. 진화형(태풍)은 같은
      소용돌이가 **굵은 두 갈래**가 되고 가운데에 흰 눈이 생긴다.
      ⚠️ 두 번 갈아엎었다(2026-08-11). 첫판은 동심원 두 겹이라 화면에서 **과녁**
@@ -3398,10 +3413,15 @@ var BASE_ICON_SPRITES = {
 
 /* 훑는 고정 순서(for...in 금지). 진화형 목록과 달리 순서를 evolutionOrder 와
    대조할 수 없으므로 "무기표에 있는 id 인가" 를 검사한다.
-   BASE_SPRITES(필드+아이콘 여섯) 와 BASE_ICON_SPRITES(아이콘만 넷) 를
-   **표 자체로 갈라 놓았다** — 목록 하나에 담고 "앞 여섯은 필드용" 이라고
-   적어두는 방식은, 나중에 누가 목록 가운데에 하나 끼우면 조용히 깨진다. */
-var BASE_SPRITE_IDS = ['claw','yarn','bone','catnip','tail','tornado'];
+   두 표는 **쓰이는 자리**로 갈랐다. 목록 하나에 담고 "앞 여섯은 필드용" 이라고
+   적어두는 방식은, 나중에 누가 목록 가운데에 하나 끼우면 조용히 깨진다.
+     BASE_SPRITES      필드에 그리는 그림
+     BASE_ICON_SPRITES 카드·도감·HUD 아이콘
+   ⚠️ **우유는 양쪽에 다 있고, 두 그림이 서로 다르다.** 필드에서는 이어 붙이는
+      장판 무늬여야 하고 카드에서는 한눈에 읽히는 잔이어야 한다 — 무늬를 카드에
+      넣으면 흰 네모고, 잔을 바닥에 깔면 잔이 바닥에 널린다. 나머지 아홉은
+      한쪽에만 있고, 그때는 있는 쪽 그림을 양쪽에 쓴다. */
+var BASE_SPRITE_IDS = ['claw','yarn','bone','catnip','tail','tornado','milk'];
 var BASE_ICON_IDS   = ['laser','zap','milk','friend'];
 
 /* 적 typeId → 어떤 그림을 어떤 색으로, 좌우를 뒤집을지.
@@ -3964,22 +3984,33 @@ var BASE_ICON     = {};   // 카드·도감용 data URL(HTML 에 끼운다). 열
 var BASE_ICON_IMG = {};   // HUD 용 캔버스(canvas 에 그린다). 열 무기 전부.
 (function bakeBaseArt(){
   if (!ART.BASE_SPRITE_IDS || !ART.BASE_SPRITES || !ART.WEAPON_PALETTE) return;
-  /* 두 표를 한 번에 훑되 **필드 판에 넣는 것은 앞 표뿐**이다.
-     아이콘 전용 넷(우유잔·조준점 등)이 BASE_BAKED 에 섞이면, 나중에 누가
-     필드 그리는 자리에 BASE_BAKED[id] 를 쓰는 순간 우유잔이 바닥에 깔린다. */
-  var 묶음 = [[ART.BASE_SPRITE_IDS, ART.BASE_SPRITES, true],
-              [ART.BASE_ICON_IDS || [], ART.BASE_ICON_SPRITES || {}, false]];
-  for (var b = 0; b < 묶음.length; b++){
-    var ids = 묶음[b][0], table = 묶음[b][1], 필드용 = 묶음[b][2];
-    for (var i = 0; i < ids.length; i++){
-      var id = ids[i], rows = table[id];
-      if (!validDecorRows(rows)) continue;   // 한 장이 망가져도 나머지는 살린다
-      var img = bakeFrame(rows, ART.WEAPON_PALETTE, null);
-      if (필드용) BASE_BAKED[id] = img;
-      BASE_ICON_IMG[id] = img;
-      // toDataURL 이 실패해도(캔버스 오염) 필드 쪽은 살아 있어야 하므로 조용히 넘긴다.
-      try { BASE_ICON[id] = img.toDataURL(); } catch (e) {}
-    }
+  /* 판마다 **어느 표에서 가져오는지를 못 박는다.** 두 표를 차례로 훑으면서
+     덮어쓰게 두면 "나중에 훑은 쪽이 이긴다" 가 되어, 표를 훑는 순서를 바꾸는
+     순간 우유 카드에 장판 무늬가 뜬다(우유는 양쪽에 다 있다). */
+  var 아이콘표 = ART.BASE_ICON_SPRITES || {}, 아이콘목록 = ART.BASE_ICON_IDS || [];
+  var i, id, rows, img;
+
+  // ① 필드 판 — 필드 표에서만 가져온다
+  for (i = 0; i < ART.BASE_SPRITE_IDS.length; i++){
+    id = ART.BASE_SPRITE_IDS[i];
+    rows = ART.BASE_SPRITES[id];
+    if (!validDecorRows(rows)) continue;   // 한 장이 망가져도 나머지는 살린다
+    BASE_BAKED[id] = bakeFrame(rows, ART.WEAPON_PALETTE, null);
+  }
+
+  // ② 아이콘 판 — 아이콘 표를 **먼저** 보고, 없을 때만 필드 그림을 빌려 쓴다
+  var 아이콘id = ART.BASE_SPRITE_IDS.concat(아이콘목록);
+  for (i = 0; i < 아이콘id.length; i++){
+    id = 아이콘id[i];
+    if (BASE_ICON_IMG[id]) continue;                       // 이미 넣었다
+    rows = 아이콘표[id] || ART.BASE_SPRITES[id];
+    if (!validDecorRows(rows)) continue;
+    img = (rows === ART.BASE_SPRITES[id] && BASE_BAKED[id])
+        ? BASE_BAKED[id]                                   // 같은 그림이면 다시 안 굽는다
+        : bakeFrame(rows, ART.WEAPON_PALETTE, null);
+    BASE_ICON_IMG[id] = img;
+    // toDataURL 이 실패해도(캔버스 오염) 필드 쪽은 살아 있어야 하므로 조용히 넘긴다.
+    try { BASE_ICON[id] = img.toDataURL(); } catch (e) {}
   }
 })();
 
@@ -3998,20 +4029,20 @@ function weaponIcoHtml(id, 이모지){
    타일은 먼저 우유색으로 꽉 칠하고 그 위에 그림을 얹는다 — 원본 그림은 네 귀퉁이가
    비어 있어서(둥근 웅덩이 모양) 그대로 이어 붙이면 이음매마다 구멍이 뚫린다. */
 var MILK_TILE_PX = 64;         // 16도트 × 4배
-var MILK_PATTERN = null;
-(function bakeMilkPattern(){
-  var src = WEAPON_BAKED.milk;
-  if (!src) return;
+function bakeMilkPattern(src){
+  if (!src) return null;
   var c = document.createElement('canvas');
   c.width = MILK_TILE_PX; c.height = MILK_TILE_PX;
   var g = c.getContext('2d');
-  if (!g) return;
+  if (!g) return null;
   g.fillStyle = ART.WEAPON_PALETTE.W || '#fff6e8';
   g.fillRect(0, 0, MILK_TILE_PX, MILK_TILE_PX);
   g.imageSmoothingEnabled = false;   // 도트를 흐리게 늘리지 않는다
   g.drawImage(src, 0, 0, MILK_TILE_PX, MILK_TILE_PX);
-  MILK_PATTERN = ctx.createPattern(c, 'repeat');
-})();
+  return ctx.createPattern(c, 'repeat');
+}
+var MILK_PATTERN      = bakeMilkPattern(WEAPON_BAKED.milk);   // 우유 바다(진화형)
+var MILK_PATTERN_BASE = bakeMilkPattern(BASE_BAKED.milk);     // 우유 웅덩이(기본형)
 
 // 🎁 상자 화면 크기. 16도트 × 3배 — 정수 배율이라 도트가 안 뭉개진다.
 // 판정(pickupRadius 26 + 고양이 반경)보다 조금 작아서 "닿았는데 안 먹힌다" 가 안 생긴다.
@@ -4065,19 +4096,21 @@ function render(){
        진화 전 반경(92)에서는 40px 여유로 대충 가려져 안 드러났다. */
     var fcull = CULL + fd.radius;
     if (fx < -fcull || fy < -fcull || fx > viewW + fcull || fy > viewH + fcull) continue;
-    /* 우유 바다(진화형) — 판정 반경 안을 물결 타일로 채운다.
+    /* 판정 반경 안을 무늬 타일로 채운다. 진화형(우유 바다)은 물결이 빽빽하고
+       기본형(우유 웅덩이)은 방울 셋만 띄운 잔잔한 면이다 — 무늬만 다르고 길은 같다.
        패턴 원점을 카메라만큼 밀어 world 좌표에 못 박는다. 안 그러면 걸어갈 때
        물결이 화면에 붙어 따라와서 장판이 미끄러지는 것처럼 보인다(바닥 타일과 같은 이유).
-       투명도는 원래 웅덩이와 같은 0.35 를 지킨다 — 화면 절반을 덮는 것이라
+       투명도는 원래 웅덩이와 같은 0.35 를 지킨다 — 진화형은 화면 절반을 덮는 것이라
        조금만 더 진해도 그 안의 쥐가 안 보인다. */
-    if (MILK_PATTERN && world.isEvolved(fd.weaponId)){
+    var milkPat = world.isEvolved(fd.weaponId) ? MILK_PATTERN : MILK_PATTERN_BASE;
+    if (milkPat){
       ctx.save();
       ctx.beginPath();
       ctx.arc(fx, fy, fd.radius, 0, Math.PI * 2);
       ctx.clip();
       ctx.globalAlpha = 0.35;
       ctx.translate(snapPx(-(camX % MILK_TILE_PX)), snapPx(-(camY % MILK_TILE_PX)));
-      ctx.fillStyle = MILK_PATTERN;
+      ctx.fillStyle = milkPat;
       ctx.fillRect(-MILK_TILE_PX, -MILK_TILE_PX,
                    viewW + MILK_TILE_PX * 2, viewH + MILK_TILE_PX * 2);
       ctx.restore();
@@ -4737,7 +4770,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '69fd0a6';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = 'ebf2523';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
