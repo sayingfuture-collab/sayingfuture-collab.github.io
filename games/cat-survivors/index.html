@@ -4911,7 +4911,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '505cfe3';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = '17aa709';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -5101,11 +5101,21 @@ function renderPauseCards(){
     overlayStat.innerHTML = '<b>이번 판을 버리고 처음부터 할까요?</b>' +
       '<br><small>' + m + '분 ' + (s < 10 ? '0' : '') + s + '초 · Lv.' + world.level +
       ' 까지 온 판입니다.</small>';
+    /* 바로 새 판을 시작하지 않고 **시작 화면으로 보낸다.**
+       사용자 요청(2026-08-11): "무기 선택을 다시 하고 싶을 수도 있어서."
+       시작 무기는 상점에서 갈아끼우는 것이라, 바로 시작해 버리면 방금 버린 판과
+       똑같은 무기로 다시 시작하게 된다 — 다시 하려는 이유의 절반이 사라진다. */
     appendCard('<div class="ico">\u{1F504}</div>' +
                '<div class="nm">네, 처음부터</div>' +
                '<div class="ds">이번 판은 사라집니다<br>모은 코인 ' + world.coins +
-               '개도 안 들어옵니다</div>',
-               function(){ 새판시작(); }, false);
+               '개도 안 들어옵니다<br>시작 화면으로 갑니다</div>',
+               function(){
+                 새판준비();               // 이 판을 버린다(화면은 아래에서 정한다)
+                 isPauseScreen = false;
+                 pauseConfirmRestart = false;
+                 paused = true;            // showStartScreen 이 다시 세우지만 사이 프레임을 막는다
+                 showStartScreen();
+               }, false);
     appendCard('<div class="ico">\u{21A9}\u{FE0F}</div>' +
                '<div class="nm">아니요</div>' +
                '<div class="ds">이 판 계속하기</div>',
@@ -5128,7 +5138,7 @@ function renderPauseCards(){
         그래서 버렸다(계획/4단계 기록). 코인은 죽거나 클리어해야 들어온다. */
   appendCard('<div class="ico">\u{1F504}</div>' +
              '<div class="nm">처음부터</div>' +
-             '<div class="ds">이번 판을 버리고 새로 시작</div>',
+             '<div class="ds">이번 판을 버리고<br>시작 화면으로</div>',
              function(){ pauseConfirmRestart = true; renderPauseCards(); }, false);
 }
 
@@ -5710,20 +5720,31 @@ headClose.addEventListener('click', function(){
    한 곳만 빠뜨려도 조용히 깨진다 — 9단계에 실제로 그런 버그가 있었다.
    판 고유번호를 안 만든 경로의 판이 통째로 서버에서 거부됐고, 게임에는
    아무 증상이 없어서 아무도 몰랐다(계획/9-기록수집과-대시보드.md). */
-function 새판시작(){
-  world.applyMeta(Save.get().meta);   // 상점에서 산 강화를 다음 판에 반영
-  world.reset(Save.starter());
+/* 판 상태를 새 판으로 되돌린다. **화면은 안 건드린다** — 여기서 나가는 곳이
+   둘이기 때문이다(바로 시작하거나, 시작 화면으로 가거나). */
+function 새판준비(){
+  world.applyMeta(Save.get().meta);   // 상점에서 산 강화를 다음 판에 반영.
+                                      // reset 만으로는 안 된다 — metaMult 는 applyMeta 가 갱신한다.
+                                      // 빠지면 코인은 나갔는데 그 판에 효과가 없다.
+  world.reset(Save.starter());        // 상점에서 방금 장착했을 수도 있는 시작 무기를 반영
   syncSoundTrackers();   // 새 판은 딜량 0·보스 없음 — 이전 판 값이 남아있지 않게 동기화
   catLastX = null;   // 이전 판 좌표가 남아있으면 안 되므로 리셋할 때마다 걸음 추적을 함께 비운다
   RunSave.clear();                   // 새 판을 시작하니 옛 저장은 버린다
-  isPauseScreen = false;
-  pauseConfirmRestart = false;
   runBanked = false;
   runTainted = false;
   runUid = 새판고유번호();
+}
+
+function 새판시작(){
+  새판준비();
+  isPauseScreen = false;
+  pauseConfirmRestart = false;
+  atStartScreen = false;
   overlay.classList.remove('on');
   cardsEl.innerHTML = '';            // 일시정지 화면에서 왔다면 그 카드를 치운다
   cardsEl.style.display = 'none';
+  shopBtn.style.display = 'block';
+  overlayBtn.style.display = 'block';
   paused = false;
   lastTime = 0;
 }
@@ -5979,26 +6000,11 @@ function showStartScreen(){
   appendCard('<div class="ico">\u{25B6}\u{FE0F}</div>' +
              '<div class="nm">시작하기</div>' +
              '<div class="ds">지금 바로 시작</div>',
-             function(){
-               // 이어하기 화면의 "새로 시작"과 같은 순서 — 시작하는 자리는 하나의
-               // 틀을 따라야 runUid 가 빠지는 경로가 생기지 않는다.
-               runUid = 새판고유번호();
-               cardsEl.innerHTML = '';
-               cardsEl.style.display = 'none';
-               shopBtn.style.display = 'block';
-               overlayBtn.style.display = 'block';
-               overlay.classList.remove('on');
-               atStartScreen = false;
-               paused = false;
-               lastTime = 0;
-               // 이 화면에서 상점에 다녀올 수 있으므로, 방금 산 강화를 다시 계산해야 한다.
-               // reset 만으로는 안 된다 — metaMult 는 applyMeta 가 갱신하고 reset 은 안 건드린다.
-               // 이게 빠지면 코인은 나갔는데 그 판에는 효과가 없다("다시 하기" 쪽은 이미 이 순서다).
-               world.applyMeta(Save.get().meta);
-               world.reset(Save.starter());   // 상점에서 방금 장착했을 수도 있는 시작 무기를 반영한다
-               syncSoundTrackers();   // 새 판은 딜량 0·보스 없음 — 이전 판 값이 남아있지 않게 동기화
-               catLastX = null;   // 이전 판 좌표가 남아있으면 안 되므로 리셋할 때마다 걸음 추적을 함께 비운다
-             }, false);
+             // 결과 화면의 "다시 하기" 와 **같은 함수**를 쓴다. 예전엔 여기에
+             // 같은 열 줄이 따로 복사돼 있었다 — 시작하는 자리는 하나의 틀을
+             // 따라야 runUid 나 applyMeta 가 빠지는 경로가 안 생긴다.
+             // (이 화면에서 상점에 다녀올 수 있으므로 applyMeta 가 특히 중요하다.)
+             function(){ 새판시작(); }, false);
 
   appendCard('<div class="ico">\u{1FA99}</div>' +
              '<div class="nm">상점</div>' +
