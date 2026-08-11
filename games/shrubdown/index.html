@@ -1366,9 +1366,13 @@ const ART_KEY = {
   elm: 'guard_elm',         // 느티나무 🌳 (큰 나무)
 };
 // 유닛 id로 아트 data URI 반환. 아트가 없으면 null → 렌더에서 이모지로 폴백한다(누락에도 안 깨지게).
+// 지금 폴백으로 뜨는 건 봉선화·수박 둘뿐 — assets.js에 balsam/watermelon 키가 아직 없다.
+// (발주서: 아트발주_봉선화·수박.md. 그 키 이름 그대로 넣으면 아래 `|| plantId`가 알아서 찾는다.)
 function artFor(plantId){
   if(typeof PLANT_ART === 'undefined') return null;
-  if(plantId in ART_KEY && ART_KEY[plantId]===null) return null; // 깨끗한 단독 아트가 없어 이모지 폴백(대나무·소나무·갈대·느티나무)
+  // 표에 일부러 null을 적어둔 id는 이모지 폴백 — "이 유닛은 쓸 만한 아트가 없다"를 표에 남기는 자리다.
+  // 지금은 해당 없음(대나무·소나무·갈대·느티나무가 여기 있었는데 guard_* 아트가 붙으면서 빠졌다).
+  if(plantId in ART_KEY && ART_KEY[plantId]===null) return null;
   const key = ART_KEY[plantId] || plantId;
   return PLANT_ART[key] || null;
 }
