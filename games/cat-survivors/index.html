@@ -97,6 +97,13 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
 /* 진화형 그림. 16×16 도트라 확대할 때 흐려지면 안 된다(캔버스의 imageSmoothing 과 같은 뜻). */
 .evoIco{ width:44px; height:44px; display:block; margin:0 auto;
          image-rendering:pixelated; image-rendering:crisp-edges }
+/* 21단계: 기본형 무기 그림을 카드에 끼운다. 크기를 이모지(38px)에 맞췄다 —
+   더 키우면 카드 높이가 늘어 3택이 폰 한 화면에 안 들어간다. */
+.wpnIco{ width:38px; height:38px; display:block; margin:0 auto;
+         image-rendering:pixelated; image-rendering:crisp-edges }
+/* 도감 절 제목에 붙는 작은 아이콘. 글자 옆에 서야 해서 inline 이다. */
+.wpnIcoSm{ width:20px; height:20px; vertical-align:-4px; margin-right:4px;
+           image-rendering:pixelated; image-rendering:crisp-edges }
 /* 일시정지 버튼 — 폰 엄지로 닿아야 하므로 최소 44px */
 #pauseBtn{
   position: fixed; top: 10px; right: 10px; z-index: 5;
@@ -3342,9 +3349,60 @@ var BASE_SPRITES = {
   ]
 };
 
-/* 훑는 고정 순서(for...in 금지). 진화형 목록과 달리 **부분집합**이라
-   evolutionOrder 와 대조할 수 없다 — 대신 "무기표에 있는 id 인가" 만 검사한다. */
+/* ── 21단계 뒷부분: 카드 아이콘 전용 넉 장 ──────────────────────
+   위 여섯 장은 필드에 그려진다. 아래 넷은 **카드·도감·HUD 아이콘에만** 쓴다.
+
+   왜 이제 와서 그리나: 레이저·정전기·우유를 필드에서 못 그린 이유는
+   "선 길이가 매번 달라서 16×16 을 놓을 자리가 없다" 였다. **아이콘은 칸이
+   고정이라 그 문제가 아예 없다.** 못 그리는 게 아니라 자리가 없었던 것이다.
+   고양이 친구도 마찬가지 — 필드에는 이미 전신 고양이가 걸어다니지만
+   카드 칸에 전신을 넣으면 작아서 안 보인다. 얼굴이 따로 필요하다.
+
+   ⚠️ 이 넷은 필드 그리는 자리(투사체·공전 공·스윙·폭발)에 **닿지 않는다.**
+      그 네 자리는 kind 가 projectile/orbit/claw/blast 인 무기만 지나가는데
+      이 넷은 beam/chain/field/companion 이라 애초에 안 들어온다.
+      나중에 우유를 장판으로 그리게 되면 이 우유잔이 바닥에 깔리지 않도록
+      **새 그림을 따로 그릴 것** — 잔은 아이콘이지 장판이 아니다. */
+var BASE_ICON_SPRITES = {
+  // 레이저 포인터 — 붉은 조준점. 진화형(햇빛 모으기)은 햇살이 렌즈로 모이는 그림이다.
+  laser: [
+    '.......rr.......','.......rr.......','.....rrrrrr.....','....rr....rr....',
+    '...rr......rr...','..rr........rr..','.rr..........rr.','rr....WWWW....rr',
+    'rr....WWWW....rr','.rr..........rr.','..rr........rr..','...rr......rr...',
+    '....rr....rr....','.....rrrrrr.....','.......rr.......','.......rr.......'
+  ],
+  // 정전기 — 가는 번개 한 줄. 진화형(번개)은 같은 모양이 굵은 줄기가 되고 심이 하얘진다.
+  zap: [
+    '..........zzz...','.........zzz....','........zzz.....','.......zzz......',
+    '......zzz.......','.....zzzzzzz....','..........zz....','.........zz.....',
+    '........zz......','.......zz.......','......zz........','.....zz.........',
+    '....zz..........','...zz...........','..zz............','.zz.............'
+  ],
+  // 우유 웅덩이 — 우유잔(이모지 🥛 를 그대로 도트로 옮긴 것이라 바뀐 걸 못 알아볼 일이 없다).
+  // 진화형(우유 바다)은 화면을 덮는 우유 표면이다.
+  milk: [
+    '..CCCCCCCCCCCC..','..CWWWWWWWWWWC..','..CWWWWWWWWWWC..','..CWWWWWWWWWWC..',
+    '..CWWMMWWWWMWC..','...CWWWWWWWWC...','...CWWWWWWWWC...','...CWWMWWWWWC...',
+    '...CWWWWWWWWC...','....CWWWWWWC....','....CWWWWWWC....','....CWWMWWWC....',
+    '.....CWWWWC.....','.....CWWWWC.....','.....CCCCCC.....','....CCCCCCCC....'
+  ],
+  // 고양이 친구 — 순한 얼굴. 진화형(들고양이)은 같은 얼굴이 노려보고 송곳니가 난다.
+  // 틀은 진화형과 똑같이 두고 **눈과 입만** 바꿨다 — 같은 고양이가 사나워지는 것이라야 한다.
+  friend: [
+    '.FF..........FF.','.FfF........FfF.','.FfpF......FpfF.','.FfffFFFFFFfffF.',
+    '.FffffffffffffF.','FffffffffffffffF','FfffkkffffkkfffF','FfffkWffffkWfffF',
+    'FffkkffppffkkffF','FffffffppffffffF','FfffffkffkfffffF','.FffffkkkkffffF.',
+    '.FfffffkkfffffF.','..FffffffffffF..','.FffffFFFFffffF.','.FFff......ffFF.'
+  ]
+};
+
+/* 훑는 고정 순서(for...in 금지). 진화형 목록과 달리 순서를 evolutionOrder 와
+   대조할 수 없으므로 "무기표에 있는 id 인가" 를 검사한다.
+   BASE_SPRITES(필드+아이콘 여섯) 와 BASE_ICON_SPRITES(아이콘만 넷) 를
+   **표 자체로 갈라 놓았다** — 목록 하나에 담고 "앞 여섯은 필드용" 이라고
+   적어두는 방식은, 나중에 누가 목록 가운데에 하나 끼우면 조용히 깨진다. */
 var BASE_SPRITE_IDS = ['claw','yarn','bone','catnip','tail','tornado'];
+var BASE_ICON_IDS   = ['laser','zap','milk','friend'];
 
 /* 적 typeId → 어떤 그림을 어떤 색으로, 좌우를 뒤집을지.
    tint 는 PAL_MOB 위에 덮어쓸 글자만 적는다. */
@@ -3385,6 +3443,7 @@ root.CatArt = {
   WEAPON_PALETTE: WEAPON_PALETTE,
   WEAPON_SPRITES: WEAPON_SPRITES, WEAPON_SPRITE_IDS: WEAPON_SPRITE_IDS,
   BASE_SPRITES: BASE_SPRITES, BASE_SPRITE_IDS: BASE_SPRITE_IDS,
+  BASE_ICON_SPRITES: BASE_ICON_SPRITES, BASE_ICON_IDS: BASE_ICON_IDS,
   ENEMY_ART: ENEMY_ART, ENEMY_IDS: ENEMY_IDS,
   mobPalette: mobPalette,
   GROUND_KEYS: GROUND_KEYS,
@@ -3900,16 +3959,38 @@ var WEAPON_ICON = {};
 /* 21단계: 기본형도 같은 방식으로 굽는다. 표만 다르고 절차는 위와 똑같다.
    판이 따로인 이유는 id 가 겹치기 때문이다 — WEAPON_BAKED.yarn 은 실타래 폭풍,
    BASE_BAKED.yarn 은 털뭉치다. 한 판에 담으면 하나가 다른 하나를 덮어쓴다. */
-var BASE_BAKED = {};
+var BASE_BAKED    = {};   // 필드에 그리는 판. 여섯 무기만 들어 있다.
+var BASE_ICON     = {};   // 카드·도감용 data URL(HTML 에 끼운다). 열 무기 전부.
+var BASE_ICON_IMG = {};   // HUD 용 캔버스(canvas 에 그린다). 열 무기 전부.
 (function bakeBaseArt(){
   if (!ART.BASE_SPRITE_IDS || !ART.BASE_SPRITES || !ART.WEAPON_PALETTE) return;
-  for (var i = 0; i < ART.BASE_SPRITE_IDS.length; i++){
-    var id = ART.BASE_SPRITE_IDS[i];
-    var rows = ART.BASE_SPRITES[id];
-    if (!validDecorRows(rows)) continue;   // 한 장이 망가져도 나머지는 살린다
-    BASE_BAKED[id] = bakeFrame(rows, ART.WEAPON_PALETTE, null);
+  /* 두 표를 한 번에 훑되 **필드 판에 넣는 것은 앞 표뿐**이다.
+     아이콘 전용 넷(우유잔·조준점 등)이 BASE_BAKED 에 섞이면, 나중에 누가
+     필드 그리는 자리에 BASE_BAKED[id] 를 쓰는 순간 우유잔이 바닥에 깔린다. */
+  var 묶음 = [[ART.BASE_SPRITE_IDS, ART.BASE_SPRITES, true],
+              [ART.BASE_ICON_IDS || [], ART.BASE_ICON_SPRITES || {}, false]];
+  for (var b = 0; b < 묶음.length; b++){
+    var ids = 묶음[b][0], table = 묶음[b][1], 필드용 = 묶음[b][2];
+    for (var i = 0; i < ids.length; i++){
+      var id = ids[i], rows = table[id];
+      if (!validDecorRows(rows)) continue;   // 한 장이 망가져도 나머지는 살린다
+      var img = bakeFrame(rows, ART.WEAPON_PALETTE, null);
+      if (필드용) BASE_BAKED[id] = img;
+      BASE_ICON_IMG[id] = img;
+      // toDataURL 이 실패해도(캔버스 오염) 필드 쪽은 살아 있어야 하므로 조용히 넘긴다.
+      try { BASE_ICON[id] = img.toDataURL(); } catch (e) {}
+    }
   }
 })();
+
+/* 무기 아이콘 한 칸(HTML). 그림이 있으면 도트, 없으면 **이모지로 떨어진다**.
+   패시브·고양이 캔·적에는 그림이 없어서 그쪽은 이 함수를 안 거치고 이모지 그대로다.
+   진화한 무기는 진화형 그림을 보여준다 — 손에 든 것과 화면에 나는 것이 같아야 한다. */
+function weaponIcoHtml(id, 이모지){
+  var url = (world && world.isEvolved(id) && WEAPON_ICON[id]) ? WEAPON_ICON[id]
+                                                             : BASE_ICON[id];
+  return url ? '<img class="wpnIco" src="' + url + '" alt="">' : 이모지;
+}
 
 /* 우유 바다는 화면 세로 절반을 덮는 장판이다(반경 = viewHalfH, 폰에서 390px 안팎).
    16×16 을 가운데 한 장 찍으면 안 보이고, 반경만큼 통째로 늘리면 도트 하나가
@@ -4369,12 +4450,18 @@ function drawHud(){
     ctx.fillStyle = '#d46a6a';
     ctx.fillRect(pad, pad + 56, bw * Math.max(0, world.boss.hp / world.boss.maxHp), 10);
   }
-  // 보유 무기 아이콘 (좌하단)
+  /* 보유 무기 아이콘 (좌하단). 그림이 있으면 도트, 없으면 이모지로 떨어진다.
+     ⚠️ 이모지는 **글자 밑선** 기준이고 그림은 **네모** 기준이라 같은 y 를 주면
+        줄이 어긋난다. 26px 짜리 그림의 아래를 밑선(viewH-26)에 맞춰 올린다. */
   ctx.textAlign = 'left';
   ctx.font = '22px serif';
-  var order = world.weaponOrder;
+  var order = world.weaponOrder, ICO = 26;
   for (var wi = 0; wi < order.length; wi++){
-    ctx.fillText(CONFIG.weapons[order[wi]].emoji, 12 + wi * 30, viewH - 26);
+    var wid = order[wi];
+    var wimg = (world.isEvolved(wid) && WEAPON_BAKED[wid]) ? WEAPON_BAKED[wid]
+                                                           : BASE_ICON_IMG[wid];
+    if (wimg) ctx.drawImage(wimg, 12 + wi * 30, viewH - 26 - ICO + 4, ICO, ICO);
+    else      ctx.fillText(CONFIG.weapons[wid].emoji, 12 + wi * 30, viewH - 26);
   }
   // 고양이 그리기용 설정으로 되돌린다
   ctx.font = '32px serif';
@@ -4650,7 +4737,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '866ddd9';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = '69fd0a6';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -4701,7 +4788,9 @@ function renderChoices(choices){
   cardsEl.innerHTML = '';
   for (var i = 0; i < choices.length; i++){
     (function(c){
-      appendCard('<div class="ico">' + c.emoji + '</div>' +
+      // 무기 카드만 그림이다. 패시브·고양이 캔은 그림이 없어서 이모지 그대로 간다.
+      var 아이콘 = (c.kind === 'weapon') ? weaponIcoHtml(c.id, c.emoji) : c.emoji;
+      appendCard('<div class="ico">' + 아이콘 + '</div>' +
                  '<div class="nm">' + c.name + '</div>' +
                  '<div class="lv">' + (c.level ? 'Lv.' + c.level : '') + '</div>' +
                  '<div class="ds">' + c.desc + '</div>',
@@ -5111,6 +5200,27 @@ function codexSection(글자){
   cardsEl.appendChild(d);
 }
 
+/* 그림이 붙는 절 제목. codexSection 을 안 고치고 따로 둔 이유는 저쪽이
+   textContent 라서다 — 그림을 넣으려고 innerHTML 로 바꾸면, 지금은 전부
+   내부 상수라 안전하지만 나중에 적 이름 같은 걸 넘기는 순간 통로가 열린다.
+   그림이 필요한 자리만 이쪽을 쓴다. */
+function codexSectionIco(id, 이모지, 글자){
+  var d = document.createElement('div');
+  d.className = 'shopSection';
+  var url = (world.isEvolved(id) && WEAPON_ICON[id]) ? WEAPON_ICON[id] : BASE_ICON[id];
+  if (url){
+    var im = document.createElement('img');
+    im.className = 'wpnIcoSm';
+    im.src = url;
+    im.alt = '';
+    d.appendChild(im);
+    d.appendChild(document.createTextNode(글자));
+  } else {
+    d.textContent = 이모지 + ' ' + 글자;   // 그림이 없으면 예전 모습 그대로
+  }
+  cardsEl.appendChild(d);
+}
+
 // 폭 전체를 쓰는 안내 한 줄. 좌우 분할이 아니라 한 덩어리다(폰에서 안 접히게).
 function codexNote(글자){
   var d = document.createElement('div');
@@ -5140,7 +5250,7 @@ function codexWeapons(){
       줄 += '<br>' + fM.label + ' ' + f1.value + ' → ' + fM.value + fM.unit;
     else if (f1)
       줄 += '<br>' + f1.label + ' ' + f1.value + f1.unit;
-    codexSection(c.emoji + ' ' + c.name);
+    codexSectionIco(id, c.emoji, c.name);
     codexRow(c.desc, '');
     codexRow('Lv.1 → Lv.' + max, 줄, true);
     // 19단계: 5성을 찍고 보스 상자를 먹으면 무엇이 되는지. 15단계의 정신이
@@ -5299,7 +5409,7 @@ function showShop(){
       var f1 = world.weaponFeatureAt(id, 1);
       var 수치 = '공격력 ' + shellRound1(world.weaponBaseDamageAt(id, 1));
       if (f1) 수치 += ' · ' + f1.label + ' ' + f1.value + f1.unit;
-      appendCard('<div class="ico">' + wcfg.emoji + '</div>' +
+      appendCard('<div class="ico">' + weaponIcoHtml(id, wcfg.emoji) + '</div>' +
                  '<div class="nm">' + wcfg.name + '</div>' +
                  '<div class="ds">' + wcfg.desc + '<br>' + 수치 + '<br>' + 아랫줄 + '</div>',
                  function(){
