@@ -3331,6 +3331,22 @@ var BASE_SPRITES = {
     'vvvvvvvvvvvvVVvv','vvvvvvvvvvvVVVvv','vvvvvvvvvVVVVvvv','.vvvvvvVVVVVvvv.',
     '.vvvvVVVVVVvvvv.','..vvVVVVVVVvvv..','...vVVVVVVVVv...','.....VVVVVV.....'
   ],
+  /* 레이저 포인터 — **띠 무늬**다. 한 장을 통째로 그리는 게 아니라 띠를 따라
+     옆으로 이어 붙인다(사거리가 레벨마다 달라 한 장으로는 못 덮는다).
+     그래서 **위아래 끝을 비우면 안 된다** — 타일 높이가 곧 띠 높이(판정 폭)라
+     비우면 그린 띠가 판정보다 얇아져 "안 맞은 것 같은데 맞는" 구간이 생긴다.
+     좌우도 마찬가지로 채워야 이음매가 안 보인다.
+
+     ⚠️ 진화형(햇빛 모으기)도 **같은 그림**을 쓰고 팔레트만 노랗게 갈아끼운다.
+        진화 티는 색·폭 2배·앞뒤 두 줄·끝의 렌즈 그림이 이미 내고 있다.
+        여기서 그림까지 따로 만들면 "같은 빔이 세졌다" 가 아니라 딴 무기가 된다.
+     ⚠️ 아이콘은 이 그림이 아니라 BASE_ICON_SPRITES.laser(조준점)를 쓴다. */
+  laser: [
+    'rrrrrrrrrrrrrrrr','rrrrrrrrrrrrrrrr','rrrrrrrrrrrrrrrr','rWrrrrrWrrrrrWrr',
+    'rrrrrrrrrrrrrrrr','rrrrrrrrrrrrrrrr','WWWWWWWWWWWWWWWW','WWWWWWWWWWWWWWWW',
+    'WWWWWWWWWWWWWWWW','rrrrrrrrrrrrrrrr','rrrrrrrrrrrrrrrr','rrrWrrrrrWrrrrrW',
+    'rrrrrrrrrrrrrrrr','rrrrrrrrrrrrrrrr','rrrrrrrrrrrrrrrr','rrrrrrrrrrrrrrrr'
+  ],
   /* 우유 웅덩이 — **장판 무늬**다. 위 그림들과 쓰임이 다르다:
      한 장을 통째로 그리는 게 아니라 **이어 붙여 반복**해서 판정 반경 안을 채운다
      (진화형 우유 바다가 쓰는 장치를 그대로 쓴다).
@@ -3421,7 +3437,7 @@ var BASE_ICON_SPRITES = {
       장판 무늬여야 하고 카드에서는 한눈에 읽히는 잔이어야 한다 — 무늬를 카드에
       넣으면 흰 네모고, 잔을 바닥에 깔면 잔이 바닥에 널린다. 나머지 아홉은
       한쪽에만 있고, 그때는 있는 쪽 그림을 양쪽에 쓴다. */
-var BASE_SPRITE_IDS = ['claw','yarn','bone','catnip','tail','tornado','milk'];
+var BASE_SPRITE_IDS = ['claw','yarn','bone','catnip','tail','tornado','milk','laser'];
 var BASE_ICON_IDS   = ['laser','zap','milk','friend'];
 
 /* 적 typeId → 어떤 그림을 어떤 색으로, 좌우를 뒤집을지.
@@ -4044,6 +4060,19 @@ function bakeMilkPattern(src){
 var MILK_PATTERN      = bakeMilkPattern(WEAPON_BAKED.milk);   // 우유 바다(진화형)
 var MILK_PATTERN_BASE = bakeMilkPattern(BASE_BAKED.milk);     // 우유 웅덩이(기본형)
 
+/* 레이저 띠 타일. 기본형(붉은 포인터)과 진화형(노란 햇살)이 **같은 그림**이고
+   팔레트만 다르다 — 생물 그림에서 king1/king2 를 같은 그림 다른 색으로 쓰는
+   것과 같은 수법이다. 그림을 따로 만들면 "같은 빔이 세졌다" 가 아니라 딴 무기가 된다. */
+var LASER_TILE = BASE_BAKED.laser || null;
+var LASER_TILE_EVO = (function bakeSunBeam(){
+  var rows = ART.BASE_SPRITES && ART.BASE_SPRITES.laser;
+  if (!rows || !validDecorRows(rows)) return null;
+  var pal = {}, k;
+  for (k in ART.WEAPON_PALETTE) pal[k] = ART.WEAPON_PALETTE[k];
+  pal.r = ART.WEAPON_PALETTE.y || '#fff2a8';   // 붉은 테두리를 햇빛 노랑으로
+  return bakeFrame(rows, pal, null);
+})();
+
 // 🎁 상자 화면 크기. 16도트 × 3배 — 정수 배율이라 도트가 안 뭉개진다.
 // 판정(pickupRadius 26 + 고양이 반경)보다 조금 작아서 "닿았는데 안 먹힌다" 가 안 생긴다.
 var BOX_PX = 48;
@@ -4320,8 +4349,26 @@ function render(){
       ctx.translate(viewW / 2, viewH / 2);
       ctx.rotate(bang);
       ctx.globalAlpha = 0.75 * beamT;
-      ctx.fillStyle = laserEvo ? '#fff2a8' : '#ff5a5a';
-      ctx.fillRect(0, -world.beamHalfW, world.beamLen, world.beamHalfW * 2);
+      /* 띠를 따라 타일을 이어 붙인다. 사거리(400~640)가 레벨마다 달라 한 장으로는
+         못 덮으므로, 타일 하나를 **띠 높이만큼** 키워 길이 방향으로 반복한다.
+         타일 높이 = 띠 높이 = 판정 폭이라 "그린 것과 맞는 것" 이 어긋나지 않는다.
+         ⚠️ 마지막 한 장은 남은 길이만큼만 잘라 그린다 — 통째로 그리면 띠가
+            사거리 밖으로 삐져나가 "닿을 것 같은데 안 닿는" 구간이 생긴다. */
+      var ltile = laserEvo ? LASER_TILE_EVO : LASER_TILE;
+      var bh = world.beamHalfW * 2;
+      if (ltile && bh > 0){
+        var 남음 = world.beamLen, x = 0;
+        ctx.imageSmoothingEnabled = false;   // 도트를 흐리게 늘리지 않는다
+        while (남음 > 0.5){
+          var 폭 = 남음 < bh ? 남음 : bh;
+          ctx.drawImage(ltile, 0, 0, ltile.width * (폭 / bh), ltile.height,
+                        x, -world.beamHalfW, 폭, bh);
+          x += 폭; 남음 -= 폭;
+        }
+      } else {
+        ctx.fillStyle = laserEvo ? '#fff2a8' : '#ff5a5a';   // 그림이 없으면 옛 방식
+        ctx.fillRect(0, -world.beamHalfW, world.beamLen, world.beamHalfW * 2);
+      }
       ctx.globalAlpha = 1;
       ctx.restore();
       /* 빛이 모이는 자리(집광점)를 띠 끝에 찍는다. 회전한 상태에서 그리면 그림까지
@@ -4770,7 +4817,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = 'ebf2523';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = '1c875d3';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
