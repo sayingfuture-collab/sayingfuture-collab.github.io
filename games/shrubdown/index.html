@@ -856,6 +856,28 @@
     100%{transform:scale(1); opacity:1;}
   }
 
+  /* ===== 보상 룰렛 ===== */
+  .wheel-wrap{
+    position:relative; display:flex; flex-direction:column; align-items:center;
+    cursor:pointer; user-select:none; padding-top: 10px;
+  }
+  .wheel-pin{
+    position:absolute; top:0; font-size:20px; line-height:1;
+    color: var(--gold-deep); z-index:2; text-shadow: 0 1px 0 var(--card-bg);
+  }
+  #lotWheelSpin{
+    transform-origin: 130px 130px;
+    transition: transform 1200ms cubic-bezier(0.15, 0.85, 0.25, 1);  /* JS의 WHEEL_SPIN_MS와 짝 */
+  }
+  .w-good{ fill: var(--leaf); stroke: var(--card-bg); stroke-width:1.5; }
+  .w-low{  fill: var(--sky);  stroke: var(--card-bg); stroke-width:1.5; }
+  .w-num{ font-size:13px; font-weight:800; fill:#2b3b28; text-anchor:middle; dominant-baseline:middle; }
+  .w-hub{ fill: var(--card-bg); stroke: var(--gold); stroke-width:3; }
+  .wheel-hint{ font-size:11px; color: var(--ink-soft); margin-top:8px; }
+  @media (prefers-reduced-motion: reduce){
+    #lotWheelSpin{ transition: none; }
+  }
+
   .center-msg{text-align:center; padding: 30px 0;}
   .center-msg .big{font-size:26px; font-weight:800; color: var(--leaf-deep);}
 
@@ -1130,10 +1152,10 @@ const PLANTS = {
   // --- 확장 C: 운빨 2종 (설계안-운빨식물_2종.md) ---
   // playerOnly: 적 팀 풀에서 제외된다(poolForWave). 내가 산 도박은 납득되지만
   // 적이 굴린 주사위에 지는 건 참가하지도 않은 도박에서 지는 것이라 체감이 다르다.
-  balsam: {id:'balsam', name:'봉선화', nameEn:'Balsam', emoji:'🌸', tier:3, role:'검사', cost:4, atk:2, hp:3, playerOnly:true,
+  balsam: {id:'balsam', name:'봉선화', nameEn:'Balsam', emoji:'🌸', tier:3, role:'검사', cost:4, atk:2, hp:4, playerOnly:true,
     trigger:'onBattleStart', desc:'전투 시작 시: 30% 확률로 자신 공격력 +8. 빗나가면 아무 일도 없다.', descEn:'Battle start: 30% chance to gain +8 ATK — otherwise nothing.', flavor:'손끝이 닿는 순간, 터질지 말지는 씨앗만 안다', flavorEn:'The moment you touch it, only the seed knows.'},
-  watermelon: {id:'watermelon', name:'수박', nameEn:'Watermelon', emoji:'🍉', tier:4, role:'수호자', cost:5, atk:2, hp:2, playerOnly:true,
-    trigger:'onBattleStart', desc:'전투 시작 시: 50% 확률로 자신 체력 +18. 빗나가면 아무 일도 없다.', descEn:'Battle start: 50% chance to gain +18 HP — otherwise nothing.', flavor:'두드려봐야 소용없다 — 갈라봐야 안다', flavorEn:'Knocking tells you nothing. Only cutting does.'},
+  watermelon: {id:'watermelon', name:'수박', nameEn:'Watermelon', emoji:'🍉', tier:4, role:'수호자', cost:5, atk:2, hp:5, playerOnly:true,
+    trigger:'onBattleStart', desc:'전투 시작 시: 50% 확률로 자신 체력 +12. 빗나가면 아무 일도 없다.', descEn:'Battle start: 50% chance to gain +12 HP — otherwise nothing.', flavor:'두드려봐야 소용없다 — 갈라봐야 안다', flavorEn:'Knocking tells you nothing. Only cutting does.'},
 };
 const PLANT_LIST = Object.values(PLANTS);
 
@@ -1426,7 +1448,7 @@ const CODEX_SCALING = {
   // 더하면 최종값이 된다(대나무의 "견고 +N"과 같은 문법). 확률은 ★와 무관하게 고정이다.
   balsam:    { amt: lv => Math.round(8 * levelMult(lv)),
     ko: n => `30%로 공격 +${n}`,         en: n => `30% chance: +${n} ATK` },
-  watermelon:{ amt: lv => Math.round(18 * levelMult(lv)),
+  watermelon:{ amt: lv => Math.round(12 * levelMult(lv)),
     ko: n => `50%로 체력 +${n}`,         en: n => `50% chance: +${n} HP` },
 };
 
@@ -1673,8 +1695,8 @@ function makeBossTeam(wave){
 // 세션 내내 "쉽다↔어렵다"를 오가며 개별 수치를 흔드는 대신, 플레이어가 직접 고른다.
 // 적 전체 스탯에 곱해지는 단일 배율 — 튜닝된 개별 수치는 그대로 두고 위에 얇게 얹는다.
 const DIFFICULTY = {
-  relaxed: {emoji:'😌', name:'느긋하게', nameEn:'Relaxed', mult:1.06}, // 0.95→1.06 (2026-08): 상점 균등화(FLAT_SHOP_FROM)로 다시 쉬워져 재조정. 최신 실측 18.1%(목표 15~23%, 봇 3000판). 이력은 밸런스리포트 13·15·16절
-  normal:  {emoji:'⚔️', name:'보통',     nameEn:'Normal',  mult:1.16}, // 1.08→1.16 (2026-08): 균등화 재조정. 최신 실측 7.9%(목표 5~10%, 봇 3000판)
+  relaxed: {emoji:'😌', name:'느긋하게', nameEn:'Relaxed', mult:1.05}, // 1.06→1.05 (2026-08-10): 운빨 식물 2종이 상점 풀을 희석해 18.1%→15.2%로 내려간 것을 되돌림. 1.05와 1.04 사이가 반올림 절벽이다(합산 16.6% vs 21.2%, +4.5pp) — 1.04도 밴드(15~23) 안이지만 상단에 붙어서 1.05를 골랐다. 이력은 밸런스리포트 13·15·16·18절
+  normal:  {emoji:'⚔️', name:'보통',     nameEn:'Normal',  mult:1.16}, // 유지 (2026-08-10 재확인): 운빨 식물로 8.7%→6.6%로 내려갔지만 이 구간은 손잡이가 평평하다 — 1.15/1.14/1.13 = 7.8/7.4/7.9%(n=1000)로 차이가 노이즈고, 1.15를 n=2000×2로 확정하니 6.65%로 1.16(6.4%)과 구별되지 않았다. 재현 안 되는 이동을 쫓아 값을 옮기지 않는다. 밴드(5~10) 안이다
   hard:    {emoji:'🔥', name:'어렵게',   nameEn:'Hard',    mult:1.25}, // 1.15→1.25 (2026-08): 균등화 재조정. 최신 실측 2.2%(목표 1~4%, 봇 3000판). 배율-클리어율 곡선은 적 스탯 반올림 때문에 계단형이라 미세조정이 안 먹는 구간이 있음. 아래는 이전 튜닝 메모.
                                // 5인 벽 부활안(w17)은 봇 실측에서 "보스 전 절벽+보스 김빠짐" 재현이라 기각, 배율 단독 상향이
                                // 페이싱 모양(보스=최난)을 유지: 봇 클리어 0.2%, 보스 승률 5.6%. 여전히 쉬우면 1.25, 벽 같으면 1.13
@@ -2067,7 +2089,7 @@ function simulateBattle(playerTeamRaw, enemyTeamRaw, log){
           }
         } else if(plant.id==='watermelon'){
           if(Math.random() < 0.50){
-            const amt = Math.round(18 * mult);
+            const amt = Math.round(12 * mult);
             u.hp += amt; u.maxHp += amt;   // maxHp를 빼먹으면 현재체력이 최대치를 넘어 표시가 깨진다
             log.push(T(`🍉 수박을 쩍 갈랐더니 새빨간 속이 꽉! (체력 +${amt})`,`🍉 The watermelon splits open — packed and ripe! (+${amt} HP)`));
           } else {
@@ -3174,6 +3196,7 @@ function continueToReward(){
   clearAutoPlayTimer();
   // 이번 보상 화면에서 쓸 1회성 상태는 여기서 초기화한다 (아래 분기에서 새로 채운다)
   state.pendingLottery = null;
+  state.lotteryRevealed = false;
   state.perkChoices = null;
   // 클리어 웨이브(첫 보스)를 이기면 보상 대신 승리 화면으로. 이미 클리어한 뒤(무한 모드)에는 다시 뜨지 않는다.
   if(state.lastResult==='win' && state.wave>=BALANCE.CLEAR_WAVE && !state.cleared){
@@ -3591,6 +3614,62 @@ function claimFixed(amount){
   proceedAfterReward();
 }
 
+/* ===== 보상 룰렛 (설계안-보상룰렛.md) =====
+   원판 배치는 손으로 섞지 않고 규칙으로 만든다 — 남이 검증할 수 있고, 범위가 바뀌어도 따라온다.
+   낮은 절반과 높은 절반을 번갈아 끼우고, 홀수 개일 때 남는 가운데값을 맨 뒤에 붙인다.
+   순서대로 놓지 않는 이유: 3~9가 한 덩어리로 붙어 있으면 실제로는 균등한데도
+   "낮은 쪽이 몰려 있다"는 오해를 산다. */
+const WHEEL_TURNS = 3;        // 회전 바퀴 수
+const WHEEL_SPIN_MS = 1200;   // 회전 시간(ms) — 연출을 조정하려면 이 둘만 만진다
+
+function wheelLayout(min, max){
+  const vals = []; for(let v=min; v<=max; v++) vals.push(v);
+  const mid  = vals.length % 2 ? vals[(vals.length-1)/2] : null;
+  const rest = vals.filter(v => v !== mid);
+  const lo = rest.slice(0, rest.length/2), hi = rest.slice(rest.length/2);
+  const out = [];
+  for(let i=0; i<lo.length; i++) out.push(lo[i], hi[i]);
+  if(mid !== null) out.push(mid);
+  return out;
+}
+// 값 → 최종 회전각(도). 바늘은 12시 고정이므로 그 값의 부채꼴 중심이 위로 오게 돌린다.
+// 칸 i는 12시부터 시계방향으로 [i·step, (i+1)·step) 을 차지한다.
+function wheelAngleFor(layout, amount){
+  const step = 360 / layout.length;
+  return 360*WHEEL_TURNS - (layout.indexOf(amount) + 0.5) * step;
+}
+// 회전각 → 바늘 아래 값. wheelAngleFor의 역함수 — 검사가 왕복을 대조하는 데 쓴다.
+function wheelValueAt(layout, rotation){
+  const step = 360 / layout.length;
+  return layout[Math.floor(((((-rotation) % 360) + 360) % 360) / step)];
+}
+
+// 원판 SVG. 부채꼴은 전부 같은 각도다 — 이 그림 자체가 "균등하다"는 주장의 근거이므로
+// 크기를 눈대중으로 손보면 안 된다. 색은 BALANCE.REWARD_FIXED에서 갈린다(본전 이상/미만).
+function lotteryWheelHTML(layout, fixedAmount){
+  const n = layout.length, step = 360/n, R = 120, C = 130;
+  const wedges = layout.map((v, i)=>{
+    const a0 = (i*step - 90) * Math.PI/180;        // -90°: 12시에서 시작
+    const a1 = ((i+1)*step - 90) * Math.PI/180;
+    const tm = ((i+0.5)*step - 90) * Math.PI/180;  // 숫자를 놓을 칸 중심
+    const x0 = (C + R*Math.cos(a0)).toFixed(2), y0 = (C + R*Math.sin(a0)).toFixed(2);
+    const x1 = (C + R*Math.cos(a1)).toFixed(2), y1 = (C + R*Math.sin(a1)).toFixed(2);
+    const tx = (C + R*0.72*Math.cos(tm)).toFixed(2), ty = (C + R*0.72*Math.sin(tm)).toFixed(2);
+    const cls = v >= fixedAmount ? 'w-good' : 'w-low';
+    return `<path class="${cls}" d="M ${C} ${C} L ${x0} ${y0} A ${R} ${R} 0 0 1 ${x1} ${y1} Z"/>`
+         + `<text class="w-num" x="${tx}" y="${ty}">${v}</text>`;
+  }).join('');
+  return `
+    <div class="wheel-wrap" onclick="skipWheel()">
+      <div class="wheel-pin">▼</div>
+      <svg class="wheel" viewBox="0 0 260 260" width="260" height="260" aria-hidden="true">
+        <g id="lotWheelSpin">${wedges}</g>
+        <circle class="w-hub" cx="130" cy="130" r="18"/>
+      </svg>
+      <div class="wheel-hint">${T('돌리는 중… (아무 데나 눌러 건너뛰기)','Spinning… (tap anywhere to skip)')}</div>
+    </div>`;
+}
+
 // 복권 결과 화면 — 긁는 순간(claimLottery)과 화면을 다시 그릴 때(renderReward) 둘 다 이걸 쓴다.
 function lotteryResultHTML(amount){
   return `
@@ -3600,17 +3679,64 @@ function lotteryResultHTML(amount){
     </div>
   `;
 }
+let wheelTimer = null;
+
+// 하네스·구형 환경에 requestAnimationFrame이 없다. 없으면 즉시 실행한다.
+function nextFrame(fn){
+  if(typeof requestAnimationFrame === 'function') requestAnimationFrame(fn);
+  else fn();
+}
+function reduceMotion(){
+  try{ return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+  catch(e){ return false; }   // matchMedia 없는 환경에서도 죽지 않게
+}
+
 function claimLottery(){
   if(state.phase!=='reward') return;
   if(state.pendingLottery != null) return; // 이미 긁었다 — 같은 보상에서 다시 굴리지 않는다
-  SFX.merge();
+  SFX.reroll();
   const won = state.lastResult==='win';
   // 보상 범위는 BALANCE.REWARD_LOTTERY에서 조절 (min~max 균등 분포, 평균 = (min+max)/2)
   const lot = won ? BALANCE.REWARD_LOTTERY.win : BALANCE.REWARD_LOTTERY.lose;
   // 당첨 금액을 state에 남긴다. 예전엔 DOM에만 있어서 화면을 다시 그리면(언어 전환 등)
   // 결과가 통째로 사라지고 복권을 다시 긁을 수 있었다 — 원하는 금액이 나올 때까지 반복 가능.
   state.pendingLottery = Math.floor(Math.random()*(lot.max-lot.min+1)) + lot.min;
+  state.lotteryRevealed = false;   // 이번 굴림의 공개 여부 (revealLottery 중복 방지)
   saveGame();
+
+  const area = document.getElementById('rewardArea');
+  if(!area) return;
+  // 원판은 이미 정해진 금액을 "보여주기만" 한다. 각도를 읽어 금액을 정하는 구조로 뒤집으면
+  // 부동소수점 오차나 전환 중단에서 표시와 지급이 갈릴 수 있다.
+  const fixed  = won ? BALANCE.REWARD_FIXED.win : BALANCE.REWARD_FIXED.lose;
+  const layout = wheelLayout(lot.min, lot.max);
+  area.innerHTML = lotteryWheelHTML(layout, fixed);
+
+  const spin = document.getElementById('lotWheelSpin');
+  if(!spin || reduceMotion()){ revealLottery(); return; }
+  const angle = wheelAngleFor(layout, state.pendingLottery);
+  // 같은 프레임에 각도를 넣으면 전환 없이 점프한다 — 다음 프레임에 건다.
+  nextFrame(()=>{ spin.style.transform = 'rotate('+angle+'deg)'; });
+  clearTimeout(wheelTimer);
+  // transitionend가 아니라 타이머로 판정한다. 탭이 백그라운드로 가면 transitionend가
+  // 유실될 수 있고, 유실되면 결과 화면이 영영 안 뜬다.
+  wheelTimer = setTimeout(revealLottery, WHEEL_SPIN_MS);
+}
+
+// 회전 중 아무 데나 클릭. 결과는 이미 정해져 있으므로 건너뛰어도 공정성에 영향이 없다.
+function skipWheel(){
+  if(state.phase!=='reward' || state.pendingLottery == null) return;
+  revealLottery();
+}
+
+function revealLottery(){
+  clearTimeout(wheelTimer); wheelTimer = null;
+  if(state.phase!=='reward' || state.pendingLottery == null) return;
+  // 이미 공개했으면 다시 하지 않는다. 타이머와 막판 클릭이 같이 큐에 들어가면 당첨음이
+  // 두 번 울린다 (지급은 finishLottery 한 곳뿐이라 골드는 안 겹친다).
+  if(state.lotteryRevealed) return;
+  state.lotteryRevealed = true;
+  SFX.win();
   const area = document.getElementById('rewardArea');
   if(area) area.innerHTML = lotteryResultHTML(state.pendingLottery);
 }
@@ -3837,6 +3963,14 @@ function migrateState(s){
   s.gold  = clampInt(s.gold,  0, 999999, BALANCE.START_GOLD);
   s.wave  = clampInt(s.wave,  1, 999999, 1);
   s.lives = clampInt(s.lives, 0, BALANCE.START_LIVES, BALANCE.START_LIVES);
+  // 긁어놓고 아직 안 받은 복권 당첨금. 손상된 저장이 999나 문자열을 넣으면 그대로 지급되거나
+  // gold의 타입을 깨뜨린다 — 실제 당첨 범위(승/패 양쪽을 합친 최소~최대) 밖이면 버린다.
+  if(s.pendingLottery != null){
+    const W = BALANCE.REWARD_LOTTERY.win, L = BALANCE.REWARD_LOTTERY.lose;
+    const lo = Math.min(W.min, L.min), hi = Math.max(W.max, L.max);
+    const v = Math.floor(Number(s.pendingLottery));
+    s.pendingLottery = (Number.isFinite(v) && v >= lo && v <= hi) ? v : null;
+  }
   if(!Array.isArray(s.shop))       s.shop       = [];
   if(!Array.isArray(s.shopBonus))  s.shopBonus  = new Array(BALANCE.SHOP_SIZE).fill(0);
   if(!Array.isArray(s.shopFrozen)) s.shopFrozen = new Array(BALANCE.SHOP_SIZE).fill(false);
