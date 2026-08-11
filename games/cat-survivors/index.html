@@ -3367,8 +3367,12 @@ var dpr = 1, viewW = 0, viewH = 0;
 // 아직 준비 안 된 상태(고양이 애니메이션 프레임 데이터 등)를 읽어 죽는다.
 // frame() 이 처음 한 번 돈 뒤부터만 resize 때 다시 그린다.
 var gameLoopStarted = false;
+// 직전 창 **폭**. 회전과 "주소창이 접혔다" 를 가르는 데 쓴다 (아래 scrollTop 주석 참고).
+var lastViewW = -1;
 function resize(){
   dpr = Math.min(window.devicePixelRatio || 1, CONFIG.render.maxDpr); // 고해상도 기기에서 과부하 방지
+  var 폭이바뀜 = (window.innerWidth !== lastViewW);
+  lastViewW = window.innerWidth;
   viewW = window.innerWidth;
   viewH = window.innerHeight;
   canvas.width = Math.floor(viewW * dpr);
@@ -3379,7 +3383,12 @@ function resize(){
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   world.ensureGridCovers(viewW, viewH);
-  if (inShop || inCodex) overlay.scrollTop = 0;   // 열어 둔 채 회전하면 제목이 화면 위로 밀려 사라진다
+  /* 열어 둔 채 **회전**하면 제목이 화면 위로 밀려 사라지므로 맨 위로 되돌린다.
+     ⚠️ 폭이 바뀐 경우에만 한다. 폰은 스크롤할 때 주소창이 접히며 **높이만** 바뀌고
+        그것도 resize 를 부른다 — 조건 없이 되돌리면 상점·도감을 내리는 족족
+        맨 위로 튕겨 올라가서 아래 카드에 영영 못 닿는다(2026-08-11 폰에서 발견).
+        회전은 가로세로가 뒤집히므로 폭이 반드시 바뀐다. */
+  if ((inShop || inCodex) && 폭이바뀜) overlay.scrollTop = 0;
   // 캔버스 크기를 바꾸면 그 내용이 지워진다. frame() 이 정지 상태라 다시 안 그리면
   // 오버레이 뒤 배경이 회전 후 빈 채로 남는다 — 여기서 즉시 한 번 다시 그린다.
   if (gameLoopStarted) render();
@@ -4429,7 +4438,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '1767c0b';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = 'dbeb631';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
