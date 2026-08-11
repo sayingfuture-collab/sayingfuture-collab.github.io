@@ -3440,6 +3440,73 @@ var BASE_ICON_SPRITES = {
 var BASE_SPRITE_IDS = ['claw','yarn','bone','catnip','tail','tornado','milk','laser'];
 var BASE_ICON_IDS   = ['laser','zap','milk','friend'];
 
+/* ── 22단계: 패시브 그림 여섯 ────────────────────────────────────
+   무기가 전부 도트가 되니 이번엔 **패시브만 이모지**로 남아 한 화면에 섞였다.
+   21단계가 없애려던 바로 그 모습이라 같은 방식으로 채운다.
+
+   전부 **아이콘 전용**이다 — 패시브는 화면에 나타나는 물건이 아니라 내 몸에
+   붙는 효과라서 필드에 그릴 자리가 없다. 그래서 필드 판(BASE_BAKED)과는
+   아무 상관이 없고, 카드·도감에서만 쓴다.
+
+   ⚠️ 규칙은 무기 그림과 같다: 16×16, 첫 줄·마지막 줄을 안 비운다,
+      WEAPON_PALETTE 글자만 쓴다(배경 세 벌에 대고 대비를 재 둔 색이다). */
+var PASSIVE_SPRITES = {
+  // 발톱갈이 🔪 공격력 — 갈아 세운 발톱 한 자루. 날은 희고 손잡이는 어둡다.
+  claws: [
+    '.............WW.','............WWW.','...........WWWw.','..........WWWww.',
+    '.........WWWww..','........WWWww...','.......WWWww....','......WWWww.....',
+    '.....WWWww......','....WWWww.......','...WWWww........','..FFWww.........',
+    '.FFFFw..........','FFFFF...........','FFFF............','FFF.............'
+  ],
+  // 참치캔 🥫 최대 체력 — 회색 깡통에 붉은 라벨, 라벨 안에 흰 생선.
+  tuna: [
+    '..ffffffffffff..','.fFFFFFFFFFFFFf.','.fFWWWWWWWWWWFf.','.fFFFFFFFFFFFFf.',
+    '.fFrrrrrrrrrrFf.','.fFrrrrrrrrrrFf.','.fFrrWWrrrrWrFf.','.fFrWWWWWWWWrFf.',
+    '.fFrWWWWWWWWrFf.','.fFrrWWrrrrWrFf.','.fFrrrrrrrrrrFf.','.fFrrrrrrrrrrFf.',
+    '.fFFFFFFFFFFFFf.','.fFFFFFFFFFFFFf.','..ffffffffffff..','...ffffffffff...'
+  ],
+  // 방울 🔔 이동 속도 — 금빛 방울과 아래로 달린 추.
+  bell: [
+    '.......ww.......','.......ww.......','......wwww......','.....wwwwww.....',
+    '....wwwwwwww....','....wwWwwwww....','...wwwWwwwwww...','...wwwWwwwwww...',
+    '..wwwwwwwwwwww..','..wwwwwwwwwwww..','.wwwwwwwwwwwwww.','wwwwwwwwwwwwwwww',
+    '..wwwwwwwwwwww..','.......ww.......','......wwww......','.......ww.......'
+  ],
+  /* 수염 〰️ 젬 줍는 범위 — 분홍 코에서 수염 넉 줄이 사방으로 뻗는다(범위가 넓어지는 뜻).
+     ⚠️ 처음엔 1칸짜리 수염을 여섯 줄 그렸는데 도감 아이콘 크기(20px)에서
+        **뭉개져 흐린 얼룩**이 됐다. 21단계에서 24px 짜리 투사체로 배운 것과
+        같은 실수다 — 작게 그려질 그림에 가는 선을 넣으면 안 된다.
+        줄을 넷으로 줄이고 3칸 굵기로 키웠다. */
+  whisker: [
+    'WWW.........WWW.','WWW.........WWW.','..WWW.....WWW...','...WWW...WWW....',
+    '....WWW.WWW.....','................','......pppp......','.....pppppp.....',
+    '.....pppppp.....','......pppp......','................','....WWW.WWW.....',
+    '...WWW...WWW....','..WWW.....WWW...','WWW.........WWW.','WWW.........WWW.'
+  ],
+  // 낮잠 💤 쿨타임 — 굵은 Z 둘이 크기를 줄이며 흘러내린다.
+  // 이것도 처음엔 1칸이라 안 보였다(위 수염과 같은 이유).
+  nap: [
+    '...ccccccccc....','...ccccccccc....','.........cc.....','........cc......',
+    '.......cc.......','......cc........','...ccccccccc....','...ccccccccc....',
+    '................','.cccccc.........','.cccccc.........','....cc..........',
+    '...cc...........','..cc............','.cccccc.........','.cccccc.........'
+  ],
+  /* 네잎클로버 🍀 코인 — 잎 넉 장이 가운데서 붙어 있다.
+     ⚠️ 캣닢 폭풍(진화형)도 초록 잎 넉 장이다. 저쪽은 잎이 **떨어져서 비스듬히
+        도는 바람개비**이고 이쪽은 **붙어 있는 덩어리**다. 색을 바꾸면 더 쉽지만
+        네잎클로버가 초록이 아니면 그게 더 이상하다. */
+  clover: [
+    '...gg......gg...','..gGGg....gGGg..','.gGGGGg..gGGGGg.','.gGGGGGggGGGGGg.',
+    '..gGGGGGGGGGGg..','...gGGGGGGGGg...','....gGGGGGGg....','.....gGGGGg.....',
+    '.....gGGGGg.....','....gGGGGGGg....','...gGGGGGGGGg...','..gGGGGGGGGGGg..',
+    '.gGGGGGggGGGGGg.','.gGGGGg..gGGGGg.','..gGGg....gGGg..','...gg..GG..gg...'
+  ]
+};
+
+/* 훑는 고정 순서(for...in 금지). core 의 PASSIVE_IDS 와 같아야 하고,
+   패시브를 추가하고 그림을 안 그리면 테스트가 여기서 걸린다. */
+var PASSIVE_SPRITE_IDS = ['claws','tuna','bell','whisker','nap','clover'];
+
 /* 적 typeId → 어떤 그림을 어떤 색으로, 좌우를 뒤집을지.
    tint 는 PAL_MOB 위에 덮어쓸 글자만 적는다. */
 var ENEMY_ART = {
@@ -3480,6 +3547,7 @@ root.CatArt = {
   WEAPON_SPRITES: WEAPON_SPRITES, WEAPON_SPRITE_IDS: WEAPON_SPRITE_IDS,
   BASE_SPRITES: BASE_SPRITES, BASE_SPRITE_IDS: BASE_SPRITE_IDS,
   BASE_ICON_SPRITES: BASE_ICON_SPRITES, BASE_ICON_IDS: BASE_ICON_IDS,
+  PASSIVE_SPRITES: PASSIVE_SPRITES, PASSIVE_SPRITE_IDS: PASSIVE_SPRITE_IDS,
   ENEMY_ART: ENEMY_ART, ENEMY_IDS: ENEMY_IDS,
   mobPalette: mobPalette,
   GROUND_KEYS: GROUND_KEYS,
@@ -4027,6 +4095,32 @@ var BASE_ICON_IMG = {};   // HUD 용 캔버스(canvas 에 그린다). 열 무기
     BASE_ICON_IMG[id] = img;
     // toDataURL 이 실패해도(캔버스 오염) 필드 쪽은 살아 있어야 하므로 조용히 넘긴다.
     try { BASE_ICON[id] = img.toDataURL(); } catch (e) {}
+  }
+})();
+
+/* 22단계: 패시브 아이콘. 카드·도감에서만 쓴다(패시브는 필드에 안 나온다). */
+var PASSIVE_ICON = {};
+(function bakePassiveArt(){
+  if (!ART.PASSIVE_SPRITE_IDS || !ART.PASSIVE_SPRITES || !ART.WEAPON_PALETTE) return;
+  for (var i = 0; i < ART.PASSIVE_SPRITE_IDS.length; i++){
+    var id = ART.PASSIVE_SPRITE_IDS[i], rows = ART.PASSIVE_SPRITES[id];
+    if (!validDecorRows(rows)) continue;   // 한 장이 망가져도 나머지는 살린다
+    try { PASSIVE_ICON[id] = bakeFrame(rows, ART.WEAPON_PALETTE, null).toDataURL(); }
+    catch (e) {}
+  }
+})();
+
+/* 22단계: 적 아이콘. **새로 그리지 않는다** — 필드에서 걸어다니는 그림을
+   그대로 도감에 끌어다 쓴다. 도감에 다른 그림을 그리면 "도감에서 본 놈"과
+   "화면에서 만난 놈"이 달라져서, 도감이 하는 일(미리 알아보게 하기)을 못 한다.
+   걸음 첫 장(frames[0])만 쓴다 — 정지 그림이라 걸음이 필요 없다. */
+var ENEMY_ICON = {};
+(function bakeEnemyIcons(){
+  if (!ART.ENEMY_IDS) return;
+  for (var i = 0; i < ART.ENEMY_IDS.length; i++){
+    var id = ART.ENEMY_IDS[i], set = ENEMY_BAKED[id];
+    if (!set || !set.frames || !set.frames.length) continue;
+    try { ENEMY_ICON[id] = set.frames[0].toDataURL(); } catch (e) {}
   }
 })();
 
@@ -4817,7 +4911,7 @@ var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '1c875d3';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = 'f443a8f';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -4868,8 +4962,12 @@ function renderChoices(choices){
   cardsEl.innerHTML = '';
   for (var i = 0; i < choices.length; i++){
     (function(c){
-      // 무기 카드만 그림이다. 패시브·고양이 캔은 그림이 없어서 이모지 그대로 간다.
-      var 아이콘 = (c.kind === 'weapon') ? weaponIcoHtml(c.id, c.emoji) : c.emoji;
+      /* 22단계: 패시브도 그림이 생겼다. 남은 이모지는 고양이 캔(회복) 하나뿐인데,
+         그건 무기도 패시브도 아닌 일회용이라 오히려 달라 보이는 게 낫다. */
+      var 아이콘 = (c.kind === 'weapon') ? weaponIcoHtml(c.id, c.emoji)
+                 : (c.kind === 'passive' && PASSIVE_ICON[c.id])
+                   ? '<img class="wpnIco" src="' + PASSIVE_ICON[c.id] + '" alt="">'
+                   : c.emoji;
       appendCard('<div class="ico">' + 아이콘 + '</div>' +
                  '<div class="nm">' + c.name + '</div>' +
                  '<div class="lv">' + (c.level ? 'Lv.' + c.level : '') + '</div>' +
@@ -5284,10 +5382,9 @@ function codexSection(글자){
    textContent 라서다 — 그림을 넣으려고 innerHTML 로 바꾸면, 지금은 전부
    내부 상수라 안전하지만 나중에 적 이름 같은 걸 넘기는 순간 통로가 열린다.
    그림이 필요한 자리만 이쪽을 쓴다. */
-function codexSectionIco(id, 이모지, 글자){
+function codexSectionIco(url, 이모지, 글자){
   var d = document.createElement('div');
   d.className = 'shopSection';
-  var url = (world.isEvolved(id) && WEAPON_ICON[id]) ? WEAPON_ICON[id] : BASE_ICON[id];
   if (url){
     var im = document.createElement('img');
     im.className = 'wpnIcoSm';
@@ -5330,7 +5427,10 @@ function codexWeapons(){
       줄 += '<br>' + fM.label + ' ' + f1.value + ' → ' + fM.value + fM.unit;
     else if (f1)
       줄 += '<br>' + f1.label + ' ' + f1.value + f1.unit;
-    codexSectionIco(id, c.emoji, c.name);
+    // 진화한 무기는 진화형 그림 — 손에 든 것과 화면에 나는 게 같아야 한다.
+    codexSectionIco((world.isEvolved(id) && WEAPON_ICON[id]) ? WEAPON_ICON[id]
+                                                            : BASE_ICON[id],
+                    c.emoji, c.name);
     codexRow(c.desc, '');
     codexRow('Lv.1 → Lv.' + max, 줄, true);
     // 19단계: 5성을 찍고 보스 상자를 먹으면 무엇이 되는지. 15단계의 정신이
@@ -5365,7 +5465,8 @@ function codexEnemies(){
     var 이름 = e.name || ('(이름 없음: ' + ART.ENEMY_IDS[i] + ')');
     var 등장시각 = (typeof e.fromMin === 'number' && !isNaN(e.fromMin))
       ? e.fromMin : '?';
-    codexSection(e.emoji + ' ' + 이름 + (e.boss ? ' (보스)' : ''));
+    codexSectionIco(ENEMY_ICON[ART.ENEMY_IDS[i]], e.emoji,
+                    이름 + (e.boss ? ' (보스)' : ''));
     codexRow('등장', e.boss ? (등장시각 + '분에 나타난다') : (등장시각 + '분부터'));
     codexRow('체력', e.boss ? String(e.hp)
                             : e.hp + ' → ' + e.hpLate + ' (' + e.lateMin + '분)');
@@ -5400,7 +5501,9 @@ function codexMe(){
     // 카드와 도감이 다른 숫자를 말한다(실제로 그런 상태였다).
     var 효과 = world.passiveEffectAt(id, lv);
     if (효과) 단계칸 += ' · ' + 효과.label + ' ' + 효과.text;
-    codexRow(pc.emoji + ' ' + pc.name, 단계칸, true);
+    codexRow((PASSIVE_ICON[id]
+                ? '<img class="wpnIcoSm" src="' + PASSIVE_ICON[id] + '" alt="">'
+                : pc.emoji + ' ') + pc.name, 단계칸, true);
   }
   if (!있나) codexRow('아직 없습니다', '');
 }
@@ -5414,7 +5517,7 @@ function codexPassives(){
     var id = PASSIVE_IDS[i];
     var pc = CONFIG.passives[id];
     if (!pc) continue;
-    codexSection(pc.emoji + ' ' + pc.name);
+    codexSectionIco(PASSIVE_ICON[id], pc.emoji, pc.name);
     var e1 = world.passiveEffectAt(id, 1);
     var eM = world.passiveEffectAt(id, pc.maxLevel);
     if (e1 && eM)
