@@ -1,32 +1,32 @@
 이 폴더의 파일은 직접 수정 금지. 전부 다른 폴더의 게임에서 복사해 온 **배포본 사본**입니다.
 
-## ⚠️ 복사할 때마다 반드시 다시 넣을 것 — 방문자 집계 스크립트
+## 갱신은 각 게임 폴더의 배포 스크립트로
 
-원본에는 없고 이 사본에만 들어 있는 두 줄이 있습니다. 덮어쓰면 사라지므로,
-복사한 뒤 각 `index.html` 의 `</head>` 바로 위에 다시 붙여넣으세요.
+세 게임 모두 **원본 폴더에서** 아래 한 줄이면 됩니다. 손으로 복사하지 마세요.
 
-```html
-<!-- Cloudflare Web Analytics -->
-<script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "66d74d758a3b4b68ae33d7a072440b61"}'></script>
+```
+node deploy-nyejun.js --push "무엇을 고쳤는지"
 ```
 
-확인: `grep -rc cloudflareinsights games/` → 게임마다 **1** 이어야 함.
+스크립트가 하는 일: 빌드(필요한 게임만) → 이 폴더로 복사 → **방문자 집계 스크립트 삽입** →
+검증 → 커밋·푸시 → 라이브에 실제로 반영될 때까지 확인. 검증에 걸리면 푸시를 막습니다.
 
-## cat-survivors (냥서바이버)
-- 원본: `Desktop\고양이\냥서바이버`
-- **갱신 절차 = 게임 폴더에서 `node deploy-nyejun.js --push "메시지"` 한 줄.** 손으로 복사하지 말 것.
-  빌드(치트 제거)→복사→beacon 삽입→검증 9종→커밋·푸시→라이브 확인까지 자동. 검증 실패 시 푸시를 막는다.
-- 확인만: `node deploy-nyejun.js --verify` (라이브 게임 버전·집계·치트 노출 여부)
-- ⚠️ 치트 발동어가 `yejun` 이라 이 파일 안에 그 글자가 있으면 안 된다 — 주석에도 쓰지 말 것
+`--push` 를 빼고 실행하면 **검사만 하고 이 폴더를 건드리지 않습니다.**
+지금 라이브가 원본과 같은지만 보려면 `--verify`.
 
-## shrubdown (Shrubdown / 풀스윙)
-- 원본: `Desktop\고양이\plant fight`
-- 배포본: `plant fight/dist/` (index.html + assets.js 두 파일 세트)
-- 갱신 절차: 원본 수정 → `dist/` 갱신 → **두 파일 모두** `games/shrubdown/` 로 복사
-- ⚠️ itch.io(nye-jun.itch.io/shrubdown)에도 같은 게임이 올라가 있음 → 패치하면 **양쪽 다** 갱신할 것
+> 손으로 복사하면 안 되는 이유: 사본에만 들어가는 방문자 집계 스크립트가 조용히 지워집니다.
+> 실제로 2026-08-05 에 이 사고가 나서 사흘간 집계가 멈춰 있었습니다.
+> 확인법 — `grep -rc cloudflareinsights games/` 가 게임마다 **1** 이어야 합니다(0도 2도 안 됨).
 
-## balloon-bust (풍선빵)
-- 원본: `Desktop\고양이\풍선게임` (단일 `index.html` + `og.png`, 빌드 단계 없음)
-- **갱신 절차 = 게임 폴더에서 `node deploy-nyejun.js --push "메시지"`.** 손으로 복사하지 말 것.
-- `--push` 없이 실행하면 **검사만 하고 이 폴더를 건드리지 않는다** (빌드 단계가 없어서 작업 중인 코드가 섞여 올라갈 위험이 크기 때문)
-- 지금 라이브가 로컬과 같은지: `node deploy-nyejun.js --verify` (내용 지문 비교)
+| 게임 | 원본 폴더 | 비고 |
+|---|---|---|
+| cat-survivors (냥서바이버) | `Desktop\고양이\냥서바이버` | 빌드로 개발용 코드를 걷어낸 뒤 복사 |
+| shrubdown (Shrubdown / 풀스윙) | `Desktop\고양이\plant fight` | `assets.js`(캐릭터 아트)도 함께 복사 |
+| balloon-bust (풍선빵) | `Desktop\고양이\풍선게임` | 빌드 없음. 집계 스크립트가 원본에 이미 들어 있음 |
+
+## 알아둘 것
+
+- **Shrubdown 은 itch.io 에도 같은 게임이 올라가 있습니다** (nye-jun.itch.io/shrubdown).
+  패치하면 양쪽 다 갱신할지 판단하세요. itch 업로드는 별도 절차입니다.
+- 냥서바이버 배포본에는 개발용 코드가 한 줄도 남으면 안 됩니다. 스크립트가 검사해서
+  걸리면 푸시를 막습니다. 검사 항목의 구체적인 내용은 게임 폴더 쪽 문서를 보세요.

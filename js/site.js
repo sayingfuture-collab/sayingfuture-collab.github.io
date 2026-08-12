@@ -31,6 +31,55 @@
   }
 
   /* ---------------------------------------------------------------------
+     데이터 검증
+     필드가 빠진 항목을 그대로 그리면 화면에 "undefined" 글자가 찍힌다.
+     그런 항목은 아예 건너뛰고, 무엇이 빠졌는지 콘솔에 남긴다
+     (F12 → Console 에서 확인. 방문자에게는 조용히 안 보이는 편이 낫다).
+     --------------------------------------------------------------------- */
+  function hasText(v) {
+    return typeof v === "string" && v.trim() !== "";
+  }
+
+  function serviceProblems(s) {
+    var miss = [];
+    if (!s || typeof s !== "object") return ["항목이 객체가 아님"];
+    if (!hasText(s.title)) miss.push("title");
+    if (!hasText(s.desc)) miss.push("desc");
+    if (s.type !== "game" && s.type !== "worksheet") miss.push('type("game" 또는 "worksheet")');
+    // href는 live일 때만 필요하다. soon은 링크가 없는 게 정상.
+    if (s.status === "live" && !hasText(s.href)) miss.push("href (status가 live면 필수)");
+    // 썸네일이 없으면 이모지 플레이스홀더를 그리므로 emoji가 있어야 한다.
+    if (!hasText(s.thumb) && !hasText(s.emoji)) miss.push("emoji (thumb이 없으면 필수)");
+    return miss;
+  }
+
+  function newsProblems(n) {
+    var miss = [];
+    if (!n || typeof n !== "object") return ["항목이 객체가 아님"];
+    if (!hasText(n.date)) miss.push("date");
+    if (!hasText(n.title)) miss.push("title");
+    return miss;
+  }
+
+  function keepValid(list, problemsOf, where) {
+    if (!Array.isArray(list)) {
+      if (list != null) console.warn("[" + where + "] 배열이 아닙니다 — 아무것도 그리지 않습니다.");
+      return [];
+    }
+    var out = [];
+    list.forEach(function (item, i) {
+      var miss = problemsOf(item);
+      if (miss.length === 0) {
+        out.push(item);
+        return;
+      }
+      var label = (item && (item.id || item.title)) || "#" + i;
+      console.warn('[' + where + '] "' + label + '" 항목을 건너뜁니다 — 빠진 필드: ' + miss.join(", "));
+    });
+    return out;
+  }
+
+  /* ---------------------------------------------------------------------
      게임 카드 (썸네일 중심)
      --------------------------------------------------------------------- */
   function buildProjectCardInner(service, isLive) {
@@ -207,7 +256,7 @@
     var listEl = document.getElementById("news-list");
     if (!section || !listEl) return;
 
-    var items = (window.NEWS || []).slice(0, MAX_NEWS);
+    var items = keepValid(window.NEWS, newsProblems, "data/news.js").slice(0, MAX_NEWS);
     if (items.length === 0) {
       // 소식이 없으면 섹션을 통째로 감춘다 (빈 칸을 남기지 않음)
       section.hidden = true;
@@ -242,7 +291,7 @@
   }
 
   function renderAll() {
-    var services = window.SERVICES || [];
+    var services = keepValid(window.SERVICES, serviceProblems, "data/services.js");
     var games = services.filter(function (s) { return s.type === "game"; });
     var worksheets = services.filter(function (s) { return s.type === "worksheet"; });
 

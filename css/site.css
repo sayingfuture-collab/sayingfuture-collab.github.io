@@ -28,7 +28,6 @@ html[data-theme="space"] {
   --bg-primary: #070b14;
   --bg-secondary: #0a1020;
   --surface-primary: #10192b;
-  --surface-secondary: #131f35;
 
   /* 텍스트 */
   --text-primary: #f2f6ff;
@@ -56,7 +55,6 @@ html[data-theme="space"] {
      (하위 페이지가 실제로 쓰는 것만 남김 — 새로 추가할 땐 실사용 확인 후) */
   --text: var(--text-primary);
   --text-muted: var(--text-secondary);
-  --text-faint: var(--text-tertiary);
   --surface: var(--surface-primary);
   --border: var(--border-default);
   --border-strong: rgba(180, 205, 255, 0.22);
@@ -94,15 +92,12 @@ html[data-theme="space"] {
 /* -------------------------------------------------------------------------
    웹폰트 (저장소에 동봉 — 외부 요청 없음, file:// 지원)
    Pretendard: 본문·긴 제목용 한글/라틴 (SIL OFL)
+     → @font-face 는 css/pretendard.css 에 있다(92조각 dynamic subset).
+       각 페이지에서 이 파일보다 **먼저** 불러온다.
+       예전엔 2.06MB 통짜 하나를 무조건 받았는데, 지금은 화면에 나온
+       글자가 속한 조각만 받는다.
    Orbitron: 로고·작품 개수·짧은 영문 라벨·상태 코드 전용 (SIL OFL)
    ------------------------------------------------------------------------- */
-@font-face {
-  font-family: "Pretendard Variable";
-  src: url("../assets/fonts/PretendardVariable.woff2") format("woff2-variations");
-  font-weight: 45 920;
-  font-style: normal;
-  font-display: swap;
-}
 @font-face {
   font-family: "Orbitron";
   src: url("../assets/fonts/Orbitron.ttf") format("truetype-variations");
