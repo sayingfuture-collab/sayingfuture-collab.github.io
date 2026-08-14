@@ -157,6 +157,9 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
    375px 폰에서 1px 모자라 두 조각이 동시에 접히며 한글이 어절 중간에서 끊긴다. */
 .codexNote{ flex:0 0 100%; padding:8px 12px; font-size:13px; line-height:1.6;
             word-break:keep-all; opacity:.95 }
+/* 23단계 도전과제 목록 — 잠긴 줄. .card.off 와 같은 값(opacity .45)을 써서
+   "잠겨 있다" 는 표시가 이 게임 안에서 늘 같은 느낌이게 한다. */
+.codexRow.off{ opacity:.45 }
 </style>
 <!-- Cloudflare Web Analytics — 방문자 수 집계. ⚠️ 이 파일은 dist/index.html 의 사본이라,
      그냥 덮어쓰면 이 줄이 사라진다. 배포 스크립트가 배포할 때마다 자동으로 다시 넣는다. -->
@@ -3572,6 +3575,117 @@ var DAMAGE_IDS = window.CatCore.DAMAGE_IDS;
 var canvas = document.getElementById('game');
 var ctx = canvas.getContext('2d', { alpha: false });
 
+/* ACH:BEGIN — 23단계 도전과제 판정. core/art 와 같은 약속으로 DOM 을 안 쓴다.
+   물리적으로는 shell 안에 있지만(계획/23-도전과제-명세.md §3 "전부 shell 이다"는
+   유지한다), tests/harness.js 의 loadAchievements() 가 이 구간만 뽑아 Node vm 으로
+   돌려 격리 테스트한다. 그래서 이 안에서는 shell 위쪽의 CONFIG·WEAPON_IDS 같은
+   변수를 참조하면 안 된다 — 참조하면 격리해서 돌릴 때 ReferenceError 가 난다.
+   필요한 값은 전부 판정 시점에 c(condition) 객체로 받는다.
+
+   c 의 모양:
+     sec        — 경과 초
+     cleared    — 클리어 여부
+     level      — 레벨
+     kills      — 처치 수
+     bossIndex  — 잡은 보스 수
+     nukes      — 이번 판에 주운 핵폭탄 수
+     weaponIds  — 무기 id 를 고정 순서로 담은 배열(WEAPON_IDS 사본).
+                  Object.keys 를 안 쓰는 이유는 core 가 이미 적어 둔 것과 같다 —
+                  "for...in 은 엔진마다 순서가 달라 봇 재현성이 깨진다."
+     levels     — { 무기id: 그 무기의 현재 레벨 }
+     maxLevels  — { 무기id: 그 무기의 설정 만렙 }. 지금은 전부 5지만 여기서 5를
+                  하드코딩하지 않는다 — 나중에 무기마다 달라지면 조용히 틀어진다.
+     dmg        — { 무기id: 그 무기가 낸 실제 딜량 }. **무기만** 담겨 있다 — 호출하는
+                  쪽(Task 3 의 어댑터)이 DAMAGE_IDS 에서 nuke·? 를 이미 뺐다. */
+(function(global){
+'use strict';
+
+var ACHIEVEMENTS = [
+  { id: 'first_run', name: '첫 발자국', desc: '판을 한 번 끝낸다',
+    test: function(c){ return true; } },
+  { id: 't5', name: '5분', desc: '5분을 버틴다',
+    test: function(c){ return c.sec >= 300; } },
+  { id: 'lv20', name: 'Lv.20', desc: '레벨 20을 찍는다',
+    test: function(c){ return c.level >= 20; } },
+  { id: 'king1', name: '첫 왕을 넘다', desc: '첫 보스를 잡는다',
+    test: function(c){ return c.bossIndex >= 1; } },
+  { id: 't10', name: '10분', desc: '10분을 버틴다',
+    test: function(c){ return c.sec >= 600; } },
+  { id: 'slots4', name: '네 자루 만렙', desc: '무기 4종을 각자 만렙까지 올린다',
+    test: function(c){
+      var n = 0, i, id;
+      for (i = 0; i < c.weaponIds.length; i++){
+        id = c.weaponIds[i];
+        if ((c.levels[id] || 0) >= (c.maxLevels[id] || Infinity)) n++;
+      }
+      return n >= 4;
+    } },
+  { id: 'nonuke5', name: '핵 없이 5분', desc: '핵폭탄을 하나도 안 줍고 5분을 버틴다',
+    test: function(c){ return c.nukes === 0 && c.sec >= 300; } },
+  { id: 'clear', name: '클리어', desc: '판을 끝까지 깬다',
+    test: function(c){ return !!c.cleared; } },
+  { id: 'solo70', name: '외길', desc: '클리어했고, 한 무기의 딜이 무기 딜 합계의 70% 이상',
+    test: function(c){
+      if (!c.cleared) return false;
+      var total = 0, i, id;
+      for (i = 0; i < c.weaponIds.length; i++) total += c.dmg[c.weaponIds[i]] || 0;
+      // 0으로 나누면 NaN >= 0.7 이 false 라 우연히 통과하지만, 우연에 기대지 않는다.
+      if (total <= 0) return false;
+      for (i = 0; i < c.weaponIds.length; i++){
+        id = c.weaponIds[i];
+        if ((c.dmg[id] || 0) / total >= 0.7) return true;
+      }
+      return false;
+    } }
+];
+
+// 무기별 마스터리 과제의 id. ACHIEVEMENTS 에 10개를 따로 안 적는 이유 —
+// 무기가 늘 때마다 이 목록도 손으로 늘려야 하고, 빠뜨리면 그 무기만 조용히
+// 마스터리가 없는 무기가 된다. c.weaponIds 에서 그때그때 만든다.
+function masteryId(weaponId){ return 'master_' + weaponId; }
+
+// c 로 판정해 달성한 도전과제 id 배열을 돌려준다. 판단위 9개 + 마스터리(무기 수만큼).
+function earnedAchievements(c){
+  var out = [], i, id;
+  for (i = 0; i < ACHIEVEMENTS.length; i++){
+    if (ACHIEVEMENTS[i].test(c)) out.push(ACHIEVEMENTS[i].id);
+  }
+  for (i = 0; i < c.weaponIds.length; i++){
+    id = c.weaponIds[i];
+    if ((c.levels[id] || 0) >= (c.maxLevels[id] || Infinity)) out.push(masteryId(id));
+  }
+  return out;
+}
+
+/* 저장에서 읽은 도전과제 배열을 믿을 수 있는 모양으로 만든다. core 의
+   normalizeStarterSave(510~528줄, unlocked 검증)와 같은 패턴이다 — 배열인지
+   보고 → knownIds 에 있는 것만 남기고 → 중복 제거. 이 블록은 ACHIEVEMENTS 나
+   WEAPON_IDS 를 스스로 모른다(격리 실행 약속, 파일 위쪽 주석 참고) — 그래서
+   knownIds 는 호출하는 쪽(Task 2 의 Save.read())이 만들어 건넨다. */
+function sanitizeIdList(raw, knownIds){
+  var out = [], i, id;
+  if (!Array.isArray(raw)) return out;
+  for (i = 0; i < raw.length; i++){
+    id = raw[i];
+    if (typeof id !== 'string') continue;
+    if (knownIds.indexOf(id) < 0) continue;
+    if (out.indexOf(id) >= 0) continue;   // 중복 제거
+    out.push(id);
+  }
+  return out;
+}
+
+global.CatAch = {
+  ACHIEVEMENTS: ACHIEVEMENTS,
+  earnedAchievements: earnedAchievements,
+  masteryId: masteryId,
+  sanitizeIdList: sanitizeIdList
+};
+
+})(typeof window !== 'undefined' ? window : globalThis);
+/* ACH:END */
+var Ach = window.CatAch;   // 위 블록이 브라우저에서 실행되면 window 에 실려 있다
+
 function safeStoredInt(value, max){
   if (typeof value !== 'number' || !isFinite(value) || value <= 0) return 0;
   value = Math.floor(value);
@@ -3584,11 +3698,17 @@ var Save = (function(){
   var KEY = 'catSurvivor.save';
   var mem = null;              // localStorage 가 막혔을 때 쓰는 대체 저장소
   var data = null;
+  // 아는 도전과제 id 전부(판단위 9 + 마스터리 10) — read() 가 저장을 거를 때 쓴다.
+  // 한 번만 만든다 — Save.read() 가 판마다 여러 번 불려도 매번 다시 만들 이유가 없다.
+  var KNOWN_ACH_IDS = Ach.ACHIEVEMENTS.map(function(a){ return a.id; })
+                        .concat(WEAPON_IDS.map(Ach.masteryId));
 
   function fresh(){
     return { coins: 0, meta: { power: 0, maxHp: 0, speed: 0, magnet: 0, xpGain: 0 },
              best: { sec: 0, level: 0, clears: 0 },
-             unlocked: ['claw'], starter: 'claw' };
+             unlocked: ['claw'], starter: 'claw',
+             achievements: [],   // 달성한 도전과제 id (23단계)
+             mastered: [] };     // 만렙을 찍어 본 무기 id (23단계)
   }
   function read(){
     try {
@@ -3612,6 +3732,11 @@ var Save = (function(){
       var st = normalizeStarterSave(o);
       f.unlocked = st.unlocked;
       f.starter = st.starter;
+      // 23단계 도전과제 — unlocked 와 같은 자리, 같은 이유. 구버전 저장(필드
+      // 자체가 없음)은 Array.isArray 가 false 라 sanitizeIdList 가 빈 배열을
+      // 돌려준다 — fresh() 의 기본값 그대로이니 버리는 게 아니라 "아직 없음"이다.
+      f.achievements = Ach.sanitizeIdList(o.achievements, KNOWN_ACH_IDS);
+      f.mastered = Ach.sanitizeIdList(o.mastered, WEAPON_IDS);
       return f;
     } catch (e){
       return mem || fresh();
@@ -3690,6 +3815,29 @@ var Save = (function(){
       write();
       return d;
     },
+    // 새로 달성한 것만 더한다. 이미 가진 id 는 조용히 무시한다 —
+    // 같은 판을 또 해도, 이어하기로 판정이 두 번 돌아도 저장이 부풀지 않는다.
+    grantAchievements: function(ids){
+      if (!ids || !ids.length) return;
+      var d = this.get(), changed = false, i;
+      for (i = 0; i < ids.length; i++){
+        if (d.achievements.indexOf(ids[i]) >= 0) continue;
+        d.achievements.push(ids[i]);
+        changed = true;
+      }
+      if (changed) write();
+    },
+    // markMastered 도 같은 방식 — 여러 판에 걸쳐 여러 무기가 쌓인다.
+    markMastered: function(weaponIds){
+      if (!weaponIds || !weaponIds.length) return;
+      var d = this.get(), changed = false, i;
+      for (i = 0; i < weaponIds.length; i++){
+        if (d.mastered.indexOf(weaponIds[i]) >= 0) continue;
+        d.mastered.push(weaponIds[i]);
+        changed = true;
+      }
+      if (changed) write();
+    },
     // 개발자용: 저장을 통째로 지운다(처음부터 확인하고 싶을 때)
     wipe: function(){
       try { window.localStorage.removeItem(KEY); } catch (e){}
@@ -3735,7 +3883,7 @@ function resize(){
         그것도 resize 를 부른다 — 조건 없이 되돌리면 상점·도감을 내리는 족족
         맨 위로 튕겨 올라가서 아래 카드에 영영 못 닿는다(2026-08-11 폰에서 발견).
         회전은 가로세로가 뒤집히므로 폭이 반드시 바뀐다. */
-  if ((inShop || inCodex) && 폭이바뀜) overlay.scrollTop = 0;
+  if ((inShop || inCodex || inAch) && 폭이바뀜) overlay.scrollTop = 0;
   // 캔버스 크기를 바꾸면 그 내용이 지워진다. frame() 이 정지 상태라 다시 안 그리면
   // 오버레이 뒤 배경이 회전 후 빈 채로 남는다 — 여기서 즉시 한 번 다시 그린다.
   if (gameLoopStarted) render();
@@ -4911,10 +5059,14 @@ var muteBtn = document.getElementById('muteBtn');
 var paused = false;
 var runBanked = false;   // 이번 판의 코인을 이미 적립했는가
 var runTainted = false;   // 개발용 치트(시간 건너뛰기 등)로 조작된 판인가 (최고 기록에 넣지 않는다)
+// 이번 판에서 새로 딴 도전과제 id (23단계). 결과 화면이 다시 그려질 때도(회전·
+// 클리어 축하 연출 뒤 재호출) 같은 줄이 보여야 하므로 bankRun 이 한 번 채운 뒤
+// 지우지 않는다 — 새판준비() 가 다음 판으로 넘어갈 때만 비운다.
+var lastEarnedAchievements = [];
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = 'b77ddeb';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = '4013161';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -4932,6 +5084,8 @@ function 새판고유번호(){
 var inShop = false;      // 지금 강화 상점 화면인가
 var inCodex = false;     // 지금 도감 화면인가
 var codexOrigin = 'start';   // 도감을 닫으면 어디로 돌아가는가: 'start' | 'pause'
+var inAch = false;       // 지금 도전과제 목록 화면인가 (23단계 Task 4)
+var achOrigin = 'start';     // 도전과제 목록을 닫으면 어디로 돌아가는가: 'start' | 'pause'
 // 상점 "닫기"가 어디로 돌아가야 하는지. 상점은 결과 화면과 시작 화면 두 곳에서
 // 열릴 수 있게 됐으므로, 연 곳을 기억해뒀다가 닫을 때 그리로 돌려보낸다.
 var shopOrigin = 'result';
@@ -5148,6 +5302,13 @@ function renderPauseCards(){
                codexOrigin = 'pause';   // 닫으면 이 일시정지 화면으로 돌아온다
                showCodex('weapon');
              }, false);
+  appendCard('<div class="ico">\u{1F3C6}</div>' +
+             '<div class="nm">도전과제</div>' +
+             '<div class="ds">판 기록 · 무기 마스터리</div>',
+             function(){
+               achOrigin = 'pause';   // 닫으면 이 일시정지 화면으로 돌아온다
+               showAchievements();
+             }, false);
   /* 처음부터 — 판 도중에 새로 시작한다.
      ⚠️ **모은 코인을 넣어 주지 않는다.** 넣어 주면 "1분 하고 다시 시작" 을
         반복하는 게 코인 버는 최적 전략이 된다. 죽을 위험 없이 벌 수 있으니까.
@@ -5185,7 +5346,7 @@ function resumeFromPause(){
 // 일시정지 버튼·키가 부른다. 레벨업 카드·상점·결과 화면에서는 아무것도 하지 않는다.
 function togglePause(){
   if (askingName) return;                                   // 이름 화면 중에는 아무것도 안 한다
-  if (world.gameOver || world.cleared || inShop || inCodex) return;
+  if (world.gameOver || world.cleared || inShop || inCodex || inAch) return;
   if (pendingRun) return;                                   // 이어할지 고르는 중
   if (atStartScreen) return;                                // 시작 화면 중
   if (world.pendingChoices > 0 && !isPauseScreen) return;   // 카드를 고르는 중
@@ -5240,6 +5401,54 @@ function sendRecord(){
   } catch (e) {}                            // 여기서 터져도 게임은 계속된다
 }
 
+/* 23단계 — c 를 만드는 어댑터. Task 1 의 c 규칙(위 ACH:BEGIN 블록 머리 주석)을
+   그대로 따른다. world.recordSummary() 의 weapons 는 "claw5 tail3" 같은 문자열
+   이지만 여기서 다시 파싱하지 않는다 — 문자열을 되풀이해 해석하는 경로를 만들면
+   나중에 형식이 바뀔 때 조용히 어긋난다(명세 §2). world.weapons[id].level 을
+   직접 읽는다. */
+function achievementCondition(cleared){
+  var levels = {}, maxLevels = {}, dmg = {}, i, id;
+  for (i = 0; i < WEAPON_IDS.length; i++){
+    id = WEAPON_IDS[i];
+    levels[id] = (world.weapons[id] && world.weapons[id].level) || 0;
+    maxLevels[id] = CONFIG.weapons[id].maxLevel;
+    dmg[id] = world.dmgBy[id] || 0;   // world.dmgBy 에 nuke·? 도 있지만 무기 id 만 골라 읽는다
+  }
+  return {
+    sec: Math.floor(world.elapsed), cleared: !!cleared, level: world.level,
+    kills: world.kills, bossIndex: world.bossIndex, nukes: world.nukesTaken,
+    weaponIds: WEAPON_IDS, levels: levels, maxLevels: maxLevels, dmg: dmg
+  };
+}
+
+// 도전과제 id 로 화면에 보여줄 이름을 찾는다. master_<무기id> 는 ACHIEVEMENTS 표에
+// 없다 — 무기 수만큼 동적으로 생기므로(Task 1 주석 참고), 이름은 여기서 CONFIG 로 짓는다.
+function achievementLabel(id){
+  var i;
+  for (i = 0; i < Ach.ACHIEVEMENTS.length; i++){
+    if (Ach.ACHIEVEMENTS[i].id === id) return Ach.ACHIEVEMENTS[i].name;
+  }
+  var wid = (id.indexOf('master_') === 0) ? id.slice(7) : null;
+  if (wid && CONFIG.weapons[wid]) return CONFIG.weapons[wid].name + ' 마스터리';
+  return id;   // 여기 도달하면 목록과 표가 어긋난 것이다 — 방어적 기본값
+}
+
+// 판정하고 저장한다. 새로 딴 것만 돌려준다 — 이미 가진 건 결과 화면에 또 안 띄운다.
+function checkAchievements(cleared){
+  var c = achievementCondition(cleared);
+  var earned = Ach.earnedAchievements(c);
+  var have = Save.get().achievements;
+  var fresh = [], mastered = [], i, id;
+  for (i = 0; i < earned.length; i++) if (have.indexOf(earned[i]) < 0) fresh.push(earned[i]);
+  for (i = 0; i < c.weaponIds.length; i++){
+    id = c.weaponIds[i];
+    if (c.levels[id] >= c.maxLevels[id]) mastered.push(id);
+  }
+  Save.grantAchievements(earned);   // 이미 가진 건 내부에서 걸러진다
+  Save.markMastered(mastered);
+  return fresh;
+}
+
 // 판의 결과를 저장소에 반영한다. 한 판에 한 번만.
 function bankRun(cleared){
   if (runBanked) return;
@@ -5248,6 +5457,8 @@ function bankRun(cleared){
   Save.addCoins(world.coins);
   if (!runTainted) Save.recordRun(Math.floor(world.elapsed), world.level, cleared);
   if (!runTainted) sendRecord();     // 치트 판은 데이터에 넣지 않는다
+  // 치트 판은 도전과제도 안 준다 — 기록·서버 전송과 같은 줄, 같은 이유(명세 §4).
+  if (!runTainted) lastEarnedAchievements = checkAchievements(cleared);
 }
 
 // 결과 화면 아래에 붙는 최고 기록 줄
@@ -5301,6 +5512,19 @@ function damageBreakdownHtml(world){
   return '<br><small>' + lines.join('<br>') + '</small>';
 }
 
+// 결과 화면에 붙는 "새로 딴 도전과제" 줄. bestLine()·damageBreakdownHtml() 과
+// 같은 방식 — <br><small> 텍스트만 만들어 기존 자리(overlayStat)에 얹는다.
+// 세 개까지는 이름을 나열하고, 넘으면 "외 N개" 로 줄인다(명세 §Task3 — 폰 세로
+// 화면 기준. 첫 판이면 first_run·t5·lv20 이 한꺼번에 뜬다).
+function achievementsLineHtml(ids){
+  if (!ids || !ids.length) return '';
+  var shown = [], i;
+  for (i = 0; i < Math.min(ids.length, 3); i++) shown.push(escapeHtml(achievementLabel(ids[i])));
+  var text = shown.join(' · ');
+  if (ids.length > 3) text += ' 외 ' + (ids.length - 3) + '개';
+  return '<br><small>\u{1F3C6} 새 도전과제 — ' + text + '</small>';
+}
+
 function showGameOver(){
   bankRun(false);
   var total = Math.floor(world.elapsed);
@@ -5311,7 +5535,7 @@ function showGameOver(){
                           '최종 레벨 ' + world.level + '<br>' +
                           '\u{1FA99} 이번 판 ' + Math.floor(world.coins) +
                           ' (모은 코인 ' + Save.get().coins + ')' + bestLine() +
-                          damageBreakdownHtml(world);
+                          damageBreakdownHtml(world) + achievementsLineHtml(lastEarnedAchievements);
   cardsEl.style.display = 'none';
   rerollBtn.style.display = 'none';
   overlayBtn.style.display = 'block';
@@ -5332,7 +5556,7 @@ function showCleared(){
                           '최종 레벨 ' + world.level + '<br>' +
                           '\u{1FA99} 이번 판 ' + Math.floor(world.coins) +
                           ' (모은 코인 ' + Save.get().coins + ')' + bestLine() +
-                          damageBreakdownHtml(world);
+                          damageBreakdownHtml(world) + achievementsLineHtml(lastEarnedAchievements);
   cardsEl.style.display = 'none';
   rerollBtn.style.display = 'none';
   overlayBtn.style.display = 'block';
@@ -5423,6 +5647,67 @@ function closeCodex(){
   cardsEl.innerHTML = '';
   cardsEl.style.display = 'none';
   if (codexOrigin === 'pause'){ showPause(); return; }
+  showStartScreen();
+}
+
+/* 23단계 Task 4 — 도전과제 목록. showCodex 와 같은 틀을 쓴다(새 UI 를 또 안
+   만든다) — 아이콘은 없다(명세 §8). 여는 자리는 도감과 똑같이 시작 화면·일시정지
+   두 곳이다. */
+function showAchievements(){
+  inAch = true;
+  atStartScreen = false;   // 도감을 보는 동안은 시작 화면이 아니다 (닫으면 achOrigin 이 돌려보낸다)
+  isPauseScreen = false;
+  /* 위 두 줄은 "지금 보이는 화면은 도전과제 목록이다" 를 상태 기계에 알리는
+     선언이다. showCodex 머리 주석이 적어 둔 자리 그대로 — 화면을 새로 만들 때
+     이걸 빠뜨리면, 그 화면이 열려 있는 동안 다른 화면의 플래그가 살아 있어
+     엉뚱한 분기가 먼저 걸린다(15단계에서 세 번 겪었다). */
+  overlay.scrollTop = 0;
+  overlayTitle.textContent = '도전과제';
+  overlayStat.textContent = '';
+  cardsEl.style.display = 'flex';
+  cardsEl.innerHTML = '';
+  rerollBtn.style.display = 'none';
+  overlayBtn.style.display = 'none';
+  shopBtn.style.display = 'none';
+  headClose.style.display = 'block';
+
+  var d = Save.get();
+  var have = d.achievements, mastered = d.mastered;
+
+  codexSection('판 · 기록');
+  for (var i = 0; i < Ach.ACHIEVEMENTS.length; i++){
+    var a = Ach.ACHIEVEMENTS[i];
+    achRow(a.name, a.desc, have.indexOf(a.id) >= 0);
+  }
+
+  codexSection('무기 마스터리 ' + mastered.length + ' / ' + WEAPON_IDS.length);
+  for (var w = 0; w < WEAPON_IDS.length; w++){
+    var wid = WEAPON_IDS[w];
+    var wc = CONFIG.weapons[wid];
+    achRow(wc.name, wc.name + ' 무기를 Lv.' + wc.maxLevel + ' 까지 올린다',
+           mastered.indexOf(wid) >= 0);
+  }
+
+  overlay.classList.add('on');
+  paused = true;
+}
+
+// 도전과제 한 줄 — 달성이면 ✅ 진하게, 잠겨 있으면 🔒 회색(.codexRow.off).
+// 오른쪽 칸은 항상 desc(=조건 문구) — 달성 전이든 후든 같은 문장이 조건을 말해 준다.
+function achRow(name, desc, done){
+  var d = document.createElement('div');
+  d.className = 'codexRow' + (done ? '' : ' off');
+  d.innerHTML = '<span class="codexKey">' + (done ? '\u{2705} ' : '\u{1F512} ') +
+                escapeHtml(name) + '</span><span>' + escapeHtml(desc) + '</span>';
+  cardsEl.appendChild(d);
+}
+
+function closeAchievements(){
+  inAch = false;
+  headClose.style.display = 'none';
+  cardsEl.innerHTML = '';
+  cardsEl.style.display = 'none';
+  if (achOrigin === 'pause'){ showPause(); return; }
   showStartScreen();
 }
 
@@ -5701,7 +5986,7 @@ window.addEventListener('keydown', function(e){
    모바일에서 beforeunload 는 안 불리는 경우가 많아 쓰지 않는다. */
 function onLeaving(){
   if (askingName) return;        // 이름 화면 중이면 그 화면을 그대로 둔다
-  if (world.gameOver || world.cleared || inShop || inCodex) return;
+  if (world.gameOver || world.cleared || inShop || inCodex || inAch) return;
   if (pendingRun) return;        // 이어할지 묻는 중이면 그 물음을 그대로 둔다
   if (atStartScreen) return;     // 시작 화면 중이면 그 화면을 그대로 둔다 (아직 시작 전이라 저장할 것도 없다)
   saveRun();
@@ -5729,6 +6014,7 @@ function closeShop(){
 headClose.addEventListener('click', function(){
   if (inShop) closeShop();
   else if (inCodex) closeCodex();
+  else if (inAch) closeAchievements();
 });
 
 /* 새 판을 시작한다. **한 곳에 모아 둔다.**
@@ -5749,6 +6035,7 @@ function 새판준비(){
   RunSave.clear();                   // 새 판을 시작하니 옛 저장은 버린다
   runBanked = false;
   runTainted = false;
+  lastEarnedAchievements = [];       // 지난 판 결과 화면의 도전과제 줄이 새 판에 안 새게
   runUid = 새판고유번호();
 }
 
@@ -5771,6 +6058,7 @@ overlayBtn.addEventListener('click', function(){
   if (isPauseScreen){ resumeFromPause(); return; }
   if (inShop){ closeShop(); return; }
   if (inCodex){ closeCodex(); return; }
+  if (inAch){ closeAchievements(); return; }
   새판시작();
 });
 
@@ -6038,6 +6326,14 @@ function showStartScreen(){
              function(){
                codexOrigin = 'start';   // 닫으면 여기로 돌아온다
                showCodex('weapon');
+             }, false);
+
+  appendCard('<div class="ico">\u{1F3C6}</div>' +
+             '<div class="nm">도전과제</div>' +
+             '<div class="ds">판 기록 · 무기 마스터리</div>',
+             function(){
+               achOrigin = 'start';   // 닫으면 여기로 돌아온다
+               showAchievements();
              }, false);
 
   overlay.classList.add('on');
