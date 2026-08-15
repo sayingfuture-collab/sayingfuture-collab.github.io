@@ -3595,6 +3595,8 @@ var ctx = canvas.getContext('2d', { alpha: false });
      levels     — { 무기id: 그 무기의 현재 레벨 }
      maxLevels  — { 무기id: 그 무기의 설정 만렙 }. 지금은 전부 5지만 여기서 5를
                   하드코딩하지 않는다 — 나중에 무기마다 달라지면 조용히 틀어진다.
+     evolved    — { 무기id: 5성 진화를 했는가(불리언) }. 마스터리가 "만렙만" 이 아니라
+                  "만렙 + 진화" 가 되면서 추가됐다(2026-08-14 사용자 피드백).
      dmg        — { 무기id: 그 무기가 낸 실제 딜량 }. **무기만** 담겨 있다 — 호출하는
                   쪽(Task 3 의 어댑터)이 DAMAGE_IDS 에서 nuke·? 를 이미 뺐다. */
 (function(global){
@@ -3620,8 +3622,11 @@ var ACHIEVEMENTS = [
       }
       return n >= 4;
     } },
-  { id: 'nonuke5', name: '핵 없이 5분', desc: '핵폭탄을 하나도 안 줍고 5분을 버틴다',
-    test: function(c){ return c.nukes === 0 && c.sec >= 300; } },
+  // 15분 = 한 판의 길이 전체다(2026-08-14: 5분은 너무 쉬워서 판 전체로 올렸다).
+  // id 를 nonuke15 로 같이 바꿨다 — id 에 5 를 남겨두고 값만 15로 바꾸면
+  // "이름이 거짓말하는 저장 데이터" 가 된다. 배포 전이라 마이그레이션은 없다.
+  { id: 'nonuke15', name: '핵 없이 15분', desc: '핵폭탄을 하나도 안 줍고 15분을 버틴다',
+    test: function(c){ return c.nukes === 0 && c.sec >= 900; } },
   { id: 'clear', name: '클리어', desc: '판을 끝까지 깬다',
     test: function(c){ return !!c.cleared; } },
   { id: 'solo70', name: '외길', desc: '클리어했고, 한 무기의 딜이 무기 딜 합계의 70% 이상',
@@ -3644,6 +3649,14 @@ var ACHIEVEMENTS = [
 // 마스터리가 없는 무기가 된다. c.weaponIds 에서 그때그때 만든다.
 function masteryId(weaponId){ return 'master_' + weaponId; }
 
+// 만렙만으로는 부족하다 — 5성 진화까지 마쳐야 마스터리다(2026-08-14 사용자
+// 피드백: "무기 마스터리는 진화까지 해야 하는걸로"). 만렙을 찍고도 상자를 안
+// 먹었거나 진화 카드를 안 골랐으면 아직 아니다 — grind 만으로 안 끝나게 한다.
+function isMastered(c, weaponId){
+  return (c.levels[weaponId] || 0) >= (c.maxLevels[weaponId] || Infinity) &&
+         !!(c.evolved && c.evolved[weaponId]);
+}
+
 // c 로 판정해 달성한 도전과제 id 배열을 돌려준다. 판단위 9개 + 마스터리(무기 수만큼).
 function earnedAchievements(c){
   var out = [], i, id;
@@ -3652,7 +3665,7 @@ function earnedAchievements(c){
   }
   for (i = 0; i < c.weaponIds.length; i++){
     id = c.weaponIds[i];
-    if ((c.levels[id] || 0) >= (c.maxLevels[id] || Infinity)) out.push(masteryId(id));
+    if (isMastered(c, id)) out.push(masteryId(id));
   }
   return out;
 }
@@ -3679,6 +3692,7 @@ global.CatAch = {
   ACHIEVEMENTS: ACHIEVEMENTS,
   earnedAchievements: earnedAchievements,
   masteryId: masteryId,
+  isMastered: isMastered,
   sanitizeIdList: sanitizeIdList
 };
 
@@ -5066,7 +5080,7 @@ var lastEarnedAchievements = [];
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '4013161';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = '8cca0a8';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -5407,17 +5421,18 @@ function sendRecord(){
    나중에 형식이 바뀔 때 조용히 어긋난다(명세 §2). world.weapons[id].level 을
    직접 읽는다. */
 function achievementCondition(cleared){
-  var levels = {}, maxLevels = {}, dmg = {}, i, id;
+  var levels = {}, maxLevels = {}, evolved = {}, dmg = {}, i, id;
   for (i = 0; i < WEAPON_IDS.length; i++){
     id = WEAPON_IDS[i];
     levels[id] = (world.weapons[id] && world.weapons[id].level) || 0;
     maxLevels[id] = CONFIG.weapons[id].maxLevel;
+    evolved[id] = world.isEvolved(id);   // 마스터리 = 만렙 + 진화 (2026-08-14)
     dmg[id] = world.dmgBy[id] || 0;   // world.dmgBy 에 nuke·? 도 있지만 무기 id 만 골라 읽는다
   }
   return {
     sec: Math.floor(world.elapsed), cleared: !!cleared, level: world.level,
     kills: world.kills, bossIndex: world.bossIndex, nukes: world.nukesTaken,
-    weaponIds: WEAPON_IDS, levels: levels, maxLevels: maxLevels, dmg: dmg
+    weaponIds: WEAPON_IDS, levels: levels, maxLevels: maxLevels, evolved: evolved, dmg: dmg
   };
 }
 
@@ -5440,9 +5455,12 @@ function checkAchievements(cleared){
   var have = Save.get().achievements;
   var fresh = [], mastered = [], i, id;
   for (i = 0; i < earned.length; i++) if (have.indexOf(earned[i]) < 0) fresh.push(earned[i]);
+  // 판정 자는 Ach.isMastered 하나뿐이다 — 여기서 조건을 다시 적으면(levels>=maxLevels
+  // 처럼) earnedAchievements 안의 기준과 갈라질 수 있다. 실제로 진화 조건을 추가하면서
+  // 이 자리에 옛 기준(만렙만)이 남아 있던 걸 여기서 바로잡았다.
   for (i = 0; i < c.weaponIds.length; i++){
     id = c.weaponIds[i];
-    if (c.levels[id] >= c.maxLevels[id]) mastered.push(id);
+    if (Ach.isMastered(c, id)) mastered.push(id);
   }
   Save.grantAchievements(earned);   // 이미 가진 건 내부에서 걸러진다
   Save.markMastered(mastered);
@@ -5684,7 +5702,8 @@ function showAchievements(){
   for (var w = 0; w < WEAPON_IDS.length; w++){
     var wid = WEAPON_IDS[w];
     var wc = CONFIG.weapons[wid];
-    achRow(wc.name, wc.name + ' 무기를 Lv.' + wc.maxLevel + ' 까지 올린다',
+    // 만렙만으론 안 된다 — 5성 진화까지(2026-08-14). 조건 문구도 그렇게 말해야 한다.
+    achRow(wc.name, wc.name + ' 무기를 Lv.' + wc.maxLevel + ' 까지 올리고 5성으로 진화시킨다',
            mastered.indexOf(wid) >= 0);
   }
 
@@ -5839,6 +5858,31 @@ function codexMe(){
      초기화하지 않는다(초기화는 "시작하기" 를 눌러야 일어난다). 그걸 읽으면
      "아직 시작도 안 했는데 발톱갈이 3단계" 가 나온다. */
   if (codexOrigin !== 'pause') return;
+
+  /* 이번 판 무기(23단계 보정, 사용자 요청 — "전투중에 중지 하면 자신의 무기 레벨
+     상태랑 패시브 레벨 상태 알려주는 탭도 있으면 좋을 것 같고"). 새 화면을 또
+     만들지 않고 이미 "이번 판 패시브" 를 보여주던 이 자리에 무기 칸만 얹었다 —
+     아래 패시브 칸과 같은 게이트(codexOrigin==='pause')를 그대로 쓴다.
+     WEAPON_IDS 순서로 돈다 — for...in 을 안 쓰는 이유는 core 의 그것과 같다. */
+  codexSection('이번 판 무기');
+  var 무기있나 = false;
+  for (var wi = 0; wi < WEAPON_IDS.length; wi++){
+    var wid2 = WEAPON_IDS[wi];
+    var wlv = world.weapons[wid2] ? world.weapons[wid2].level : 0;
+    if (!wlv) continue;
+    무기있나 = true;
+    var wcfg = CONFIG.weapons[wid2];
+    var 진화중 = world.isEvolved(wid2);
+    // 카드·HUD 와 같은 규칙 — 진화했으면 진화형 그림, 아니면 기본형.
+    var 무기아이콘url = (진화중 && WEAPON_ICON[wid2]) ? WEAPON_ICON[wid2] : BASE_ICON[wid2];
+    var 무기아이콘html = 무기아이콘url
+      ? '<img class="wpnIcoSm" src="' + 무기아이콘url + '" alt="">'
+      : wcfg.emoji + ' ';
+    codexRow(무기아이콘html + wcfg.name,
+             'Lv.' + wlv + ' / ' + wcfg.maxLevel + (진화중 ? ' · 5성 진화' : ''), true);
+  }
+  if (!무기있나) codexRow('아직 없습니다', '');
+
   codexSection('이번 판 패시브');
   var 있나 = false;
   for (var id in CONFIG.passives){
