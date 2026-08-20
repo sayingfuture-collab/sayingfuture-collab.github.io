@@ -6,9 +6,11 @@ import { skillInfo } from '../battle/skills.js';
 import { artNode, hasArt } from './art.js';
 import { countOf, levelOf, isMaxLevel, upgradeCheck, upgrade, getStock, getStats } from '../storage.js';
 import { BOOK_SORTS, ORIGINAL_SORT, sortCharacters } from '../sort.js';
+import { chipRow as makeChipRow, filterRow as makeFilterRow, TIERS, ROLES } from './chips.js';
 
-const TIERS = ['SSR', 'SR', 'R', 'N'];
-const ROLES = ['지휘', '장인', '전사', '치유', '포격'];
+// 알약 줄은 편성 고르기와 같은 부품을 쓴다(chips.js). 접두사만 이 화면 것으로 준다.
+const chipRow = (label, opts, onChange) => makeChipRow('book', label, opts, onChange);
+const filterRow = (label, values, onChange) => makeFilterRow('book', label, values, onChange);
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -16,34 +18,6 @@ function el(tag, className, text) {
   if (text !== undefined) node.textContent = text;
   return node;
 }
-
-/**
- * 알약 버튼 한 줄. 하나만 켜진다. 고른 값이 바뀌면 onChange를 부른다.
- * 필터와 정렬이 같은 모양을 쓴다 — 생김새가 다르면 다른 기능처럼 보인다.
- *
- * @param {Array<{value: string, name: string}>} opts 첫 항목이 처음 켜져 있는 것
- */
-function chipRow(label, opts, onChange) {
-  const row = el('div', 'book__filter');
-  row.append(el('span', 'book__filterLabel', label));
-  const buttons = opts.map((o, i) => {
-    const b = el('button', 'book__chip', o.name);
-    b.type = 'button';
-    b.dataset.value = o.value;
-    b.dataset.on = String(i === 0);
-    b.onclick = () => {
-      buttons.forEach((x) => { x.dataset.on = String(x === b); });
-      onChange(o.value);
-    };
-    row.append(b);
-    return b;
-  });
-  return row;
-}
-
-/** 필터용 — 맨 앞에 '전체'(빈 값)를 붙인다 */
-const filterRow = (label, values, onChange) =>
-  chipRow(label, [{ value: '', name: '전체' }, ...values.map((v) => ({ value: v, name: v }))], onChange);
 
 /**
  * @returns {{el: HTMLElement, refresh: () => void}}

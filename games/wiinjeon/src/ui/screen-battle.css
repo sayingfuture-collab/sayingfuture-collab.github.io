@@ -124,22 +124,42 @@
 .picker__head { font-size: 13px; color: #8b949e; text-align: center; }
 .picker__grid {
   flex: 1; overflow-y: auto;
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 6px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px;
   align-content: start;
+  /* ⚠️ **stretch(기본값)면 안 된다.** 칸이 줄 높이에 묶여서, 내용이 더 커져도
+     칸은 안 커지고 글자만 삐져나온다 — 예준님이 본 "겹쳐 보인다"가 이거였다.
+     start 로 두면 칸이 제 내용만큼 커진다. 아래 min-height 덕분에 실제로는
+     거의 모든 칸이 같은 높이라 줄이 들쭉날쭉해 보이지도 않는다. */
+  align-items: start;
 }
+
+/* **키가 내용을 따라간다.** 예전엔 aspect-ratio 3/4 로 높이를 못박고 overflow:hidden 으로
+   덮어뒀는데, 「요한 제바스티안 바흐」처럼 이름이 세 줄이 되면 여유가 **정확히 0px**이 되어
+   글꼴이 조금만 다른 기기에서 아랫줄이 잘렸다. 재보기 전엔 안 보이는 종류의 고장이다.
+   이제 높이를 안 정한다 — 한 줄 안의 칸끼리는 grid 가 알아서 키를 맞춰준다. */
 .picker__cell {
-  aspect-ratio: 3 / 4; border-radius: 10px; border: 1px solid #30363d;
-  background: #161b22; cursor: pointer; padding: 4px; overflow: hidden;
+  min-height: 144px;
+  border-radius: 10px; border: 1px solid #30363d;
+  background: #161b22; cursor: pointer; padding: 6px 4px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   font-size: 10px; color: #c9d1d9; text-align: center; word-break: keep-all;
 }
+/* 줄이 안 눌리게. 눌리면 도트 그림이 64에서 벗어나 픽셀이 갈린다 */
+.picker__cell > * { flex: none; }
+.picker__name { font-size: 11px; line-height: 1.25; }
 .picker__cell[data-tier="SSR"] { border-color: #ffd75ecc; }
 .picker__cell[data-tier="SR"]  { border-color: #bc8cffaa; }
 .picker__cell[data-tier="R"]   { border-color: #58a6ff88; }
-/* 정렬 — 보유가 늘면 원본 순서로는 찾을 수가 없다.
-   도감 필터와 같은 알약 모양으로 둔다. 두 화면에서 모양이 다르면 다른 기능처럼 보인다. */
-.picker__sort { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
-.picker__sortLabel { font-size: 11px; color: #6e7681; flex: none; }
+/* 필터·정렬 — 보유가 늘면 원본 순서로는 찾을 수가 없다.
+   도감과 **같은 부품**(chips.js)을 쓴다. 두 화면에서 모양이 다르면 다른 기능처럼 보인다. */
+.picker__filters { display: flex; flex-direction: column; gap: 5px; flex: none; }
+.picker__filter { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.picker__filterLabel { font-size: 11px; color: #6e7681; flex: none; width: 26px; }
+.picker__empty {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: #6e7681;
+}
+.picker__empty[hidden] { display: none; }
 .picker__chip {
   font: inherit; font-size: 12px;
   padding: 4px 12px; border-radius: 999px;
@@ -148,18 +168,18 @@
 }
 .picker__chip[data-on="true"] { border-color: #ffd75e; background: #2a1e05; color: #ffd75e; }
 
-/* 여기만 다른 자리보다 작다. 칸이 74px까지 좁아지면 「레오나르도 다 빈치」가
-   이름 두 줄 + 레벨줄을 먹어서, 44px로는 1.6px밖에 안 남았다 — 글꼴이 다른
-   기기에서 넘친다. 40px이면 4.7px, 흔한 82px 칸에서는 15.3px 남는다. */
+/* 그림은 **32의 배수로만** 키운다. 도트가 32×32라 1.5배(48px)로 늘리면 픽셀이
+   두 칸·세 칸으로 갈려서 가장자리가 지저분해진다. 그래서 48이 아니라 64다.
+   칸 높이를 안 정하게 바꿨으니(위 참고) 여기서 넘칠 걱정은 안 해도 된다. */
 .picker__art {
-  font-size: 30px;
+  font-size: 44px;
   line-height: 1;
-  height: 40px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.picker__art img { width: 32px; height: 32px; display: block; }
+.picker__art img { width: 64px; height: 64px; display: block; }
 .picker__sub { font-size: 9px; color: #6e7681; }
 
 /* ── 결과 ── */

@@ -95,7 +95,13 @@ export function createGachaScreen({ pull, onDone }) {
 
   // 연출이 도는 동안 버튼을 잠근다. 연타하면 카드만 갈아엎히고 저장은 쌓여서
   // 뽑은 인물을 못 보고 지나간다.
+  //
+  // ⚠️ **연출 중에도 저장은 바뀐다**(뽑은 카드가 기록된다). 그 신호로 refresh가 돌면
+  // 잠가둔 버튼이 도로 열려서 연타가 뚫린다. 그래서 잠금 상태를 변수로 들고
+  // refresh가 그걸 존중하게 한다.
+  let busy = false;
   function lock(on) {
+    busy = on;
     // 잠금을 풀 때도 낼 수 없으면 잠긴 채로 둔다
     one.disabled = on || !canAfford(1);
     ten.disabled = on || !canAfford(10);
@@ -126,8 +132,8 @@ export function createGachaScreen({ pull, onDone }) {
     const t = getTickets();
     one.textContent = t >= 1 ? `뽑기 (권 ${t})` : `뽑기 (${PULL_COST}골드)`;
     ten.textContent = t >= 10 ? '10연차 (권 10)' : `10연차 (${PULL_COST * 10}골드)`;
-    one.disabled = !canAfford(1);
-    ten.disabled = !canAfford(10);
+    one.disabled = busy || !canAfford(1);
+    ten.disabled = busy || !canAfford(10);
     shortage.hidden = canAfford(1);
   }
 

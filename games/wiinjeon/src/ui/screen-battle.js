@@ -14,6 +14,7 @@ import { createRun, startFloor } from '../battle/engine.js';
 import { climb } from '../battle/runner.js';
 import { isRewardFloor, offerRewards, applyReward } from '../battle/rewards.js';
 import { createRewardView } from './reward-view.js';
+import { chipRow, filterRow, TIERS, ROLES } from './chips.js';
 import { createFightView, SPEEDS } from './fight-view.js';
 import { SORTS, DEFAULT_SORT, sortCharacters } from '../sort.js';
 import { artNode } from './art.js';
@@ -155,48 +156,55 @@ export function createBattleScreen() {
   pickerClose.type = 'button';
   pickerClose.onclick = () => { picker.hidden = true; };
 
-  // 정렬. 보유가 늘수록 원본 순서로는 찾을 수가 없다.
+  // 필터와 정렬. **보유 126명이면 정렬만으로는 못 찾는다** — 폰에서 한 줄에 3명이라
+  // 42줄을 훑어야 한다. 도감에 이미 있던 등급·역할 필터가 여기만 빠져 있었다.
   // 고른 기준은 다시 열어도 유지된다 — 매번 다시 누르게 하면 있으나 마나다.
   let sortMode = DEFAULT_SORT;
+  let tierFilter = '';
+  let roleFilter = '';
   let openFront = false;
-  const pickerSort = el('div', 'picker__sort');
-  pickerSort.append(el('span', 'picker__sortLabel', '정렬'));
-  const sortButtons = SORTS.map((s) => {
-    const b = el('button', 'picker__chip', s.name);
-    b.type = 'button';
-    b.dataset.on = String(s.id === sortMode);
-    b.onclick = () => {
-      sortMode = s.id;
-      sortButtons.forEach((x, i) => { x.dataset.on = String(SORTS[i].id === sortMode); });
-      openPicker(openFront);
-    };
-    pickerSort.append(b);
-    return b;
-  });
+  const reopen = () => openPicker(openFront);
+  const pickerFilters = el('div', 'picker__filters');
+  pickerFilters.append(
+    filterRow('picker', '등급', TIERS, (v) => { tierFilter = v; reopen(); }),
+    filterRow('picker', '역할', ROLES, (v) => { roleFilter = v; reopen(); }),
+    chipRow('picker', '정렬', SORTS.map((s) => ({ value: s.id, name: s.name })),
+      (v) => { sortMode = v; reopen(); })
+  );
 
-  picker.append(pickerHead, pickerSort, pickerGrid, pickerClose);
+  // 필터를 좁히면 아무도 안 남을 수 있다. 빈 격자만 보여주면 고장으로 읽힌다.
+  const pickerEmpty = el('div', 'picker__empty', '이 조건에 맞는 인물이 없습니다.');
+  pickerEmpty.hidden = true;
+
+  picker.append(pickerHead, pickerFilters, pickerGrid, pickerEmpty, pickerClose);
   root.append(picker);
 
   function openPicker(front) {
     openFront = front;
     const taken = new Set(party.map((p) => p.id));
-    const owned = sortCharacters(
-      CHARACTERS.filter((c) => countOf(c.id) > 0 && !taken.has(c.id)),
+    const mine = CHARACTERS.filter((c) => countOf(c.id) > 0 && !taken.has(c.id));
+    const shown = sortCharacters(
+      mine.filter((c) => (!tierFilter || c.tier === tierFilter)
+        && (!roleFilter || c.role === roleFilter)),
       sortMode,
       levelOf
     );
 
-    pickerHead.textContent = owned.length
-      ? `${front ? '앞줄' : '뒷줄'}에 세울 인물 (보유 ${owned.length}명)`
+    // 걸러낸 뒤의 수와 전체 보유 수를 같이 보여준다 — 필터가 켜진 걸 잊고
+    // "왜 몇 명 없지"가 되는 자리다.
+    const narrowed = shown.length !== mine.length;
+    pickerHead.textContent = mine.length
+      ? `${front ? '앞줄' : '뒷줄'}에 세울 인물 (${narrowed ? `${shown.length}명 / 보유 ` : '보유 '}${mine.length}명)`
       : '아직 뽑은 인물이 없습니다. 먼저 뽑기를 해주세요.';
+    pickerEmpty.hidden = shown.length > 0 || mine.length === 0;
 
     pickerGrid.replaceChildren();
-    for (const c of owned) {
+    for (const c of shown) {
       const cell = el('div', 'picker__cell');
       cell.dataset.tier = c.tier;
       cell.append(
         artNode(c, 'picker__art'),
-        el('div', null, c.name),
+        el('div', 'picker__name', c.name),
         el('div', 'picker__sub', `${c.role} · ${levelOf(c.id)}렙${isMaxLevel(c.id) ? ' 최대' : ''}`)
       );
       const info = skillInfo(c);

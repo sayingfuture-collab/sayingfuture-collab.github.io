@@ -11,15 +11,19 @@ export const STARTER_GOLD = 5000;
 export const STARTER_TICKETS = 200;
 
 /**
- * 카드 1장을 뽑으면 주는 골드. 첫 장이든 중복이든 같다.
+ * **한 번 돌린 저장 정리에서만 쓰는 환산율이다. 뽑기는 골드를 주지 않는다.**
  *
- * 이 값은 **기존 저장 정리에서 역산했다.** 4,000뽑·69층인 사람이 정리 뒤에도
- * 69층짜리 파티(4명 16렙 = 49,600골드)를 세울 수 있어야 한다는 조건 하나로 정해졌다.
- * 바꾸면 스펙의 정리 표가 같이 틀어진다.
+ * 레벨을 장수에서 떼어내는 순간 이미 모은 카드가 전부 무의미해지므로,
+ * 그걸 골드로 바꿔주려고 만든 표다. 4,000뽑·69층인 사람이 정리 뒤에도
+ * 69층짜리 파티(4명 16렙 = 49,600골드)를 세울 수 있어야 한다는 조건 하나로
+ * **역산됐다.** 밸런스를 보고 정한 값이 아니다. 바꾸면 스펙의 정리 표가 틀어진다.
  *
- * 위로도 막혀 있다 — 기대값(9.15)이 뽑기 값(30)을 넘으면 뽑기가 골드 버튼이 된다.
+ * ⚠️ 이 표가 한때 `recordPull`에도 붙어 있어서 뽑을 때마다 골드가 들어왔다.
+ * 일회성 환산율이 상시 규칙으로 눌러앉은 것이고, 스펙 어디에도 그럴 이유가
+ * 적혀 있지 않았다(2026-08-20 확인 후 제거). **이름에 migration을 박아두는 것은
+ * 다음에 또 같은 자리에 붙는 걸 막기 위해서다.**
  */
-export const CARD_GOLD = { SSR: 60, SR: 20, R: 7, N: 2 };
+export const MIGRATION_CARD_GOLD = { SSR: 60, SR: 20, R: 7, N: 2 };
 
 /** 깬 층 1층당 */
 export const FLOOR_GOLD = 2;
@@ -47,9 +51,14 @@ export function totalUpgradeCost(toLevel) {
   return sum;
 }
 
-/** 그 등급 카드 1장의 값. 모르는 등급은 0 — 저장이 깨져도 NaN이 돌면 안 된다 */
-export function cardGold(tier) {
-  return CARD_GOLD[tier] ?? 0;
+/**
+ * 저장 정리에서 그 등급 카드 1장을 얼마로 쳐주는가.
+ * 모르는 등급은 0 — 저장이 깨져도 NaN이 돌면 안 된다.
+ *
+ * **뽑기에서 부르면 안 된다.** 위 상수 주석 참고.
+ */
+export function migrationCardGold(tier) {
+  return MIGRATION_CARD_GOLD[tier] ?? 0;
 }
 
 export function pullCost(n) {

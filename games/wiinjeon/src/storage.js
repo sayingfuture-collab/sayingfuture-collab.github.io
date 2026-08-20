@@ -3,7 +3,7 @@ import { CHARACTERS } from './data/characters.js';
 import { defaultFront, LEVEL_CAP } from './battle/stats.js';
 import {
   STARTER_GOLD, STARTER_TICKETS, RECORD_GOLD, MATERIAL_PER_LEVEL,
-  cardGold, upgradeCost, pullCost,
+  migrationCardGold, upgradeCost, pullCost,
 } from './economy.js';
 
 /** key 하나에 대한 읽기/쓰기 창구를 만든다. */
@@ -119,7 +119,7 @@ function toEconomy(raw) {
   for (const [id, n] of Object.entries(owned)) {
     const c = BY_ID.get(id);
     if (!c || !Number.isFinite(n) || n <= 0) continue;
-    gold += cardGold(c.tier) * n;
+    gold += migrationCardGold(c.tier) * n;
     stock[c.tier] += Math.floor(n);
     levels[id] = 1;
   }
@@ -234,14 +234,21 @@ function write() {
 // 정리 결과를 바로 남긴다. 안 그러면 새로고침마다 다시 계산한다.
 write();
 
-/** 뽑은 인물을 기록한다. @returns {{isNew: boolean, count: number, pulls: number}} */
+/**
+ * 뽑은 인물을 기록한다.
+ *
+ * **골드는 여기서 안 준다.** 골드가 나오는 곳은 전투 하나뿐이다.
+ * 중복은 골드가 아니라 **강화 재료**(`state.stock`)로 값을 한다 — 그거면 충분하고,
+ * 골드까지 얹으면 뽑기가 조용히 벌이가 되어 "왜 늘었지"를 매번 설명해야 한다.
+ *
+ * @returns {{isNew: boolean, count: number, pulls: number}}
+ */
 export function recordPull(character) {
   const id = character.id;
   const before = state.owned[id] || 0;
   state.owned[id] = before + 1;
   if (before === 0) state.levels[id] = 1; // 첫 장은 1렙으로 들어온다
   state.pulls += 1;
-  state.gold += cardGold(character.tier);
   state.stock[character.tier] = (state.stock[character.tier] ?? 0) + 1;
   write();
   return { isNew: before === 0, count: state.owned[id], pulls: state.pulls };
