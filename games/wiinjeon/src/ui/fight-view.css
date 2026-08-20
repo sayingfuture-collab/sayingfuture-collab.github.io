@@ -1,0 +1,226 @@
+/* 전장 — 옆에서 보는 시점. fight-view.js와 짝.
+   아군이 왼쪽, 적이 오른쪽. 각 팀은 뒷줄·앞줄 두 칸으로 서고 앞줄끼리 가운데에서 마주 본다.
+   --speed는 배속. 연출 길이가 배속을 따라가야 ×4에서 동작이 밀리지 않는다. */
+
+.fight {
+  --speed: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+}
+
+.fight__floor {
+  flex: none;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: #e6edf3;
+}
+
+.fight__field {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.fight__team { flex: 1; min-width: 0; display: flex; gap: 4px; }
+
+.fight__col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+/* 빈 줄도 자리를 지켜야 마주 보는 줄이 안 어긋난다 */
+.fight__col[data-empty="true"]::before {
+  content: '';
+  display: block;
+  height: 2px;
+}
+
+.fight__vs {
+  flex: none;
+  align-self: center;
+  font-size: 10px;
+  color: #30363d;
+  writing-mode: vertical-rl;
+  letter-spacing: .1em;
+}
+
+.fight__log {
+  flex: none;
+  font-size: 11px;
+  color: #8b949e;
+  text-align: center;
+  min-height: 2.4em;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 광폭화 — 화면 전체가 한 번 붉어진다 */
+.fight[data-rage="on"]::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: #f85149;
+  animation: rage-flash calc(.7s / var(--speed)) ease-out forwards;
+}
+@keyframes rage-flash {
+  0% { opacity: 0; }
+  25% { opacity: .32; }
+  100% { opacity: 0; }
+}
+
+/* ── 유닛 ── */
+
+.unit {
+  --tier: #8b949e;
+  --dir: 1; /* 달려드는 방향 */
+  position: relative;
+  padding: 5px 3px 6px;
+  border-radius: 9px;
+  border: 1px solid var(--tier);
+  background: #161b22;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  text-align: center;
+}
+.unit[data-side="enemy"] { --dir: -1; }
+
+.unit[data-tier="N"]   { --tier: #8b949e66; }
+.unit[data-tier="R"]   { --tier: #58a6ff88; }
+.unit[data-tier="SR"]  { --tier: #bc8cffaa; }
+.unit[data-tier="SSR"] { --tier: #ffd75ecc; }
+
+/* 유닛 그림 크기.
+   실측으로 정한 한계 — 칸 폭이 79px(패딩 빼면 73)이라 **가로가 먼저 막힌다.**
+   세로는 널널하다: 48px일 때 한 칸에 4명을 세워도 170px가 남는다(전장 556 중 385 사용).
+   그래서 4/0 배치를 없앨 필요가 없다.
+
+     44px  좌우 15px 남음
+     48px  좌우 11px      ← 지금
+     64px  좌우  7px      권장 최대
+     72px  좌우  3px      넘치기 직전
+     73px~ 테두리 밖으로 흘러나온다
+
+   여기 한 줄과 아래 img 한 줄만 같이 고치면 된다. */
+/* 그림과 이모지가 섞여 있어도 줄이 안 삐뚤도록 높이를 못 박는다.
+   이모지는 글자라 font-size보다 작게 그려져서, 안 잡아두면 그림 유닛만 8px 높아진다. */
+.unit__art {
+  font-size: 48px; line-height: 1;
+  height: 64px; display: flex; align-items: center; justify-content: center;
+  transition: transform .3s ease;
+}
+.unit__art img { width: 64px; height: 64px; display: block; }
+
+.unit__name {
+  font-size: 9px;
+  color: #c9d1d9;
+  line-height: 1.2;
+  word-break: keep-all;
+}
+
+.unit__bar {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: #21262d;
+  overflow: hidden;
+}
+.unit__bar i,
+.unit__bar u { position: absolute; left: 0; top: 0; height: 100%; transition: width .18s ease; }
+.unit__bar i { background: #3fb950; }
+.unit__bar u { background: #58a6ffaa; } /* 방어막은 체력 위에 겹쳐 그린다 */
+
+/* 쓰러짐 — 이모지가 옆으로 넘어간다 */
+.unit[data-dead="true"] { opacity: .3; }
+.unit[data-dead="true"] .unit__art { transform: rotate(72deg); }
+
+/* ── 떠오르는 숫자 ── */
+
+.unit__floats { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+
+.unit__float {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px #0d1117;
+  animation: float-up calc(.9s / var(--speed)) ease-out forwards;
+}
+.unit__float[data-kind="dmg"]  { color: #ff7b72; }
+.unit__float[data-kind="heal"] { color: #3fb950; }
+.unit__float[data-kind="buff"] { color: #ffd75e; font-size: 11px; }
+
+@keyframes float-up {
+  0%   { opacity: 0; transform: translate(calc(-50% + var(--drift, 0px)), 8px) scale(.8); }
+  22%  { opacity: 1; transform: translate(calc(-50% + var(--drift, 0px)), 0) scale(1.12); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--drift, 0px)), -26px) scale(1); }
+}
+
+/* ── 동작 ── */
+
+.unit[data-anim="lunge"] { animation: unit-lunge calc(.34s / var(--speed)) ease-out; }
+@keyframes unit-lunge {
+  0%   { transform: translateX(0); }
+  35%  { transform: translateX(calc(var(--dir) * 15px)) scale(1.07); }
+  100% { transform: translateX(0); }
+}
+
+.unit[data-anim="hit"] { animation: unit-hit calc(.3s / var(--speed)) ease-out; }
+@keyframes unit-hit {
+  0%   { transform: translateX(0); background: #161b22; }
+  15%  { transform: translateX(calc(var(--dir) * 5px)); background: #4a1d20; }
+  40%  { transform: translateX(calc(var(--dir) * -4px)); }
+  70%  { transform: translateX(calc(var(--dir) * 2px)); }
+  100% { transform: translateX(0); background: #161b22; }
+}
+
+.unit[data-anim="heal"] { animation: unit-heal calc(.4s / var(--speed)) ease-out; }
+@keyframes unit-heal {
+  0%   { box-shadow: 0 0 0 0 #3fb95000; }
+  40%  { box-shadow: 0 0 14px 2px #3fb95088; }
+  100% { box-shadow: 0 0 0 0 #3fb95000; }
+}
+
+.unit[data-anim="shield"] { animation: unit-shield calc(.42s / var(--speed)) ease-out; }
+@keyframes unit-shield {
+  0%   { box-shadow: 0 0 0 0 #58a6ff00; }
+  40%  { box-shadow: 0 0 0 3px #58a6ff88; }
+  100% { box-shadow: 0 0 0 0 #58a6ff00; }
+}
+
+.unit[data-anim="buff"] { animation: unit-buff calc(.36s / var(--speed)) ease-out; }
+@keyframes unit-buff {
+  0%   { transform: translateY(0); }
+  40%  { transform: translateY(-5px); }
+  100% { transform: translateY(0); }
+}
+
+/* 모션을 줄이도록 설정한 기기에서는 결과만 바뀌게 둔다 */
+@media (prefers-reduced-motion: reduce) {
+  .unit[data-anim] { animation: none; }
+  .unit__float { animation: float-still calc(.9s / var(--speed)) linear forwards; }
+  @keyframes float-still { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+  .fight[data-rage="on"]::after { animation: none; }
+}
+
+/* 소생 — 쓰러진 데서 돌아온다 */
+.unit[data-anim="revive"] { animation: unit-revive calc(.6s / var(--speed)) ease-out; }
+@keyframes unit-revive {
+  0%   { box-shadow: 0 0 0 0 #ffd75e00; transform: scale(.9); }
+  45%  { box-shadow: 0 0 22px 5px #ffd75ecc; transform: scale(1.08); }
+  100% { box-shadow: 0 0 0 0 #ffd75e00; transform: scale(1); }
+}
+.unit__float[data-kind="revive"] { color: #ffd75e; font-size: 11px; }

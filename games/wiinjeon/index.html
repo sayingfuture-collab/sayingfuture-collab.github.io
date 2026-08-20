@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>위인전 — 역사 인물 오토배틀러</title>
+<link rel="stylesheet" href="./src/ui/app.css">
+<link rel="stylesheet" href="./src/ui/card.css">
+<link rel="stylesheet" href="./src/ui/collection.css">
+<link rel="stylesheet" href="./src/ui/result-grid.css">
+<link rel="stylesheet" href="./src/ui/screen-gacha.css">
+<link rel="stylesheet" href="./src/ui/screen-battle.css">
+<link rel="stylesheet" href="./src/ui/fight-view.css">
+<link rel="stylesheet" href="./src/ui/rates-view.css">
+<link rel="stylesheet" href="./src/ui/reward-view.css">
+<!-- Cloudflare Web Analytics — 방문자 수 집계.
+     ⚠️ 이 폴더는 원본의 사본이라 그냥 덮어쓰면 이 줄이 사라진다.
+     배포할 때마다 스크립트가 다시 넣는다. -->
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js"
+  data-cf-beacon='{"token": "66d74d758a3b4b68ae33d7a072440b61"}'></script>
+</head>
+<body>
+
+<div id="app">
+  <header class="purse" id="purse"></header>
+  <div class="screens">
+    <section class="screen" id="screen-gacha"></section>
+    <section class="screen" id="screen-book" hidden></section>
+    <section class="screen" id="screen-battle" hidden></section>
+  </div>
+  <nav class="tabs">
+    <button class="tab" id="tab-gacha" type="button" aria-selected="true">뽑기</button>
+    <button class="tab" id="tab-book" type="button" aria-selected="false">도감</button>
+    <button class="tab" id="tab-battle" type="button" aria-selected="false">도전</button>
+  </nav>
+</div>
+
+<!-- 더블클릭(file://)으로 열면 ES 모듈이 CORS로 막혀 아래 스크립트가 통째로 안 돈다.
+     빈 화면으로 두지 말고 이유를 띄운다. -->
+<script>
+if (location.protocol === 'file:') {
+  document.getElementById('screen-gacha').innerHTML =
+    '<div class="fileWarn"><b>이 파일은 더블클릭으로는 안 열립니다.</b><br>' +
+    '<span>브라우저가 file:// 에서는 모듈 파일을 못 읽습니다.<br>' +
+    '같은 폴더의 <b style="color:#e6edf3">카드확인.bat</b> 을 더블클릭해 주세요.</span></div>';
+}
+</script>
+
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>

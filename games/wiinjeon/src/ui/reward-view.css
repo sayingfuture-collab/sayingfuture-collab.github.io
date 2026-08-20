@@ -1,0 +1,48 @@
+/* 층 보상 — 판 중에 생기는 유일한 결정이라 화면을 통째로 쓴다 */
+
+.reward {
+  position: fixed; inset: 0; z-index: 15;
+  background: #0d1117f2;
+  display: flex; flex-direction: column; justify-content: center;
+  gap: 16px; padding: 20px;
+}
+.reward[hidden] { display: none; }
+
+.reward__head { flex: none; text-align: center; }
+.reward__title { font-size: 24px; font-weight: 800; color: #ffd75e; }
+.reward__sub { font-size: 12px; color: #8b949e; margin-top: 4px; }
+
+.reward__list { flex: none; display: flex; flex-direction: column; gap: 10px; }
+
+.reward__card {
+  font: inherit;
+  text-align: left;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid #30363d;
+  background: #161b22;
+  color: #e6edf3;
+  cursor: pointer;
+}
+.reward__card:active { border-color: #ffd75e; background: #1b2029; }
+.reward__name { font-size: 15px; font-weight: 800; color: #ffd75e; }
+.reward__text { font-size: 12px; color: #8b949e; line-height: 1.5; margin-top: 4px; word-break: keep-all; }
+
+.reward__owned {
+  flex: none;
+  display: flex; flex-wrap: wrap; gap: 5px; align-items: center; justify-content: center;
+  min-height: 22px;
+}
+.reward__ownedLabel { font-size: 10px; color: #484f58; margin-right: 2px; }
+.reward__chip {
+  font-size: 10px;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: #161b22;
+}
+
+/* 결과 화면에 이번 판의 보상 */
+.result-panel__rewards { display: flex; align-items: flex-start; gap: 8px; width: 100%; margin-top: 10px; }
+.result-panel__rewardList { display: flex; flex-wrap: wrap; gap: 5px; }

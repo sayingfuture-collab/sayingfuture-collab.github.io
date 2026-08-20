@@ -1,0 +1,87 @@
+/* 앱 껍데기 — 폰 세로 기준. 화면 전환과 하단 탭만 담당한다. */
+* { box-sizing: border-box; }
+
+html, body { margin: 0; height: 100%; }
+
+body {
+  background: #0d1117;
+  color: #e6edf3;
+  font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  display: flex;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  width: 100%;
+  max-width: 420px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+
+.screens { flex: 1; min-height: 0; position: relative; }
+
+.screen {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+.screen[hidden] { display: none; }
+
+.tabs {
+  flex: none;
+  display: flex;
+  border-top: 1px solid #30363d;
+  background: #0d1117;
+}
+
+.tab {
+  flex: 1;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 14px 0;
+  border: none;
+  background: none;
+  color: #6e7681;
+  cursor: pointer;
+  border-top: 2px solid transparent;
+  margin-top: -1px;
+}
+.tab[aria-selected="true"] { color: #e6edf3; border-top-color: #ffd75e; }
+
+/* file:// 로 열었을 때만 보이는 안내 */
+.fileWarn {
+  margin: auto;
+  max-width: 320px;
+  text-align: center;
+  line-height: 1.7;
+  font-size: 14px;
+  color: #ffd75e;
+}
+.fileWarn span { color: #8b949e; }
+
+/* 지갑. 얼마 있는지 늘 보여야 강화도 뽑기도 판단이 선다 */
+.purse {
+  flex: none;
+  display: flex; justify-content: center; align-items: baseline; gap: 10px;
+  padding: 6px 0 2px;
+  font-size: 12px; color: #8b949e;
+  font-variant-numeric: tabular-nums;
+}
+.purse b { color: #ffd75e; font-weight: 800; }
+.purse span { color: #58a6ff; }
+
+/* ── 도트 그림 ──
+   32x32 원본을 정수배로만 키운다. 브라우저 기본값(부드럽게 늘리기)으로 두면
+   도트가 뭉개져서 도트로 그린 뜻이 없어진다.
+   그래서 표시 크기도 32의 배수(32 / 64 / 96 / 128)로 맞춰 뒀다. */
+img.dot {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}

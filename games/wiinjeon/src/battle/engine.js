@@ -1,0 +1,472 @@
+// 턴제 전투 엔진. 화면을 모른다.
+// 무슨 일이 있었는지를 이벤트 목록으로 돌려주고, 그리는 건 화면이 알아서 한다.
+// 나중에 그래픽을 넣을 때 이 파일은 안 바뀐다.
+//
+// 이벤트에는 "무슨 일이 있었나"와 함께 "그래서 어떻게 됐나"(남은 체력·방어막)를 같이 싣는다.
+// 렌더러가 한 대씩 재생하려면 각 시점의 상태가 필요한데, 피해량만으로는 역산이 안 된다 —
+// 방어막이 얼마나 먹었는지 모르기 때문이다. 렌더러는 계산하지 않고 실린 값을 쓰기만 한다.
+
+import { statsOf, rowMult, defaultFront } from './stats.js';
+import { skillOf, passiveOf } from './skills.js';
+import { enemiesFor } from './enemy.js';
+
+const BUFF_STEP = 0.15;   // 지휘 1회당 아군 공격력 증가
+const BUFF_MAX = 0.9;     // 호령은 여기까지만 쌓는다. 그 뒤로 지휘는 공격한다
+// 고유기 버프(훈민정음 등)는 호령 상한 위로 얹힌다 — 그게 고유기의 값이다.
+// 다만 무한히 오르면 안 되므로 총량에 한계를 둔다.
+const BUFF_TOTAL_MAX = 2.0;
+const HEAL_PCT = 0.25;    // 치유량 = 대상 최대 체력의 이 비율
+export const SHIELD_MULT = 1.5;  // 방어막 = 시전자 공격력 × 이 값
+const WEAKEN_MAX = 0.6;   // 팔진도가 깎을 수 있는 한계. 적을 0으로 만들면 싸움이 안 끝난다
+const REVIVE_PCT = 0.5;   // 소생 시 돌아오는 체력 비율. 치유 한 명당 판당 1회
+// 적이 전원 앞줄이면 포격이 관통할 데가 없다. 대신 몰려 있는 만큼 크게 맞는다.
+const PIERCE_MASSED = Number(globalThis.process?.env?.PIERCE_MASSED ?? 1.6);
+
+// 광폭화 — 이 턴을 넘기면 매 턴 피해가 불어난다.
+// 치유가 양쪽에 있으면 회복이 피해를 앞질러 아무도 안 죽는다.
+// 턴 상한으로 끊으면 결과가 늦고 답답하니, 싸움 자체를 끝나게 만든다.
+const RAGE_AFTER = 12;
+const RAGE_STEP = 0.25;
+
+/** 이번 턴의 피해 배율 */
+function rageMult(turn) {
+  return 1 + Math.max(0, turn - RAGE_AFTER) * RAGE_STEP;
+}
+
+// 지휘·치유·장인도 할 일이 없으면 때린다.
+// 안 그러면 134명 중 27%만 공격할 수 있어서, 무작위 4명의 29%가
+// 적을 아예 못 죽이고 1층에서 멈춘다.
+
+/** @param {boolean} front 앞줄이면 true. 역할이 아니라 편성이 정한다 */
+function toUnit(uid, character, level, front) {
+  const s = statsOf(character, level);
+  return {
+    uid,
+    character,
+    level,
+    front,
+    hp: s.hp,
+    maxHp: s.hp,
+    baseMaxHp: s.hp, // 보상이 얹히기 전 값. 복리를 막으려고 여기 기준으로 더한다
+    // 줄에 따른 공격력은 baseAtk에서 그때그때 계산한다.
+    // 층 사이에 줄을 바꿀 수 있으므로 한 번 계산하고 끝내면 안 된다.
+    baseAtk: s.atk,
+    atk: Math.round(s.atk * rowMult(front).atk),
+    shield: 0,
+    // 고유기가 쌓아 올리는 값들. baseAtk와 따로 둬서 줄을 바꿔도 안 날아간다.
+    bonusAtk: 0,     // 관우 의리, 알렉산더 원정처럼 판 중에 붙는 배수
+    revivesUsed: 0,
+    weaken: 0,       // 제갈량 팔진도에 깎인 만큼
+  };
+}
+
+/**
+ * 상시·누적 효과를 다 반영한 실제 공격력.
+ * 필드가 없는 유닛(테스트에서 손으로 세운 적)도 그냥 기본 공격력으로 떨어지게 둔다.
+ */
+function effAtk(unit, auraAtk = 0) {
+  const m = (1 + (unit.bonusAtk ?? 0)) * (1 + auraAtk) * (1 - (unit.weaken ?? 0));
+  return Math.max(1, Math.round(unit.atk * m));
+}
+
+/**
+ * 유닛의 줄을 바꾼다. 층 사이에 편성을 고칠 때 쓴다.
+ * 공격력이 줄에 걸려 있으므로 같이 다시 계산한다 — 안 그러면 앞줄 페널티를 달고 뒤로 가거나
+ * 그 반대가 되어 화면에 적힌 숫자와 실제가 어긋난다.
+ */
+export function setRow(unit, front) {
+  unit.front = front;
+  // 고유기로 쌓인 bonusAtk·weaken은 따로 들고 있으므로 여기서 안 날아간다
+  unit.atk = Math.round(unit.baseAtk * rowMult(front).atk);
+  return unit;
+}
+
+/** 관통 배수 — 고유기(나폴레옹)와 판 중에 고른 보상(조준)이 겹쳐 붙는다 */
+function pierceMult(actor) {
+  return passiveOf(actor.character, 'pierceBonus', 1) * (1 + (actor.pierceBonus ?? 0));
+}
+
+const alive = (list) => list.filter((u) => u.hp > 0);
+
+/**
+ * @param {Array<{character: object, level: number, front?: boolean}>} partyEntries 최대 4명
+ *   front를 안 주면 역할 기본값으로 세운다 — 옛 저장과 시뮬레이션용.
+ */
+export function createRun(partyEntries) {
+  const party = partyEntries.map((e, i) =>
+    toUnit(`p${i}`, e.character, e.level, e.front ?? defaultFront(e.character))
+  );
+  return {
+    floor: 0,
+    party,
+    enemies: [],
+    buff: 0,
+    enemyBuff: 0,
+    // 대칸(칭기즈 칸) 같은 아우라는 편성이 정해지면 안 바뀌므로 한 번만 센다.
+    aura: auraOf(party),
+    enemyAura: 0,
+    turn: 0,
+    // 판 중에 고른 보상이 쌓이는 자리. 판이 끝나면 같이 사라진다.
+    rewards: [],
+    rageDelay: 0,
+    startShield: 0,
+    result: 'ongoing',
+  };
+}
+
+/** 아군 전원에게 걸리는 공격력 아우라의 합 */
+function auraOf(units) {
+  return units.reduce((sum, u) => sum + passiveOf(u.character, 'auraAtk', 0), 0);
+}
+
+/** 다음 층으로. 체력은 회복하지 않는다. */
+export function startFloor(state, rng = Math.random) {
+  state.floor += 1;
+  // 적 진형은 역할로 정한다 — 전사는 앞줄, 나머지는 뒷줄.
+  // 전사가 없으면 앞줄이 비고, 그러면 처음부터 다 노출된다.
+  state.enemies = enemiesFor(state.floor, rng).map((e) =>
+    toUnit(e.uid, e.character, e.level, defaultFront(e.character))
+  );
+  state.enemyAura = auraOf(state.enemies);
+  state.enemyBuff = 0;
+  state.turn = 0; // 광폭화는 층마다 다시 센다
+  state.result = 'ongoing';
+
+  for (const u of state.party) {
+    // 원정(알렉산더) — 층이 오를수록 강해진다. 층마다 한 번만 붙인다.
+    const per = passiveOf(u.character, 'atkPerFloor', 0);
+    if (per) u.bonusAtk = per * (state.floor - 1);
+    // 철벽(보상) — 층을 시작할 때 방어막을 두르고 들어간다
+    if (state.startShield && u.hp > 0) {
+      u.shield = Math.max(u.shield, Math.round(u.maxHp * state.startShield));
+    }
+  }
+}
+
+/**
+ * 이번 공격이 닿는 범위. 앞줄이 살아 있으면 앞줄이지만, **앞줄이 얇으면 뒤로 샌다.**
+ *
+ * 이 규칙이 없으면 앞줄 1명이 정답이 된다 — 몸으로 막는 건 한 명이면 충분하고,
+ * 두 명째부터는 공격력만 버리는 셈이기 때문이다(시뮬레이션에서 1/3이 4/0을 5층 앞섰다).
+ * 한 명이 네 명을 다 막을 수는 없어야 진형이 선택지가 된다.
+ */
+const FRONT_SLOTS = 4;
+// 앞줄 빈자리 하나당 뒤로 새는 확률. stats.js와 같은 이유로 훑기용 손잡이를 둔다.
+const LEAK_PER_MISSING = Number(globalThis.process?.env?.LEAK_PER_MISSING ?? 0.15);
+
+function reachable(list, rng) {
+  const living = alive(list);
+  const front = living.filter((u) => u.front);
+  if (!front.length) return living; // 앞줄이 없거나 다 쓰러졌다 — 뒷줄이 그대로 노출된다
+  const back = living.filter((u) => !u.front);
+  if (!back.length) return front;   // 뒷줄이 없다
+  return rng() < (FRONT_SLOTS - front.length) * LEAK_PER_MISSING ? back : front;
+}
+
+/**
+ * 방어막부터 깎고 남은 만큼 체력을 줄인다.
+ * 앞줄은 피해를 덜 받는다 — 대신 맞기가 피해를 옮기기만 하면
+ * 전사를 넣으나 마나가 되어서, 실제로 줄여야 값을 한다.
+ * 뒷줄은 앞줄이 무너진 뒤에도 감소가 없다. 버티라고 세운 게 아니다.
+ */
+function applyDamage(target, dmg) {
+  // guard는 판 중에 고른 보상이 얹어주는 추가 감소. 없으면 0.
+  const taken = rowMult(target.front).taken * (1 - (target.guard ?? 0));
+  const actual = Math.round(dmg * taken);
+  let rest = actual;
+  if (target.shield > 0) {
+    const absorbed = Math.min(target.shield, rest);
+    target.shield -= absorbed;
+    rest -= absorbed;
+  }
+  target.hp = Math.max(0, target.hp - rest);
+  return { actual, died: target.hp === 0 };
+}
+
+/**
+ * 누구를 때릴지 고른다. 역할마다 다르다 — 이게 진형을 결정으로 만든다.
+ *
+ *  포격 관통 — 앞줄을 넘어 뒷줄을 먼저 노린다. "뒷줄은 안전하다"가 적 포격 앞에서는 거짓이 된다
+ *  전사 도발 — 앞줄에 전사가 있으면 앞줄로 오는 공격을 전사가 다 받는다
+ */
+function chooseTarget(actor, foes, rng) {
+  const living = alive(foes);
+  if (!living.length) return null;
+
+  if (actor.character.role === '포격') {
+    const back = living.filter((u) => !u.front);
+    if (back.length) {
+      // 관통은 뒤를 노렸는데 앞줄이 실제로 있었을 때만 관통이라 부른다
+      const pierced = living.some((u) => u.front);
+      return {
+        target: back.reduce((a, b) => (b.hp > a.hp ? b : a)),
+        via: pierced ? 'pierce' : null,
+        mult: pierced ? pierceMult(actor) : 1,
+      };
+    }
+    // 뒷줄이 아예 없다 = 전원이 앞줄에 몰려 있다. 포탄이 그 안에 꽂힌다.
+    // 이게 없으면 전원 앞줄(4/0)이 관통을 통째로 무효화해서 유일한 정답이 된다.
+    return {
+      target: living.reduce((a, b) => (b.hp > a.hp ? b : a)),
+      via: 'massed',
+      mult: PIERCE_MASSED * pierceMult(actor),
+    };
+  }
+
+  let pool = reachable(foes, rng);
+  if (!pool.length) return null;
+
+  // 도발 — 앞줄이 표적일 때만 걸린다. 뒤로 샌 공격은 전사가 못 막는다.
+  const guards = pool.filter((u) => u.front && u.character.role === '전사');
+  if (guards.length) {
+    return { target: guards[Math.floor(rng() * guards.length)], via: 'guard', mult: 1 };
+  }
+  return { target: pool[Math.floor(rng() * pool.length)], via: null, mult: 1 };
+}
+
+/** 때린다 */
+function attack(actor, allies, foes, power, rng, events) {
+  const chosen = chooseTarget(actor, foes, rng);
+  if (!chosen) return;
+  const { target, via, mult } = chosen;
+
+  // 때린 사건을 먼저, 그 결과인 쓰러짐을 뒤에 넣는다.
+  // 순서가 뒤집히면 로그가 어색하고, 나중에 그래픽을 얹었을 때
+  // 죽는 연출이 공격 연출보다 먼저 재생된다.
+  const { actual, died } = applyDamage(target, Math.round(power * mult));
+  const e = {
+    t: 'attack', from: actor.uid, to: target.uid,
+    dmg: actual, hp: target.hp, shield: target.shield,
+  };
+  if (via) e.via = via;
+  events.push(e);
+  if (died) {
+    events.push({ t: 'die', who: target.uid });
+    onKill(actor, events);
+    // 의리는 **쓰러진 쪽 편**에서 발동한다. 때린 쪽 아군(allies)이 아니라 foes다.
+    onAllyDown(target, foes, events);
+  }
+}
+
+/** 정복(광개토대왕) — 적을 쓰러뜨리면 회복한다 */
+function onKill(actor, events) {
+  const pct = passiveOf(actor.character, 'healOnKill', 0);
+  if (!pct || actor.hp === 0 || actor.hp >= actor.maxHp) return;
+  const amount = Math.min(Math.round(actor.maxHp * pct), actor.maxHp - actor.hp);
+  if (amount <= 0) return;
+  actor.hp += amount;
+  events.push({ t: 'heal', from: actor.uid, to: actor.uid, amount, hp: actor.hp, skill: '정복' });
+}
+
+/** 의리(관우) — 같은 편이 쓰러지면 남은 사람이 세진다 */
+function onAllyDown(fallen, allies, events) {
+  for (const u of allies) {
+    if (u.hp === 0 || u === fallen) continue;
+    const step = passiveOf(u.character, 'atkPerAllyDown', 0);
+    if (!step) continue;
+    u.bonusAtk = (u.bonusAtk ?? 0) + step;
+    events.push({
+      t: 'buff', from: u.uid, stat: 'atk',
+      pct: Math.round(step * 100), targets: [u.uid], skill: '의리',
+    });
+  }
+}
+
+/**
+ * 고유기를 쓴다. 효과는 정해진 종류에서 고른 것만 있다 —
+ * 인물마다 손으로 규칙을 짜면 14개를 다 검증할 수가 없다.
+ * @returns {number} 이번 행동으로 더해진 버프
+ */
+function castActive(actor, active, allies, foes, power, ctx, events) {
+  events.push({ t: 'skill', from: actor.uid, name: active.name });
+  let buffAdded = 0;
+
+  for (const eff of active.effects) {
+    switch (eff.kind) {
+      case 'aoeDamage': {
+        const hits = [];
+        const deaths = [];
+        for (const target of alive(foes)) {
+          const { actual, died } = applyDamage(target, Math.round(power * eff.pct));
+          hits.push({ to: target.uid, dmg: actual, hp: target.hp, shield: target.shield });
+          if (died) deaths.push(target.uid);
+        }
+        if (hits.length) events.push({ t: 'aoeHit', from: actor.uid, name: active.name, hits });
+        for (const uid of deaths) {
+          events.push({ t: 'die', who: uid });
+          onKill(actor, events);
+          onAllyDown(foes.find((u) => u.uid === uid), foes, events);
+        }
+        break;
+      }
+      case 'nuke': {
+        const chosen = chooseTarget(actor, foes, () => 0.99);
+        if (!chosen) break;
+        const { actual, died } = applyDamage(chosen.target, Math.round(power * eff.pct));
+        events.push({
+          t: 'attack', from: actor.uid, to: chosen.target.uid,
+          dmg: actual, hp: chosen.target.hp, shield: chosen.target.shield, skill: active.name,
+        });
+        if (died) {
+          events.push({ t: 'die', who: chosen.target.uid });
+          onKill(actor, events);
+          onAllyDown(chosen.target, foes, events);
+        }
+        break;
+      }
+      case 'aoeHeal': {
+        const heals = [];
+        for (const u of alive(allies)) {
+          const amount = Math.min(Math.round(u.maxHp * eff.pct), u.maxHp - u.hp);
+          if (amount <= 0) continue;
+          u.hp += amount;
+          heals.push({ to: u.uid, amount, hp: u.hp });
+        }
+        if (heals.length) events.push({ t: 'aoeHeal', from: actor.uid, name: active.name, heals });
+        break;
+      }
+      case 'aoeShield': {
+        const amount = Math.round(power * eff.mult);
+        const targets = alive(allies).filter((u) => u.shield < amount);
+        for (const u of targets) u.shield = amount;
+        if (targets.length) {
+          events.push({
+            t: 'shield', from: actor.uid, amount,
+            targets: targets.map((u) => u.uid), skill: active.name,
+          });
+        }
+        break;
+      }
+      case 'aoeBuff': {
+        buffAdded += eff.pct;
+        events.push({
+          t: 'buff', from: actor.uid, stat: 'atk',
+          pct: Math.round(eff.pct * 100),
+          targets: alive(allies).map((u) => u.uid), skill: active.name,
+        });
+        break;
+      }
+      case 'weaken': {
+        const targets = alive(foes);
+        for (const u of targets) u.weaken = Math.min(WEAKEN_MAX, (u.weaken ?? 0) + eff.pct);
+        if (targets.length) {
+          events.push({
+            t: 'weaken', from: actor.uid, pct: Math.round(eff.pct * 100),
+            targets: targets.map((u) => u.uid), skill: active.name,
+          });
+        }
+        break;
+      }
+      default: break;
+    }
+  }
+  return buffAdded;
+}
+
+/**
+ * 한 명이 자기 역할대로 행동한다. 할 일이 없으면 때린다.
+ *
+ * 지휘·장인은 줄을 안 가리고 파티 전체를 돌본다.
+ * 한때 "같은 줄만" 으로 만들어봤는데, 그러면 갈라놓을수록 지원 값이 반토막나서
+ * 전원 한 줄로 뭉치는 게 정답이 됐다(4/0이 다른 진형을 3.5층 앞섰다).
+ * 줄을 노리는 것은 포격 관통과 전사 도발에 맡긴다 — 그쪽은 적 구성에 따라 답이 달라진다.
+ *
+ * @returns {number} 이번 행동으로 더해진 버프
+ */
+function act(actor, allies, foes, buff, rage, rng, events, ctx) {
+  const role = actor.character.role;
+  const power = Math.round(effAtk(actor, ctx.aura) * (1 + buff) * rage);
+
+  // 고유기 — 주기가 돌아오면 평소 행동 대신 이걸 쓴다.
+  const active = skillOf(actor.character)?.active;
+  if (active && ctx.turn % active.every === 0) {
+    return castActive(actor, active, allies, foes, power, ctx, events);
+  }
+
+  // 지휘 호령 — 같은 줄만. 상한에 닿기 전까지만 걸고, 그 뒤로는 때린다.
+  if (role === '지휘' && buff < BUFF_MAX) {
+    events.push({
+      t: 'buff', from: actor.uid, stat: 'atk',
+      pct: Math.round(BUFF_STEP * 100),
+      targets: alive(allies).map((u) => u.uid),
+    });
+    return BUFF_STEP;
+  }
+
+  // 치유 소생 — 판당 한 번, 쓰러진 아군을 절반 체력으로 되살린다.
+  // 회복보다 먼저 본다. 죽은 사람을 두고 상처를 꿰맬 수는 없다.
+  const reviveMax = passiveOf(actor.character, 'reviveMax', 1) + (actor.bonusRevives ?? 0);
+  if (role === '치유' && actor.revivesUsed < reviveMax) {
+    const fallen = allies.filter((u) => u.hp === 0);
+    if (fallen.length) {
+      const target = fallen.reduce((a, b) => (b.maxHp > a.maxHp ? b : a));
+      actor.revivesUsed += 1;
+      const pct = passiveOf(actor.character, 'revivePct', REVIVE_PCT);
+      target.hp = Math.max(1, Math.round(target.maxHp * pct));
+      events.push({ t: 'revive', from: actor.uid, to: target.uid, hp: target.hp });
+      return 0;
+    }
+  }
+
+  // 치유 — 다친 아군이 있을 때만. 없으면 때린다. 회복은 줄을 안 가린다.
+  if (role === '치유') {
+    const hurt = alive(allies).filter((u) => u.hp < u.maxHp);
+    if (hurt.length) {
+      // 가장 많이 다친 아군
+      hurt.sort((a, b) => (b.maxHp - b.hp) - (a.maxHp - a.hp));
+      const target = hurt[0];
+      const amount = Math.min(Math.round(target.maxHp * HEAL_PCT), target.maxHp - target.hp);
+      target.hp += amount;
+      events.push({ t: 'heal', from: actor.uid, to: target.uid, amount, hp: target.hp });
+      return 0;
+    }
+  }
+
+  // 장인 축성 — 같은 줄만. 다 채워져 있으면 때린다.
+  if (role === '장인') {
+    const amount = Math.round(effAtk(actor, ctx.aura) * SHIELD_MULT);
+    const need = alive(allies).filter((u) => u.shield < amount);
+    if (need.length) {
+      for (const u of need) u.shield = amount;
+      events.push({
+        t: 'shield', from: actor.uid, amount,
+        targets: need.map((u) => u.uid),
+      });
+      return 0;
+    }
+  }
+
+  attack(actor, allies, foes, power, rng, events);
+  return 0;
+}
+
+/** 한 턴 — 아군 전원 → 적 전원. 한쪽이 전멸하면 즉시 멈춘다. */
+export function runTurn(state, rng = Math.random) {
+  const events = [];
+  if (state.result !== 'ongoing') return events;
+
+  state.turn += 1;
+  // 지구전(보상)을 골랐으면 그만큼 늦게 온다. 배수와 알림이 같은 턴을 봐야 한다.
+  const delay = state.rageDelay ?? 0;
+  const rage = rageMult(state.turn - delay);
+  // 광폭화가 막 시작된 턴에 한 번 알린다
+  if (state.turn === RAGE_AFTER + delay + 1) events.push({ t: 'rage', turn: state.turn });
+
+  const mine = { turn: state.turn, aura: state.aura };
+  const theirs = { turn: state.turn, aura: state.enemyAura };
+  const cap = (v) => Math.min(BUFF_TOTAL_MAX, v);
+
+  for (const u of state.party) {
+    if (u.hp === 0) continue;
+    state.buff = cap(state.buff + act(u, state.party, state.enemies, state.buff, rage, rng, events, mine));
+    if (!alive(state.enemies).length) { state.result = 'floorCleared'; return events; }
+  }
+
+  for (const u of state.enemies) {
+    if (u.hp === 0) continue;
+    state.enemyBuff = cap(state.enemyBuff + act(u, state.enemies, state.party, state.enemyBuff, rage, rng, events, theirs));
+    if (!alive(state.party).length) { state.result = 'wiped'; return events; }
+  }
+
+  return events;
+}
