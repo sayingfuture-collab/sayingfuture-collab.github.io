@@ -118,13 +118,11 @@
   color: #8b949e;
 }
 
-/* 미획득 — 실루엣과 물음표. 등급도 이름도 알 수 없다 */
+/* 미획득 — 물음표 하나. **그림을 아예 안 붙인다**(collection.js paintArt 참고).
+   예전엔 그림에 brightness(0) 필터를 씌워 실루엣을 만들었는데, 도트는 배경이
+   통째로 칠해져 있어서 네모 전체가 단색 덩어리가 됐다. */
 .book__cell[data-owned="false"] .book__art {
-  filter: brightness(0) invert(28%);
-}
-.book__cell[data-owned="false"] .book__name {
-  color: #484f58;
-  font-size: 15px;
+  color: #30363d;
   font-weight: 800;
 }
 

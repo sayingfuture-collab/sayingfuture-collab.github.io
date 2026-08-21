@@ -1,9 +1,11 @@
 // 앱 조립. 탭 전환과 뽑기 게이트를 맡는다.
 import { draw } from './gacha.js';
-import { recordPull, spendPull, getGold, getTickets, onSaveChange } from './storage.js';
+import { recordPull, spendPull, getGold, getTickets, onSaveChange, noteTenPull } from './storage.js';
+import { checkTitles, takeTitleNews } from './titles/check.js';
 import { createGachaScreen } from './ui/screen-gacha.js';
 import { createCollection } from './ui/collection.js';
 import { createBattleScreen } from './ui/screen-battle.js';
+import { createTitlesScreen } from './ui/screen-titles.js';
 
 if (location.protocol !== 'file:') {
   // ── 뽑기 게이트 ──
@@ -22,6 +24,8 @@ if (location.protocol !== 'file:') {
       const { isNew, count } = recordPull(character);
       out.push({ character, isNew, count });
     }
+    // 「쓸어담기」— 10연차 한 번에 SSR 2명. 여기서 안 세면 영영 못 딴다.
+    if (n === 10) noteTenPull(out.filter((e) => e.character.tier === 'SSR').length);
     return out;
   }
 
@@ -47,16 +51,19 @@ if (location.protocol !== 'file:') {
   const gacha = createGachaScreen({ pull, onDone: () => book.refresh() });
 
   const battle = createBattleScreen();
+  const titles = createTitlesScreen();
 
   document.getElementById('screen-gacha').append(gacha.el);
   document.getElementById('screen-battle').append(battle.el);
   document.getElementById('screen-book').append(book.el);
+  document.getElementById('screen-titles').append(titles.el);
 
   // 탭 전환. 연출 중에도 막지 않는다 — 돌아오면 카드는 그 자리에 있다.
   const tabs = [
     { btn: document.getElementById('tab-gacha'), screen: document.getElementById('screen-gacha') },
     { btn: document.getElementById('tab-book'), screen: document.getElementById('screen-book') },
     { btn: document.getElementById('tab-battle'), screen: document.getElementById('screen-battle') },
+    { btn: document.getElementById('tab-titles'), screen: document.getElementById('screen-titles') },
   ];
 
   for (const t of tabs) {
@@ -67,6 +74,7 @@ if (location.protocol !== 'file:') {
         x.screen.hidden = !on;
       }
       if (t.screen.id === 'screen-battle') battle.refresh();
+      if (t.screen.id === 'screen-titles') titles.refresh();
     };
   }
 
@@ -77,6 +85,13 @@ if (location.protocol !== 'file:') {
   // 「10연차(300골드)」가 잠긴 채로 남아 있다가, 1뽑을 하고 나서야
   // (그때 화면이 스스로 refresh 를 부른다) 갑자기 열렸다.
   // 지갑 숫자는 늘었는데 버튼은 안 열리니 고장으로 보인다 — 실제로 고장이었다.
-  onSaveChange(() => { refreshPurse(); gacha.refresh(); });
+  onSaveChange(() => { checkTitles(); refreshPurse(); gacha.refresh(); titles.refresh(); });
   refreshPurse();
+
+  // 저장을 읽자마자 한 번. v5 로 갓 올라온 사람이 이미 채운 조건
+  // (수집·레벨·최고층)을 여기서 딴다 — 소급 지급은 안 하지만 조건은 조건이다.
+  checkTitles();
+  // ⚠️ **그 결과를 알림으로 띄우지는 않는다.** 판을 하나도 안 했는데 축포가
+  // 열두 개 터지면 뭘 해서 땄는지 알 수가 없다. 칭호 탭에서 보면 된다.
+  takeTitleNews();
 }

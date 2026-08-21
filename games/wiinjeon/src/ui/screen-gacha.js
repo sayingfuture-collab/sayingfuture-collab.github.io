@@ -7,6 +7,8 @@ import { getStats, getGold, getTickets } from '../storage.js';
 import { PULL_COST } from '../economy.js';
 import { CHARACTERS } from '../data/characters.js';
 import { createRatesView } from './rates-view.js';
+import { takeTitleNews } from '../titles/check.js';
+import { titleName } from '../titles/catalog.js';
 
 // 첫 화면에 띄울 예시 인물.
 // 반응 테스트에서 14명 중 무엇을 모으는 게임인지 맞힌 사람이 0명이었다 —
@@ -69,6 +71,18 @@ function buildIntro() {
  * @param {{pull: (n: number) => Array<{character: object, isNew: boolean, count: number}>, onDone: () => void}} deps
  * @returns {{el: HTMLElement, refresh: () => void}}
  */
+/**
+ * 새로 딴 칭호 줄. 없으면 null.
+ * **막지 않는다** — 카드를 가리면 뭘 뽑았는지 못 본다.
+ */
+function titleNews() {
+  const news = takeTitleNews();
+  if (!news.length) return null;
+  const box = el('div', 'gacha__earned');
+  for (const id of news) box.append(el('div', 'gacha__earnedLine', `🏅 새 칭호 · ${titleName(id)}`));
+  return box;
+}
+
 /** 지금 n뽑을 낼 수 있는가. app.js의 게이트와 같은 규칙을 본다 */
 function canAfford(n) {
   return getTickets() >= n || getGold() >= PULL_COST * n;
@@ -157,6 +171,9 @@ export function createGachaScreen({ pull, onDone }) {
     stage.dataset.skippable = 'true';
     await card.reveal();
     stage.dataset.skippable = 'false';
+    // 정답을 보고 난 뒤에 붙인다. 먼저 붙이면 카드 위에 칭호가 먼저 뜬다.
+    const got = titleNews();
+    if (got) stage.append(got);
     refresh();
     onDone();
     lock(false);
@@ -169,6 +186,8 @@ export function createGachaScreen({ pull, onDone }) {
     const entries = pull(10);
     if (!entries) { lock(false); return; } // 충전이 없으면 아무 일도 안 일어난다
     stage.replaceChildren(createResultGrid(entries).el);
+    const got = titleNews();
+    if (got) stage.append(got);
     refresh();
     onDone();
     lock(false);

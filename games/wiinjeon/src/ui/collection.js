@@ -1,4 +1,4 @@
-// 도감. 134명 전체를 늘어놓고, 미획득은 실루엣으로 가린다.
+// 도감. 134명 전체를 늘어놓고, 미획득은 물음표 한 칸으로 남긴다.
 // 스타일은 collection.css에 있다 — 쓰는 쪽에서 link 해야 한다.
 
 import { CHARACTERS } from '../data/characters.js';
@@ -173,18 +173,48 @@ export function createCollection() {
     empty.hidden = shown > 0;
   }
 
+  /**
+   * 미획득 칸의 그림 자리. **아직 못 만난 사람은 그림을 아예 안 붙인다.**
+   *
+   * 예전엔 그림을 붙여두고 `filter: brightness(0) invert(28%)`로 가렸다.
+   * 이모지 시절에는 그게 진짜 실루엣이 됐다 — 글자는 배경이 투명해서 모양만 남는다.
+   * **도트로 갈아타면서 깨졌다.** 도트는 배경이 통째로 칠해져 있어서(SSR은 인물마다
+   * 배경색을 구워 넣는다) 32×32 전체가 불투명이고, 거기에 brightness(0)을 먹이면
+   * 네모 전체가 한 색이 된다 — 실루엣이 아니라 **단색 회색 덩어리**다.
+   * 픽셀로 재보니 서로 다른 색이 13개 → 1개(#474747)였다.
+   *
+   * 정답이 새진 않았지만 보기 흉했다. 실루엣 PNG를 따로 굽는 길도 있었는데,
+   * **그건 오히려 답을 흘린다** — 실루엣이 서로 확실히 다르게 만들어 뒀기 때문에
+   * (50칸 이상) 삿갓만 보고 김병연인 걸 맞힐 수 있다.
+   */
+  function paintArt(cell) {
+    const { art, character } = cell;
+    if (!countOf(character.id)) {
+      art.replaceChildren('?');
+      return;
+    }
+    if (hasArt(character.id)) {
+      // 그림을 도로 붙인다. artNode가 img·onerror까지 챙기므로 통째로 갈아 끼운다.
+      const fresh = artNode(character, 'book__art');
+      art.replaceChildren(...fresh.childNodes);
+    } else {
+      art.replaceChildren(character.e);
+    }
+  }
+
   /** 저장 상태를 다시 읽어 화면을 맞춘다 */
   function refresh() {
-    for (const { li, art, name, dup, character } of cells) {
+    for (const cell of cells) {
+      const { li, name, dup, character } = cell;
       const n = countOf(character.id);
       const owned = n > 0;
       li.dataset.owned = String(owned);
       // 미획득이면 등급도 이름도 노출하지 않는다
       if (owned) li.dataset.tier = character.tier;
       else delete li.dataset.tier;
-      // 그림이 있으면 건드리지 않는다. textContent를 넣으면 img가 날아간다.
-      if (!hasArt(character.id)) art.textContent = character.e;
-      name.textContent = owned ? character.name : '?';
+      paintArt(cell);
+      // 그림 자리가 이미 '?'라 이름까지 물음표면 두 번 말하는 셈이다
+      name.textContent = owned ? character.name : '';
       dup.textContent = n > 1 ? `×${n}` : '';
     }
     const s = getStats();

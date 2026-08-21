@@ -117,7 +117,9 @@
 .unit__art {
   font-size: 48px; line-height: 1;
   height: 64px; display: flex; align-items: center; justify-content: center;
-  transition: transform .3s ease;
+  /* ⚠️ **배속을 따라가야 한다.** ×8이면 한 대가 42ms인데 여기가 300ms면
+     동작이 예닐곱 대씩 밀려서 누가 누구를 때렸는지 안 보인다. */
+  transition: transform calc(.3s / var(--speed)) ease;
 }
 .unit__art img { width: 64px; height: 64px; display: block; }
 
@@ -137,7 +139,10 @@
   overflow: hidden;
 }
 .unit__bar i,
-.unit__bar u { position: absolute; left: 0; top: 0; height: 100%; transition: width .18s ease; }
+/* 체력 막대도 배속을 따라간다. 여기가 제일 눈에 띄었다 —
+   고정 180ms면 ×8에서 막대가 네 대쯤 뒤늦게 줄어들어 죽는 순간이 어긋난다. */
+.unit__bar u { position: absolute; left: 0; top: 0; height: 100%;
+  transition: width calc(.18s / var(--speed)) ease; }
 .unit__bar i { background: #3fb950; }
 .unit__bar u { background: #58a6ffaa; } /* 방어막은 체력 위에 겹쳐 그린다 */
 

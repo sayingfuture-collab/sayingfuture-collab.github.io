@@ -5,8 +5,12 @@
 import { CHARACTERS } from '../data/characters.js';
 import {
   getParty, setParty, getBestFloor, setBestFloor,
-  countOf, levelOf, isMaxLevel, addGold,
+  countOf, levelOf, isMaxLevel, addGold, recordRun, getTitles,
 } from '../storage.js';
+import { createRunSummary } from '../titles/summary.js';
+import { applyTitleBoost, goldBonus } from '../titles/effects.js';
+import { takeTitleNews } from '../titles/check.js';
+import { titleName } from '../titles/catalog.js';
 import { runReward } from '../economy.js';
 import { statsOf, rowMult, ROLE_SKILL, LEVEL_CAP } from '../battle/stats.js';
 import { skillInfo } from '../battle/skills.js';
@@ -226,6 +230,8 @@ export function createBattleScreen() {
   root.append(reward.el);
 
   let run = null;
+  /** 이 판의 요약을 모으는 그릇. 판마다 새로 만든다 */
+  let runLog = null;
   let playing = false;
   let stopped = false;
   let speedIndex = 0;
@@ -271,6 +277,9 @@ export function createBattleScreen() {
     fight.setSpeed(1);
 
     run = createRun(entries);
+    // 칭호 효과는 **여기 한 번만** 얹는다. 엔진은 칭호를 모르고, 두 번 부르면 두 번 곱해진다.
+    applyTitleBoost(run, getTitles());
+    runLog = createRunSummary(entries);
     startFloor(run);
     showFight();
     fight.setup(run);
@@ -283,7 +292,9 @@ export function createBattleScreen() {
     if (playing) return;
     playing = true;
     const reached = await climb(run, {
-      play: (events) => fight.play(events),
+      // ⚠️ runTurn 직후가 run.turn·run.result 가 이 턴을 가리키는 유일한 시점이다.
+      // climb 은 runTurn 을 부른 뒤 바로 play 를 부르므로 여기가 그 자리다.
+      play: (events) => { runLog.turn(events, run); return fight.play(events); },
       sync: (r) => fight.sync(r),
       setup: (r) => { fight.setup(r); fight.setLog(`${r.floor}층 시작`); },
       betweenFloors: askReward,
@@ -306,12 +317,20 @@ export function createBattleScreen() {
   }
 
   function endRun(reached) {
+    // **누적을 먼저 더한다.** 여기서 딴 칭호가 이번 판 보상에도 걸리게 하려는 것도 있지만,
+    // 무엇보다 최고 기록보다 먼저 해야 「제약 걸고 오르기」가 이 판을 놓치지 않는다.
+    recordRun(runLog.result(reached));
+
     const prevBest = getBestFloor();
     // **setBestFloor보다 먼저 계산한다.** 뒤에 하면 기록이 이미 갱신되어
     // 갱신분이 늘 0이 되고, 아무리 기록을 깨도 골드가 안 붙는다.
-    const reward = runReward(reached, prevBest);
-    addGold(reward.total);
+    const base = runReward(reached, prevBest);
+    const bonus = goldBonus(base.total, getTitles());
+    addGold(base.total + bonus);
     const isBest = setBestFloor(reached);
+    // 저장이 세 번 바뀌었고(누적·골드·기록) 그때마다 칭호 검사가 돌았다.
+    // 누가 땄든 대기줄에 모여 있으므로 여기서 한꺼번에 가져간다.
+    const news = takeTitleNews();
     const members = party.map((p) => ({ c: byId.get(p.id), front: p.front }));
 
     const panel = el('div', 'result-panel');
@@ -349,11 +368,20 @@ export function createBattleScreen() {
     // 이번 판에 얼마를 벌었는지. 기록 갱신분을 따로 보여줘야
     // "기록을 깨야 번다"는 규칙이 한 판 만에 전달된다.
     const purse = el('div', 'result-panel__gold');
-    purse.append(el('b', null, `+${reward.total.toLocaleString()} 골드`));
-    if (reward.record > 0) {
-      purse.append(el('span', null, `기록 갱신 +${reward.record.toLocaleString()}`));
+    purse.append(el('b', null, `+${(base.total + bonus).toLocaleString()} 골드`));
+    if (base.record > 0) {
+      purse.append(el('span', null, `기록 갱신 +${base.record.toLocaleString()}`));
     }
+    // 칭호로 더 받은 몫은 반드시 밝힌다. 안 밝히면 "왜 늘었지"를 매번 설명해야 한다.
+    if (bonus > 0) purse.append(el('span', null, `칭호 +${bonus.toLocaleString()}`));
     panel.append(purse);
+
+    // 새로 딴 칭호. **모달로 막지 않는다** — 판 끝나고 또 누르게 만들 이유가 없다.
+    if (news.length) {
+      const box = el('div', 'result-panel__earned');
+      for (const id of news) box.append(el('div', 'result-panel__earnedLine', `🏅 새 칭호 · ${titleName(id)}`));
+      panel.append(box);
+    }
 
     // 이번 판에 무엇을 골랐는지. 다음 판에 뭘 노릴지가 여기서 정해진다.
     if (run?.rewards?.length) {

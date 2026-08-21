@@ -60,7 +60,10 @@ const PIERCE_MASSED = Number(globalThis.process?.env?.PIERCE_MASSED ?? 1.6);
 // 광폭화 — 이 턴을 넘기면 매 턴 피해가 불어난다.
 // 치유가 양쪽에 있으면 회복이 피해를 앞질러 아무도 안 죽는다.
 // 턴 상한으로 끊으면 결과가 늦고 답답하니, 싸움 자체를 끝나게 만든다.
-const RAGE_AFTER = 12;
+//
+// **밖에서도 읽는다.** 칭호 「버티기」가 이 값을 넘긴 층을 세는데,
+// 숫자를 베껴 두면 여기를 고칠 때 조용히 어긋난다.
+export const RAGE_AFTER = 12;
 const RAGE_STEP = 0.25;
 
 /** 이번 턴의 피해 배율 */
@@ -154,7 +157,25 @@ function auraOf(units) {
   return units.reduce((sum, u) => sum + passiveOf(u.character, 'auraAtk', 0), 0);
 }
 
-/** 다음 층으로. 체력은 회복하지 않는다. */
+/**
+ * 층을 넘을 때 파티가 되찾는 체력. **최대 체력 기준이고 쓰러진 아군은 안 일어난다** —
+ * 되살리는 건 치유의 소생 몫으로 남긴다.
+ *
+ * ── 왜 넣었나 (2026-08-21) ──
+ *
+ * 원래는 층 사이에 아무것도 안 돌려줬다. 그랬더니 같은 SSR·같은 20렙인데
+ * **치유가 있으면 71층, 없으면 28층**으로 2.5배가 벌어졌다. 역할이 다섯인데
+ * 하나가 사실상 필수면 그건 선택이 아니다.
+ *
+ * 20%인 이유: 실측에서 **20%가 100%와 거의 같았다**(치유 없음 41층 vs 43층).
+ * 그리고 **치유 있는 편성은 71 → 72로 안 움직인다** — 억울한 쪽만 오르고
+ * 천장은 그대로다. `tools/balance/heal-between-floors.mjs` 로 다시 잴 수 있다.
+ *
+ * ⚠️ 적에게는 안 걸린다. 적은 층마다 새로 세워져서 어차피 만피로 나온다.
+ */
+export const FLOOR_HEAL = 0.2;
+
+/** 다음 층으로. 다 회복하지는 않는다 — FLOOR_HEAL 만큼만 되찾는다. */
 export function startFloor(state, rng = Math.random) {
   state.floor += 1;
   // 적 진형은 역할로 정한다 — 전사는 앞줄, 나머지는 뒷줄.
@@ -168,6 +189,8 @@ export function startFloor(state, rng = Math.random) {
   state.result = 'ongoing';
 
   for (const u of state.party) {
+    // 층을 넘으면 조금 되찾는다. **쓰러진 아군은 그대로 둔다** — 소생은 치유 몫이다.
+    if (u.hp > 0) u.hp = Math.min(u.maxHp, u.hp + Math.round(u.maxHp * FLOOR_HEAL));
     // 원정(알렉산더) — 층이 오를수록 강해진다. 층마다 한 번만 붙인다.
     const per = passiveOf(u.character, 'atkPerFloor', 0);
     if (per) u.bonusAtk = per * (state.floor - 1);

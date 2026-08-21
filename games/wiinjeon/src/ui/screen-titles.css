@@ -1,0 +1,104 @@
+/* 칭호. screen-titles.js와 짝. */
+
+.titles {
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+  color: #e6edf3;
+  font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+}
+
+/* ── 진행도와 합산 효과 ── */
+
+.titles__head { margin-bottom: 14px; }
+
+.titles__count { font-size: 15px; color: #8b949e; }
+.titles__count b { color: #e6edf3; font-size: 20px; font-weight: 800; }
+
+.titles__totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.titles__total {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #30363d;
+  background: #161b22;
+  color: #8b949e;
+}
+.titles__total b { color: #ffd75e; font-weight: 800; }
+
+.titles__none { font-size: 12px; color: #6e7681; }
+
+/* ── 격자 ── */
+
+.titles__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  gap: 8px;
+  align-content: start;
+  /* ⚠️ stretch(기본값)면 안 된다 — 칸이 줄 높이에 묶여서 글자만 삐져나온다.
+     고르기 칸에서 정확히 그 일이 있었다. */
+  align-items: start;
+}
+
+/* ⚠️ **높이를 못박지 않는다.** aspect-ratio + overflow:hidden 으로 잘랐다가
+   조건 문구가 한 줄 더 길어지는 칭호에서 글자가 사라졌다.
+
+   ⚠️ **칸 배경을 페이지 배경(#0d1117)과 같게 두면 안 된다.** 처음에 그렇게 했더니
+   테두리 한 줄로만 버텨서 물음표 판이 통째로 뭉개져 보였다(예준님 지적).
+   도감이 이미 한 칸 띄워둔 값(#161b22 / #30363d)을 그대로 쓴다 —
+   **생김새가 다르면 다른 기능처럼 보인다.** */
+.titles__cell {
+  min-height: 76px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 9px;
+  border-radius: 12px;
+  border: 1px solid #30363d;
+  background: #161b22;
+}
+
+/* 딴 것은 **못 딴 것보다 밝아야 한다.** 처음엔 #17150f 로 뒀는데 그게 미획득 칸
+   (#161b22)보다 어두워서, 딴 칭호가 오히려 움푹 들어가 보였다. */
+.titles__cell[data-owned="true"] {
+  border-color: #9e6a03;
+  background: #2a2314;
+}
+
+.titles__name {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.3;
+  color: #e6edf3;
+}
+/* 못 딴 칸 — 물음표 하나. 이름도 효과도 조건도 안 보인다 */
+.titles__cell[data-owned="false"] .titles__name {
+  color: #484f58;
+  font-size: 20px;
+}
+
+.titles__effect {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #ffd75e;
+}
+
+.titles__need {
+  font-size: 11px;
+  line-height: 1.35;
+  color: #8b949e;
+}

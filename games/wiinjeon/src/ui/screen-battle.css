@@ -266,3 +266,20 @@
 }
 .result-panel__gold b { font-size: 15px; font-weight: 800; color: #ffd75e; }
 .result-panel__gold span { font-size: 11px; color: #3fb950; }
+
+/* 새로 딴 칭호. 눈에 띄되 막지는 않는다 */
+.result-panel__earned {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid #9e6a03;
+  border-radius: 10px;
+  background: #21201c;
+}
+.result-panel__earnedLine {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffd75e;
+}

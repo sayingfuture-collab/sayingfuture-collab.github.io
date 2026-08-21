@@ -149,3 +149,21 @@
   margin-top: 6px;
 }
 .gacha__shortage[hidden] { display: none; }
+
+/* 새로 딴 칭호. 카드를 안 가리게 아래에 붙는다 */
+.gacha__earned {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid #9e6a03;
+  border-radius: 10px;
+  background: #21201c;
+}
+.gacha__earnedLine {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffd75e;
+  text-align: center;
+}

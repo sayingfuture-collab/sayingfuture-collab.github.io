@@ -5,6 +5,8 @@ import {
   STARTER_GOLD, STARTER_TICKETS, RECORD_GOLD, MATERIAL_PER_LEVEL,
   migrationCardGold, upgradeCost, pullCost,
 } from './economy.js';
+import { TITLE_IDS } from './titles/catalog.js';
+import { sumEffects } from './titles/effects.js';
 
 /** key 하나에 대한 읽기/쓰기 창구를 만든다. */
 export function createStore(key) {
@@ -40,7 +42,7 @@ const int0 = (v) => (Number.isInteger(v) && v >= 0 ? v : 0);
  * 지금 형식 번호. 올리면 그 단계부터 다시 돈다.
  * **단계는 하나씩 따로 둔다** — 통째로 다시 돌리면 카드가 골드로 두 번 바뀐다.
  */
-const ECONOMY_VERSION = 4;
+const ECONOMY_VERSION = 5;
 
 const TIERS = ['SSR', 'SR', 'R', 'N'];
 const emptyStock = () => ({ SSR: 0, SR: 0, R: 0, N: 0 });
@@ -62,6 +64,7 @@ export function migrateEconomy(raw) {
   if (from < 1) out = toEconomy(out);
   if (from < 2) out = resetOldRecord(out);
   if (from < 4) out = rebuildStock(out);
+  if (from < 5) out = addTitleFields(out);
   return { ...out, economyVersion: ECONOMY_VERSION };
 }
 
@@ -81,6 +84,9 @@ export function migrateEconomy(raw) {
  *
  * **있냐 없냐를 보지 않고 그냥 다시 센다.** 위 식이 참인 한 이 계산은 늘 옳고,
  * 몇 번을 돌려도 같은 값이 나온다.
+ *
+ * 등식에 항이 하나 늘었다: **재고 = 카드 수 − 쓴 레벨 수 + 보너스.**
+ * 보너스(칭호 mat)는 셀 수 있는 근거가 없어서 저장된 값을 그대로 쓴다.
  */
 function rebuildStock(raw) {
   const stock = emptyStock();
@@ -94,7 +100,41 @@ function rebuildStock(raw) {
     if (!c || !Number.isInteger(level) || level <= 1) continue;
     stock[c.tier] = Math.max(0, stock[c.tier] - (level - 1) * MATERIAL_PER_LEVEL);
   }
+  // 칭호 mat 로 면제받은 재료. 저장된 값이라 다시 셀 수 없어서 그대로 얹는다.
+  for (const t of TIERS) stock[t] += int0(raw?.bonusStock?.[t]);
   return { ...raw, stock };
+}
+
+const SSR_IDS = new Set(CHARACTERS.filter((c) => c.tier === 'SSR').map((c) => c.id));
+const ROLES = ['지휘', '장인', '전사', '치유', '포격'];
+
+/** 아직 아무것도 안 한 누적 통계 */
+const emptyTotals = () => ({
+  runs: 0, kills: 0, rageWins: 0, upgrades: 0,
+  goldSpent: 0, goldEarned: 0,
+  ssrUsed: [],
+  // 제약을 걸고 오른 최고 층. **판마다 초기화하지 않는다** —
+  // 「3명으로 25층」을 한 판에 찍으라고 하면 아무도 못 딴다.
+  bestSolo: 0, bestDuo: 0, bestTrio: 0,
+  bestNOnly: 0, bestLowTier: 0,
+  bestMono: { 지휘: 0, 장인: 0, 전사: 0, 치유: 0, 포격: 0 },
+  bestNoHealer: 0, bestAllFront: 0,
+  // 뽑기 운. 한 번 켜지면 안 꺼진다.
+  lastPullTier: null, gotBackToBackSSR: false, gotTwoSSRInTen: false,
+});
+
+/**
+ * v5 — 칭호 칸을 만든다.
+ *
+ * ⛔ **v1~v4 안에 끼워 넣지 않는다.** 그 단계를 이미 지난 저장이 통째로 건너뛴다.
+ * 재료 재고에서 정확히 그 실수를 두 번 했다(위 rebuildStock 주석).
+ *
+ * **소급 지급은 안 한다.** 지금까지 뭘 했는지는 기록이 없어서 알 수 없다.
+ * 다만 저장만 봐도 되는 조건(수집·레벨·골드·최고층)은 app.js 가 시작할 때
+ * 한 번 검사하므로 자연히 딸려 온다.
+ */
+function addTitleFields(raw) {
+  return { ...raw, titles: [], totals: emptyTotals(), bonusStock: emptyStock() };
 }
 
 /**
@@ -160,6 +200,23 @@ export function sanitizeParty(raw) {
   return out;
 }
 
+/** 누적 통계도 사용자가 고칠 수 있다. 말이 되는 값만 남긴다 */
+function sanitizeTotals(raw) {
+  const out = emptyTotals();
+  if (!raw || typeof raw !== 'object') return out;
+  for (const k of ['runs', 'kills', 'rageWins', 'upgrades', 'goldSpent', 'goldEarned',
+    'bestSolo', 'bestDuo', 'bestTrio', 'bestNOnly', 'bestLowTier',
+    'bestNoHealer', 'bestAllFront']) out[k] = int0(raw[k]);
+  if (raw.bestMono && typeof raw.bestMono === 'object') {
+    for (const r of ROLES) out.bestMono[r] = int0(raw.bestMono[r]);
+  }
+  if (Array.isArray(raw.ssrUsed)) out.ssrUsed = [...new Set(raw.ssrUsed.filter((id) => SSR_IDS.has(id)))];
+  if (TIERS.includes(raw.lastPullTier)) out.lastPullTier = raw.lastPullTier;
+  out.gotBackToBackSSR = raw.gotBackToBackSSR === true;
+  out.gotTwoSSRInTen = raw.gotTwoSSRInTen === true;
+  return out;
+}
+
 // 저장은 사용자가 직접 고칠 수 있다. 아는 id와 말이 되는 숫자만 남긴다.
 function sanitize(raw) {
   const owned = {};
@@ -193,8 +250,20 @@ function sanitize(raw) {
     for (const t of TIERS) stock[t] = int0(raw.stock[t]);
   }
 
+  // 칭호. 아는 id 만, 중복 없이.
+  const titles = Array.isArray(raw?.titles)
+    ? [...new Set(raw.titles.filter((id) => TITLE_IDS.has(id)))]
+    : [];
+
+  // 칭호 mat 로 면제받은 재료. 재고 등식의 마지막 항이다.
+  const bonusStock = emptyStock();
+  if (raw?.bonusStock && typeof raw.bonusStock === 'object') {
+    for (const t of TIERS) bonusStock[t] = int0(raw.bonusStock[t]);
+  }
+
   return {
     owned, pulls, bestFloor, party, levels, stock,
+    titles, totals: sanitizeTotals(raw?.totals), bonusStock,
     gold: int0(raw?.gold),
     tickets: int0(raw?.tickets),
     economyVersion: int0(raw?.economyVersion),
@@ -249,6 +318,11 @@ export function recordPull(character) {
   state.owned[id] = before + 1;
   if (before === 0) state.levels[id] = 1; // 첫 장은 1렙으로 들어온다
   state.pulls += 1;
+  // 2연속 SSR. 직전 등급을 들고 있다가 판단한다.
+  if (character.tier === 'SSR' && state.totals.lastPullTier === 'SSR') {
+    state.totals.gotBackToBackSSR = true;
+  }
+  state.totals.lastPullTier = character.tier;
   state.stock[character.tier] = (state.stock[character.tier] ?? 0) + 1;
   write();
   return { isNew: before === 0, count: state.owned[id], pulls: state.pulls };
@@ -286,7 +360,9 @@ export function getGold() { return state.gold; }
 export function getTickets() { return state.tickets; }
 
 export function addGold(n) {
-  state.gold += Math.max(0, Math.round(n));
+  const amount = Math.max(0, Math.round(n));
+  state.gold += amount;
+  state.totals.goldEarned += amount;
   write();
 }
 
@@ -303,6 +379,7 @@ export function spendPull(n) {
   const cost = pullCost(n);
   if (state.gold < cost) return false;
   state.gold -= cost;
+  state.totals.goldSpent += cost;
   write();
   return true;
 }
@@ -335,16 +412,108 @@ export function canUpgrade(id) {
   return upgradeCheck(id).ok;
 }
 
-/** 같은 등급 카드 1장과 골드를 내고 레벨을 1 올린다. 못 하면 false */
-export function upgrade(id) {
+/**
+ * 같은 등급 카드 1장과 골드를 내고 레벨을 1 올린다. 못 하면 false.
+ *
+ * 칭호 `mat` 이 걸려 있으면 그 확률만큼 **재료를 안 쓴 셈 쳐준다.**
+ * ⚠️ **재고를 그냥 올리면 안 된다.** 재고는 저장된 값이 아니라 파생값이라
+ * (카드 수 − 쓴 레벨 수) 다시 계산하는 순간 보너스가 날아간다.
+ * 그래서 보너스는 `bonusStock` 에 따로 세고, 등식에 항을 하나 더한다.
+ *
+ * @param {() => number} [rng] 검사에서 확률을 고정하려고 받는다
+ */
+export function upgrade(id, rng = Math.random) {
   const check = upgradeCheck(id);
   if (!check.ok) return false;
   const level = levelOf(id);
+  const tier = BY_ID.get(id).tier;
   state.gold -= check.cost;
-  state.stock[BY_ID.get(id).tier] -= check.need;
+  state.stock[tier] -= check.need;
   state.levels[id] = level + 1;
+  state.totals.upgrades += 1;
+  state.totals.goldSpent += check.cost;
+
+  const matPct = sumEffects(state.titles).mat;
+  if (matPct > 0 && rng() * 100 < matPct) {
+    state.bonusStock[tier] += check.need;
+    state.stock[tier] += check.need;
+  }
   write();
   return true;
+}
+
+// ── 칭호와 누적 통계 ─────────────────────────────────────────
+
+/** 딴 칭호 id 목록 (사본) */
+export function getTitles() {
+  return [...state.titles];
+}
+
+/** 누적 통계 (깊은 사본). 밖에서 고쳐도 저장은 안 바뀐다 */
+export function getTotals() {
+  return {
+    ...state.totals,
+    ssrUsed: [...state.totals.ssrUsed],
+    bestMono: { ...state.totals.bestMono },
+  };
+}
+
+/** 칭호 mat 로 면제받은 재료 (사본) */
+export function getBonusStock() {
+  return { ...state.bonusStock };
+}
+
+/** 칭호를 기록한다. 모르는 id 와 중복은 버린다 */
+export function grantTitles(ids) {
+  let added = false;
+  for (const id of ids ?? []) {
+    if (!TITLE_IDS.has(id) || state.titles.includes(id)) continue;
+    state.titles.push(id);
+    added = true;
+  }
+  if (added) write();
+}
+
+/**
+ * 판 하나를 누적에 더한다.
+ *
+ * 제약별 최고 층을 **저장하는 것이 요점이다.** 판마다 초기화하면
+ * 「3명으로 25층」을 한 판에 찍어야 해서 아무도 못 딴다.
+ *
+ * @param {{floor: number, kills: number, rageWins: number,
+ *   party: {size: number, tiers: string[], roles: string[], ssrIds: string[], allFront: boolean}}} summary
+ */
+export function recordRun(summary) {
+  const t = state.totals;
+  const { floor, party } = summary;
+  t.runs += 1;
+  t.kills += int0(summary.kills);
+  t.rageWins += int0(summary.rageWins);
+  for (const id of party.ssrIds) if (!t.ssrUsed.includes(id)) t.ssrUsed.push(id);
+
+  const bump = (key) => { if (floor > t[key]) t[key] = floor; };
+  if (party.size === 1) bump('bestSolo');
+  if (party.size === 2) bump('bestDuo');
+  if (party.size === 3) bump('bestTrio');
+  // 「N등급 4명으로」·「역할 4명으로」라고 약속했으므로 인원도 본다.
+  if (party.size === 4 && party.tiers.every((x) => x === 'N')) bump('bestNOnly');
+  if (party.size === 4 && new Set(party.roles).size === 1) {
+    const role = party.roles[0];
+    if (ROLES.includes(role) && floor > t.bestMono[role]) t.bestMono[role] = floor;
+  }
+  // 아래 셋은 인원을 안 본다 — 문구에 없고, 인원이 줄면 어차피 더 어렵다.
+  if (party.tiers.every((x) => x === 'R' || x === 'N')) bump('bestLowTier');
+  if (!party.roles.includes('치유')) bump('bestNoHealer');
+  if (party.allFront) bump('bestAllFront');
+  write();
+}
+
+/** 10연차 한 번에 SSR 몇 명이었는지. 2명 이상이면 조건이 선다 */
+export function noteTenPull(ssrCount) {
+  if (ssrCount >= 2 && !state.totals.gotTwoSSRInTen) {
+    state.totals.gotTwoSSRInTen = true;
+    write();
+  }
 }
 
 /** 도감 진행도와 누적 통계 */
@@ -389,6 +558,7 @@ export function getSave() {
     owned: { ...state.owned }, levels: { ...state.levels }, stock: { ...state.stock },
     pulls: state.pulls, gold: state.gold, tickets: state.tickets,
     bestFloor: state.bestFloor, party: state.party.map((m) => ({ ...m })),
+    titles: [...state.titles],
     economyVersion: state.economyVersion,
   };
 }
