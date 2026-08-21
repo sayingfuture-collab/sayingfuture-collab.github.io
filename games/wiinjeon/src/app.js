@@ -2,6 +2,8 @@
 import { draw } from './gacha.js';
 import { recordPull, spendPull, getGold, getTickets, onSaveChange, noteTenPull } from './storage.js';
 import { checkTitles, takeTitleNews } from './titles/check.js';
+// 개발자용 치트. 지우려면 이 줄과 아래 installCheat 한 줄만 지우면 된다.
+import { installCheat } from './cheat.js';
 import { createGachaScreen } from './ui/screen-gacha.js';
 import { createCollection } from './ui/collection.js';
 import { createBattleScreen } from './ui/screen-battle.js';
@@ -94,4 +96,7 @@ if (location.protocol !== 'file:') {
   // ⚠️ **그 결과를 알림으로 띄우지는 않는다.** 판을 하나도 안 했는데 축포가
   // 열두 개 터지면 뭘 해서 땄는지 알 수가 없다. 칭호 탭에서 보면 된다.
   takeTitleNews();
+
+  // 개발자용 치트. 지갑을 두드리는 쪽도 같이 걸어준다(폰에는 키보드가 없다).
+  installCheat(purse);
 }
