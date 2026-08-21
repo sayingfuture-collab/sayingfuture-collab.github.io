@@ -8,6 +8,7 @@
 import { TITLES } from '../titles/catalog.js';
 import { sumEffects } from '../titles/effects.js';
 import { getTitles } from '../storage.js';
+import { cheatMark } from '../cheat.js';
 
 const EFFECT_LABEL = { atk: '공격력', hp: '체력', gold: '골드', mat: '재료' };
 
@@ -37,7 +38,11 @@ export function createTitlesScreen() {
   const head = el('header', 'titles__head');
   const count = el('div', 'titles__count');
   const totals = el('div', 'titles__totals');
-  head.append(count, totals);
+  // 치트 흔적. **한 번도 안 썼으면 아예 안 그린다.**
+  // 여기에 두는 이유: 칭호는 치트로 딸 수 있는 유일한 것이라, 「이 칭호를 어떻게 땄나」를
+  // 보는 자리에 흔적이 같이 있어야 말이 된다.
+  const mark = el('div', 'titles__cheat');
+  head.append(count, totals, mark);
 
   const grid = el('ol', 'titles__grid');
 
@@ -80,6 +85,12 @@ export function createTitlesScreen() {
     for (const cell of cells) paintCell(cell, has.has(cell.title.id));
 
     count.replaceChildren('딴 칭호 ', el('b', null, String(mine.length)), ` / ${TITLES.length}`);
+
+    // ⚠️ 되돌려도 「쓴 적 있다」는 안 지워진다. 지워지면 잡을 수가 없다.
+    const cheat = cheatMark();
+    mark.textContent = cheat
+      ? `⚑ 치트 ${cheat.total}번 사용${cheat.undoable ? ` · ${cheat.undoable}번 되돌릴 수 있음` : ' · 전부 되돌림'}`
+      : '';
 
     const sum = sumEffects(mine);
     totals.replaceChildren();

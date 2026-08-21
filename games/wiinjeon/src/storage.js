@@ -7,6 +7,7 @@ import {
 } from './economy.js';
 import { TITLE_IDS } from './titles/catalog.js';
 import { sumEffects } from './titles/effects.js';
+import { GIFT_BY_ID } from './gifts.js';
 
 /** key 하나에 대한 읽기/쓰기 창구를 만든다. */
 export function createStore(key) {
@@ -255,6 +256,12 @@ function sanitize(raw) {
     ? [...new Set(raw.titles.filter((id) => TITLE_IDS.has(id)))]
     : [];
 
+  // 받은 선물. **모르는 id 는 버린다** — 선물을 접으면 그 기록도 같이 사라져야
+  // 나중에 같은 id 를 다시 쓸 때 옛 기록에 막히지 않는다.
+  const giftsTaken = Array.isArray(raw?.giftsTaken)
+    ? [...new Set(raw.giftsTaken.filter((id) => GIFT_BY_ID.has(id)))]
+    : [];
+
   // 칭호 mat 로 면제받은 재료. 재고 등식의 마지막 항이다.
   const bonusStock = emptyStock();
   if (raw?.bonusStock && typeof raw.bonusStock === 'object') {
@@ -263,7 +270,7 @@ function sanitize(raw) {
 
   return {
     owned, pulls, bestFloor, party, levels, stock,
-    titles, totals: sanitizeTotals(raw?.totals), bonusStock,
+    titles, totals: sanitizeTotals(raw?.totals), bonusStock, giftsTaken,
     gold: int0(raw?.gold),
     tickets: int0(raw?.tickets),
     economyVersion: int0(raw?.economyVersion),
@@ -302,6 +309,36 @@ function write() {
 
 // 정리 결과를 바로 남긴다. 안 그러면 새로고침마다 다시 계산한다.
 write();
+
+/**
+ * 저장 전체를 글자열 하나로 뜬다. **치트 되돌리기 말고는 쓸 데가 없다.**
+ *
+ * 항목을 하나씩 되돌리는 방식은 못 쓴다 — 골드를 되돌려도 그 골드로 딴 칭호와
+ * 올린 레벨이 남는다. 통째로 뜨고 통째로 되돌리는 쪽만 어긋날 데가 없다.
+ */
+export function snapshot() {
+  return JSON.stringify(state);
+}
+
+/**
+ * 떠 둔 저장으로 통째로 되돌린다.
+ *
+ * ⚠️ **뜬 시점 이후의 모든 것이 같이 사라진다.** 치트 이후에 정상으로 논 것도 없어진다.
+ * 그게 「치트를 안 쓴 것으로 되돌린다」의 정확한 뜻이라 그대로 뒀다.
+ *
+ * @returns {boolean} 되돌렸으면 true. 글자열이 깨졌으면 false 이고 저장은 그대로다
+ */
+export function restoreSnapshot(json) {
+  let next;
+  try {
+    next = sanitize(migrateEconomy(JSON.parse(json)));
+  } catch {
+    return false;   // 깨진 글자열로 멀쩡한 저장을 덮지 않는다
+  }
+  state = next;
+  write();
+  return true;
+}
 
 /**
  * 뽑은 인물을 기록한다.
@@ -364,6 +401,30 @@ export function addGold(n) {
   state.gold += amount;
   state.totals.goldEarned += amount;
   write();
+}
+
+/** 이미 받은 선물 id 목록 */
+export function getGiftsTaken() {
+  return [...state.giftsTaken];
+}
+
+/**
+ * 선물을 받는다. **이미 받았거나 모르는 선물이면 아무것도 안 하고 false.**
+ *
+ * ⚠️ **골드와 「받았음」 표시를 한 번에 쓴다.** addGold 를 부르면 저장이 두 번 써지고,
+ * 그 사이(골드는 들어갔는데 표시는 아직)에 새로고침하면 선물이 다시 뜬다.
+ * 두 번 받는 길은 이 한 줄 차이로 열린다.
+ *
+ * @returns {boolean} 실제로 받았으면 true
+ */
+export function takeGift(id) {
+  const gift = GIFT_BY_ID.get(id);
+  if (!gift || state.giftsTaken.includes(id)) return false;
+  state.giftsTaken.push(id);
+  state.gold += gift.gold;
+  state.totals.goldEarned += gift.gold;
+  write();
+  return true;
 }
 
 /**
