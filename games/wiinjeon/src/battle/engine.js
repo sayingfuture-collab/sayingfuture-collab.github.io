@@ -12,9 +12,44 @@ import { enemiesFor } from './enemy.js';
 
 const BUFF_STEP = 0.15;   // 지휘 1회당 아군 공격력 증가
 const BUFF_MAX = 0.9;     // 호령은 여기까지만 쌓는다. 그 뒤로 지휘는 공격한다
-// 고유기 버프(훈민정음 등)는 호령 상한 위로 얹힌다 — 그게 고유기의 값이다.
-// 다만 무한히 오르면 안 되므로 총량에 한계를 둔다.
+/**
+ * 아군 버프 총량 상한. 어떤 경우에도 여기를 못 넘는다.
+ *
+ * ⚠️ **버프는 층이 바뀌어도 안 풀린다.** 적 버프는 startFloor 에서 0으로 되돌리는데
+ * 아군 것만 그대로 넘어간다. 의도한 동작은 아니었지만(2026-08-20 확인), 층마다 풀면
+ * 판이 너무 어려워져서 상한으로 막는 쪽을 골랐다.
+ */
 const BUFF_TOTAL_MAX = 2.0;
+
+/**
+ * 그 층에서 버프가 오를 수 있는 한계. **깊이 갈수록 천장이 열린다.**
+ *
+ * 호령 상한(90%)까지는 언제나 열려 있고, **그 위를 층이 연다.**
+ * 1층 93% · 10층 120% · 20층 150% · 30층 180% · 37층부터 200%.
+ *
+ * ── 왜 이 모양인가 ──
+ *
+ * 처음엔 상한 하나(200%)로만 막았는데 실측에서 **16층이면 이미 만렙**이었다(200판 전부).
+ * 그 뒤 30층은 아무것도 안 차오른다. 고쳐보려고 두 가지를 재봤고 둘 다 실패했다:
+ *
+ *   · 버프 수치를 늦춘다 → 8분의 1로 줄여도 만렙이 16층 → 30층까지밖에 안 밀렸다.
+ *     판 하나가 몇 턴이라 40층이면 턴이 수백 번이어서, **턴마다 오르는 버프는 어떤
+ *     수치를 써도 초반에 만렙이 된다.** 게다가 적도 같은 수치를 써서 난이도는 그대로였다.
+ *   · 상한을 낮춘다 → 천장에 더 빨리 부딪힐 뿐이었다(150%면 13층, 90%면 5층).
+ *
+ * 그래서 시간(턴)이 아니라 **깊이(층)**에 묶는다. 알렉산더의 원정(층당 +4%)이 이미
+ * 그렇게 생겼고, 그쪽은 판이 길수록 세지는 게 구조로 보장된다.
+ *
+ * ⚠️ **바닥을 호령 상한에 맞추는 게 중요하다.** 한때 바닥을 26%로 뒀더니 1층 천장이 30%라
+ * 세종의 훈민정음이 초반에 아예 안 나갔다(이미 천장이라 헛턴 판정에 걸린다).
+ * SSR을 뽑고도 고유기를 못 보는 건 이 게임에서 제일 나쁜 쪽이다.
+ *
+ * 적도 같은 자를 쓴다 — 한쪽만 묶으면 그게 곧 밸런스 변경이 된다.
+ */
+const BUFF_FLOOR_STEP = 0.03;
+export function buffCapAt(floor) {
+  return Math.min(BUFF_TOTAL_MAX, BUFF_MAX + Math.max(0, floor) * BUFF_FLOOR_STEP);
+}
 const HEAL_PCT = 0.25;    // 치유량 = 대상 최대 체력의 이 비율
 export const SHIELD_MULT = 1.5;  // 방어막 = 시전자 공격력 × 이 값
 const WEAKEN_MAX = 0.6;   // 팔진도가 깎을 수 있는 한계. 적을 0으로 만들면 싸움이 안 끝난다
@@ -364,6 +399,20 @@ function castActive(actor, active, allies, foes, power, ctx, events) {
 }
 
 /**
+ * 지금 상태에서 이 고유기가 아무 일도 못 하는가.
+ *
+ * **버프만 주는 고유기**(세종의 훈민정음)가 이미 총량 상한이면 그렇다. 고유기는 평소 행동
+ * *대신* 도는 구조라, 그 턴은 버프도 안 오르고 때리지도 않는 순수 손해가 된다.
+ * 실측에서 훈민정음 발동의 **83%**가 이 헛턴이었다(2,882번 중 2,382번).
+ *
+ * 방어막·피해가 섞인 고유기(다빈치의 만물의 공책)는 버프가 막혀도 할 일이 남으므로
+ * 그대로 쓴다 — 그래서 "효과가 전부 aoeBuff 인가"를 본다.
+ */
+function isNoOp(active, buff, floor) {
+  return buff >= buffCapAt(floor) && active.effects.every((e) => e.kind === 'aoeBuff');
+}
+
+/**
  * 한 명이 자기 역할대로 행동한다. 할 일이 없으면 때린다.
  *
  * 지휘·장인은 줄을 안 가리고 파티 전체를 돌본다.
@@ -378,8 +427,10 @@ function act(actor, allies, foes, buff, rage, rng, events, ctx) {
   const power = Math.round(effAtk(actor, ctx.aura) * (1 + buff) * rage);
 
   // 고유기 — 주기가 돌아오면 평소 행동 대신 이걸 쓴다.
+  // **단, 아무 일도 못 할 때는 쓰지 않는다.** 바로 아래 호령이 예전부터 그렇게 하고
+  // 있었는데(상한에 닿으면 때린다) 고유기만 그 규칙에서 빠져 있었다.
   const active = skillOf(actor.character)?.active;
-  if (active && ctx.turn % active.every === 0) {
+  if (active && ctx.turn % active.every === 0 && !isNoOp(active, buff, ctx.floor)) {
     return castActive(actor, active, allies, foes, power, ctx, events);
   }
 
@@ -452,9 +503,9 @@ export function runTurn(state, rng = Math.random) {
   // 광폭화가 막 시작된 턴에 한 번 알린다
   if (state.turn === RAGE_AFTER + delay + 1) events.push({ t: 'rage', turn: state.turn });
 
-  const mine = { turn: state.turn, aura: state.aura };
-  const theirs = { turn: state.turn, aura: state.enemyAura };
-  const cap = (v) => Math.min(BUFF_TOTAL_MAX, v);
+  const mine = { turn: state.turn, aura: state.aura, floor: state.floor };
+  const theirs = { turn: state.turn, aura: state.enemyAura, floor: state.floor };
+  const cap = (v) => Math.min(buffCapAt(state.floor), v);
 
   for (const u of state.party) {
     if (u.hp === 0) continue;

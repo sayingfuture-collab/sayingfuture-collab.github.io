@@ -26,10 +26,13 @@ function el(tag, className, text) {
 
 /**
  * @param {object} character characters.js의 인물 하나
- * @param {{timing?: Partial<typeof TIMING>}} [options]
+ * @param {{timing?: Partial<typeof TIMING>, skillText?: boolean}} [options]
+ *   skillText:false 면 고유기 **이름만** 보이고 효과 설명은 감춘다.
+ *   첫 화면 예시 카드에서 쓴다 — 페르소나 테스트에서 「4턴마다 아군 전체 공격력 +25%」가
+ *   최다 이탈 지점이었다(14명 중 4명). 아직 뽑지도 않은 사람에게 읽을 이유가 없는 문장이다.
  * @returns {{el: HTMLElement, reveal: () => Promise<void>, skip: () => void, isDone: () => boolean}}
  */
-export function createCard(character, { timing } = {}) {
+export function createCard(character, { timing, skillText = true } = {}) {
   const t = { ...TIMING, ...timing };
 
   const root = el('article', 'card');
@@ -89,7 +92,8 @@ export function createCard(character, { timing } = {}) {
       // :has() 대신 표식을 직접 단다. 그림을 줄여 고유기 자리를 만드는 규칙이 여기 걸린다.
       front.dataset.skill = 'true';
       const skill = el('div', 'card__skill');
-      skill.append(el('b', null, info.name), el('span', null, info.text));
+      skill.append(el('b', null, info.name));
+      if (skillText) skill.append(el('span', null, info.text));
       skill.dataset.shown = 'false';
       front.append(skill);
       void skill.offsetWidth;

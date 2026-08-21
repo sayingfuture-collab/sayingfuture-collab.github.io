@@ -27,8 +27,15 @@ function el(tag, className, text) {
 
 /**
  * 뽑기 전 첫 화면. 무엇을 모으는 게임인지 문구와 예시 카드로 밝힌다.
- * 예시 카드는 카드 컴포넌트를 그대로 쓰되, 붙이기 전에 skip()으로 앞면을 열어둔다 —
- * DOM에 들어간 뒤에 뒤집으면 뒤집기 애니메이션이 한 번 도는데, 예시에는 필요 없다.
+ *
+ * 예시 카드는 **힌트면부터 보여주고 스스로 뒤집힌다.**
+ * 예전엔 skip()으로 정답면을 열어둔 채 붙였고, 주석에 "예시에는 뒤집기가 필요 없다"고
+ * 적어뒀었다. 그게 틀렸다 — 페르소나 테스트에서 세 명이 같은 곳에 걸렸다:
+ *   "이미 '세종'이라고 답이 쓰여 있는데 맞혀보라고 한다. 뭘 맞히라는 건가"
+ *   "맞히는 게 재밌을지가 이 게임의 전부인데, 그걸 볼 수가 없다"
+ * 힌트 → 뒤집힘 → 세종. **그 뒤집기가 이 게임의 재미 그 자체다.**
+ *
+ * @returns {{el: HTMLElement, start: () => void}} start 는 DOM에 붙인 뒤에 부른다
  */
 function buildIntro() {
   const intro = el('div', 'gacha__intro');
@@ -41,19 +48,21 @@ function buildIntro() {
   );
 
   const sample = CHARACTERS.find((c) => c.id === SAMPLE_ID);
-  if (sample) {
-    const card = createCard(sample);
-    card.skip();
-    // 카드는 260×380 고정이라 그대로 두면 작은 폰에서 버튼을 밀어낸다.
-    // 축소한 크기만큼 자리를 잡아주는 상자에 넣는다.
-    const fit = el('div', 'gacha__sampleFit');
-    fit.append(card.el);
-    const box = el('div', 'gacha__sample');
-    box.append(fit, el('div', 'gacha__sampleTag', '예시 · 이런 카드를 모읍니다'));
-    intro.append(box);
-  }
+  if (!sample) return { el: intro, start: () => {}, card: null };
 
-  return intro;
+  // skillText:false — 「4턴마다 아군 전체 공격력 +25%」는 아직 뽑지도 않은 사람에게
+  // 읽을 이유가 없다. 페르소나 테스트 최다 이탈 지점이었다. 이름(훈민정음)만 남긴다.
+  const card = createCard(sample, { skillText: false });
+  // 카드는 260×380 고정이라 그대로 두면 작은 폰에서 버튼을 밀어낸다.
+  // 축소한 크기만큼 자리를 잡아주는 상자에 넣는다.
+  const fit = el('div', 'gacha__sampleFit');
+  fit.append(card.el);
+  const box = el('div', 'gacha__sample');
+  box.append(fit, el('div', 'gacha__sampleTag', '예시 · 이런 카드를 모읍니다'));
+  intro.append(box);
+
+  // DOM에 붙기 전에 부르면 전환 효과가 안 걸린다 — 붙인 뒤에 부르라고 따로 뺐다.
+  return { el: intro, start: () => card.reveal(), card };
 }
 
 /**
@@ -79,7 +88,8 @@ export function createGachaScreen({ pull, onDone }) {
   bar.append(progress, ratesBtn);
 
   const stage = el('div', 'gacha__stage');
-  stage.append(buildIntro());
+  const intro = buildIntro();
+  stage.append(intro.el);
 
   const buttons = el('div', 'gacha__buttons');
   const one = el('button', 'gacha__btn', '뽑기');
@@ -165,5 +175,18 @@ export function createGachaScreen({ pull, onDone }) {
   };
 
   refresh();
+
+  // 예시 카드 연출은 **DOM에 붙은 뒤에** 시작한다. 붙기 전에 부르면 전환 효과가 안 걸린다.
+  // 눌러서 넘기는 것도 진짜 뽑기와 똑같이 되게 current 에 걸어둔다 —
+  // 아는 인물이면 힌트 세 줄을 다 볼 이유가 없다.
+  if (intro.card) {
+    current = intro.card;
+    stage.dataset.skippable = 'true';
+    intro.start().then(() => {
+      // 그 사이 진짜 뽑기가 시작됐으면 그쪽 것을 건드리면 안 된다
+      if (current === intro.card) stage.dataset.skippable = 'false';
+    });
+  }
+
   return { el: root, refresh };
 }
