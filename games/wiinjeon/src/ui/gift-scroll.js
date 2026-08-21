@@ -2,9 +2,14 @@
 // 스타일은 gift-scroll.css 에 있다 — 쓰는 쪽에서 link 해야 한다.
 //
 // ⚠️ **종이 높이는 CSS 로 못 편다.** height: auto 는 애니메이션이 안 걸리고,
-// scaleY 는 글자까지 늘어나서 찌그러진다. 그래서 **한 번 재서 px 로 편다.**
+// scaleY 는 글자까지 늘어나서 찌그러진다. 그래서 **재서 px 로 편다.**
 // grid-template-rows: 0fr→1fr 이라는 방법도 있는데, 이 게임은 폰에서 주로 도는데
 // 그쪽 지원이 최근이라 재는 쪽을 골랐다. 재는 건 어디서나 된다.
+//
+// ⚠️ **붙이자마자 재면 안 된다.** 스타일과 글꼴이 아직 안 왔을 때 재게 되어 엉뚱한 값이
+// 나온다 — 라이브에서 270px 짜리를 **1020px 로 쟀다**(2026-08-21). 로컬은 다 빨라서
+// 안 걸렸고, 실제 망에서만 났다. 그래서 **펼치기 직전에, 글꼴을 기다렸다가** 잰다.
+// 다 펴진 뒤에는 auto 로 풀어둔다. 그래야 화면을 돌리거나 글꼴이 늦게 바뀌어도 안 잘린다.
 
 import { takeGift } from '../storage.js';
 
@@ -66,17 +71,33 @@ export function showGiftScroll(gift, onDone) {
   overlay.append(scroll);
   document.body.append(overlay);
 
-  // ── 높이 재기 ──
-  // 붙인 직후에 재야 글꼴이 적용된 실제 높이가 나온다.
-  paper.style.height = 'auto';
-  const full = paper.scrollHeight;
-  paper.style.height = '0px';
+  /** 지금 이 순간의 펼친 높이. **부를 때마다 다시 잰다** */
+  function measure() {
+    const was = paper.style.height;
+    paper.style.transition = 'none';
+    paper.style.height = 'auto';
+    const full = paper.scrollHeight;
+    paper.style.height = was;
+    void paper.offsetHeight;       // 시작 상태를 각인시킨다
+    paper.style.transition = '';
+    return full;
+  }
+
+  /** 펼친다. 글꼴을 기다렸다가 재야 값이 맞는다 */
+  async function unroll() {
+    try { await document.fonts?.ready; } catch { /* 글꼴 API 가 없어도 진행한다 */ }
+    if (closed) return;
+    paper.style.height = `${measure()}px`;
+  }
 
   let closed = false;
   function close() {
     if (closed) return;
     closed = true;
     inner.classList.remove('is-in');
+    // auto 에서 0 으로는 애니메이션이 안 걸린다. 지금 높이를 px 로 못박고 접는다.
+    paper.style.height = `${paper.getBoundingClientRect().height}px`;
+    void paper.offsetHeight;
     paper.style.height = '0px';
     scroll.classList.add('is-out');
     setTimeout(() => {
@@ -84,6 +105,13 @@ export function showGiftScroll(gift, onDone) {
       onDone?.();
     }, T.rollUp);
   }
+
+  // 다 펴지면 auto 로 풀어둔다 — 못박아 두면 나중에 글이 한 줄 늘 때 잘린다.
+  paper.addEventListener('transitionend', (e) => {
+    if (e.propertyName === 'height' && !closed && paper.style.height !== '0px') {
+      paper.style.height = 'auto';
+    }
+  });
 
   take.addEventListener('click', () => {
     if (closed) return;
@@ -95,10 +123,10 @@ export function showGiftScroll(gift, onDone) {
   });
 
   if (reduced()) {
-    // 움직임을 줄이라고 한 사람에게는 그냥 펴서 보여준다
+    // 움직임을 줄이라고 한 사람에게는 그냥 펴서 보여준다. 잴 것도 없다.
     overlay.classList.add('is-on');
     paper.style.transition = 'none';
-    paper.style.height = `${full}px`;
+    paper.style.height = 'auto';
     inner.classList.add('is-in');
     take.classList.add('is-in');
     return { close };
@@ -110,7 +138,7 @@ export function showGiftScroll(gift, onDone) {
   void paper.offsetHeight;
   overlay.classList.add('is-on');
   setTimeout(() => scroll.classList.add('is-down'), T.rod);
-  setTimeout(() => { paper.style.height = `${full}px`; }, T.unroll);
+  setTimeout(unroll, T.unroll);
   setTimeout(() => inner.classList.add('is-in'), T.text);
   setTimeout(() => take.classList.add('is-in'), T.button);
 
