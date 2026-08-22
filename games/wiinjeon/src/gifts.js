@@ -61,7 +61,16 @@ export const GIFT_BY_ID = new Map(GIFTS.map((g) => [g.id, g]));
  * @param {string[]} taken 받은 id 목록
  * @returns {Gift|null}
  */
-export function pendingGift(taken) {
+export function pendingGift(taken, played = true) {
+  // ⚠️ **한 번도 안 논 사람에게는 아무것도 안 띄운다.**
+  //
+  // 처음 들어온 사람이 「플레이해주셔서 감사합니다」를 플레이하기 **전에** 봤다.
+  // 게다가 두루마리가 첫 화면을 통째로 덮어서, 페르소나 테스트 두 번에 걸쳐 고쳐온
+  // 「무엇을 모으는 게임인가」 화면을 아무도 못 보게 만들고 있었다.
+  //
+  // 선물은 원래 **놀아준 사람에게 주는 것**이다. 한 번이라도 뽑은 뒤 다시 들어오면
+  // 그때 뜬다 — 그래야 문구도 사실이 된다.
+  if (!played) return null;
   const has = new Set(Array.isArray(taken) ? taken : []);
   return GIFTS.find((g) => !has.has(g.id)) ?? null;
 }

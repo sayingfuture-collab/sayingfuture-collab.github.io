@@ -107,6 +107,16 @@
   color: #484f58;
 }
 
+/* 규모와 결제 여부. 예시 꼬리표(11px)보다 한 단계 위로 둔다 —
+   꼬리표는 카드 한 장에 대한 말이고 이건 게임 전체에 대한 말이라
+   같은 무게로 보이면 둘 다 안 읽힌다. */
+.gacha__facts {
+  margin: 0;
+  font-size: 12px;
+  color: #6e7681;
+  text-align: center;
+}
+
 /* 화면이 낮으면 카드를 더 줄인다 — 버튼이 밀려나면 시작을 못 한다 */
 @media (max-height: 700px) {
   .gacha__sampleFit { --scale: .66; }

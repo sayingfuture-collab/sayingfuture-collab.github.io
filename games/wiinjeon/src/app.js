@@ -3,7 +3,7 @@ import { draw } from './gacha.js';
 import { recordPull, spendPull, getGold, getTickets, onSaveChange, noteTenPull } from './storage.js';
 import { checkTitles, takeTitleNews } from './titles/check.js';
 import { pendingGift } from './gifts.js';
-import { getGiftsTaken } from './storage.js';
+import { getGiftsTaken, getStats } from './storage.js';
 import { showGiftScroll } from './ui/gift-scroll.js';
 // 개발자용 치트. 지우려면 이 줄과 아래 installCheat 한 줄만 지우면 된다.
 import { installCheat } from './cheat.js';
@@ -118,6 +118,7 @@ if (location.protocol !== 'file:') {
   // **맨 마지막에 띄운다.** 앞의 배선(지갑·칭호 검사)이 다 끝난 뒤라야
   // 「받기」를 누른 순간 지갑 숫자가 같이 움직인다.
   // 안 받고 창을 닫으면 다음 접속에 또 뜬다 — 받아야만 기록되기 때문이다.
-  const gift = pendingGift(getGiftsTaken());
+  // 처음 들어온 사람에게는 안 띄운다 — 첫 화면을 덮어버리기 때문이다(gifts.js 참고).
+  const gift = pendingGift(getGiftsTaken(), getStats().pulls > 0);
   if (gift) showGiftScroll(gift);
 }
