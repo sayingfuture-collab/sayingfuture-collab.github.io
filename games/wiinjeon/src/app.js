@@ -11,6 +11,7 @@ import { createGachaScreen } from './ui/screen-gacha.js';
 import { createCollection } from './ui/collection.js';
 import { createBattleScreen } from './ui/screen-battle.js';
 import { createTitlesScreen } from './ui/screen-titles.js';
+import { createTowersScreen } from './ui/screen-towers.js';
 
 if (location.protocol !== 'file:') {
   // ── 뽑기 게이트 ──
@@ -57,10 +58,17 @@ if (location.protocol !== 'file:') {
 
   const battle = createBattleScreen();
   const titles = createTitlesScreen();
+  // 탑을 고르면 전투 화면으로 넘긴다. **편성 화면을 두 벌 두지 않으려는 것이다.**
+  // 전투 중이면 setTower 가 false 를 돌려주고, 그때는 탭도 안 옮긴다 —
+  // 판이 도는 중에 넘기면 화면만 바뀌고 도전은 옛 탑 그대로라 거짓말이 된다.
+  const towers = createTowersScreen({
+    onPick: (tower) => { if (battle.setTower(tower)) showTab('screen-battle'); },
+  });
 
   document.getElementById('screen-gacha').append(gacha.el);
   document.getElementById('screen-battle').append(battle.el);
   document.getElementById('screen-book').append(book.el);
+  document.getElementById('screen-towers').append(towers.el);
   document.getElementById('screen-titles').append(titles.el);
 
   // 탭 전환. 연출 중에도 막지 않는다 — 돌아오면 카드는 그 자리에 있다.
@@ -68,20 +76,23 @@ if (location.protocol !== 'file:') {
     { btn: document.getElementById('tab-gacha'), screen: document.getElementById('screen-gacha') },
     { btn: document.getElementById('tab-book'), screen: document.getElementById('screen-book') },
     { btn: document.getElementById('tab-battle'), screen: document.getElementById('screen-battle') },
+    { btn: document.getElementById('tab-towers'), screen: document.getElementById('screen-towers') },
     { btn: document.getElementById('tab-titles'), screen: document.getElementById('screen-titles') },
   ];
 
-  for (const t of tabs) {
-    t.btn.onclick = () => {
-      for (const x of tabs) {
-        const on = x === t;
-        x.btn.setAttribute('aria-selected', String(on));
-        x.screen.hidden = !on;
-      }
-      if (t.screen.id === 'screen-battle') battle.refresh();
-      if (t.screen.id === 'screen-titles') titles.refresh();
-    };
+  /** 탭 하나를 연다. 탑 목록에서 전투로 넘길 때도 이걸 쓴다 */
+  function showTab(screenId) {
+    for (const x of tabs) {
+      const on = x.screen.id === screenId;
+      x.btn.setAttribute('aria-selected', String(on));
+      x.screen.hidden = !on;
+    }
+    if (screenId === 'screen-battle') battle.refresh();
+    if (screenId === 'screen-towers') towers.refresh();
+    if (screenId === 'screen-titles') titles.refresh();
   }
+
+  for (const t of tabs) t.btn.onclick = () => showTab(t.screen.id);
 
   // 골드가 바뀌는 자리를 세지 않는다 — 저장이 바뀌면 무조건 다시 그린다.
   //
@@ -90,7 +101,7 @@ if (location.protocol !== 'file:') {
   // 「10연차(300골드)」가 잠긴 채로 남아 있다가, 1뽑을 하고 나서야
   // (그때 화면이 스스로 refresh 를 부른다) 갑자기 열렸다.
   // 지갑 숫자는 늘었는데 버튼은 안 열리니 고장으로 보인다 — 실제로 고장이었다.
-  onSaveChange(() => { checkTitles(); refreshPurse(); gacha.refresh(); titles.refresh(); });
+  onSaveChange(() => { checkTitles(); refreshPurse(); gacha.refresh(); titles.refresh(); towers.refresh(); });
   refreshPurse();
 
   // 저장을 읽자마자 한 번. v5 로 갓 올라온 사람이 이미 채운 조건

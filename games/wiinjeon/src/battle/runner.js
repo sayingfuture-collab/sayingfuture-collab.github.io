@@ -20,9 +20,17 @@ export const MAX_TURNS_PER_FLOOR = 200;
  * }} view
  * @param {() => boolean} stopped 그만두라는 신호
  * @param {number} [maxTurns] 한 층에서 결판이 안 날 때 끊는 턴 수
+ * @param {{makeFloor?: (run: object) => void, maxFloors?: number}} [opts]
+ *   makeFloor — 다음 층을 세우는 방법. 탑은 자기 적 표를 쓴다.
+ *   maxFloors — 여기까지 깨면 **이긴 것으로 치고 멈춘다**. 탑은 15층이 끝이다.
+ *
+ * ⚠️ **엔진에 모드 분기를 넣지 않으려고 여기로 뺐다.** 전투 규칙은 등반과 탑이 같고,
+ * 다른 건 「적을 어떻게 세우나」와 「언제 끝나나」 둘뿐이다.
  * @returns {Promise<number|null>} 도달한 층. 화면이 갈아엎혀 중단됐으면 null
  */
-export async function climb(run, view, stopped, maxTurns = MAX_TURNS_PER_FLOOR) {
+export async function climb(run, view, stopped, maxTurns = MAX_TURNS_PER_FLOOR, opts = {}) {
+  const makeFloor = opts.makeFloor ?? startFloor;
+  const maxFloors = opts.maxFloors ?? Infinity;
   let turnsThisFloor = 0;
 
   // 지금까지 깬 층. 이미 이룬 기록이라 그만두더라도 남긴다 —
@@ -44,7 +52,10 @@ export async function climb(run, view, stopped, maxTurns = MAX_TURNS_PER_FLOOR) 
     view.sync(run);
 
     if (run.result === 'floorCleared') {
-      startFloor(run); // 다음 층 적을 세운다. 아직 싸우지는 않는다
+      // 끝이 정해진 판(탑)은 여기서 끝난다. **다음 층을 세우기 전에 봐야** 한다 —
+      // 세운 뒤에 보면 16층째 적을 만들어놓고 버리게 되고, 화면에 잠깐 비친다.
+      if (cleared() >= maxFloors) return cleared();
+      makeFloor(run); // 다음 층 적을 세운다. 아직 싸우지는 않는다
 
       // 층 사이 — 다음 층 적을 보고 앞뒤를 바꿀 수 있다.
       // 적을 미리 못 보고 편성하면 진형이 결정이 아니라 한 번 찍고 마는 설정이 된다.

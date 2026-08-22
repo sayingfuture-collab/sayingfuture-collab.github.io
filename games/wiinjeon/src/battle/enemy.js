@@ -66,10 +66,16 @@ export function enemiesFor(floor, rng = Math.random) {
   // (다시 뽑는 방식으로 짜면 고정 rng에서 무한 루프에 빠진다)
   const pool = CHARACTERS.filter((c) => tiers.includes(c.tier));
   const picked = [];
-  while (picked.length < count && pool.length) {
-    const i = Math.floor(rng() * pool.length);
-    picked.push(pool.splice(i, 1)[0]);
-  }
+
+  /** 후보에서 하나 빼서 세운다. **뽑은 것을 빼는 방식이라 고정 rng 에서도 반드시 끝난다** */
+  const take = (from) => {
+    const i = Math.floor(rng() * from.length);
+    const chosen = from.splice(i, 1)[0];
+    pool.splice(pool.indexOf(chosen), 1);
+    return chosen;
+  };
+
+  while (picked.length < count && pool.length) picked.push(take(pool));
 
   return picked.map((character, i) => ({ uid: `e${i}`, character, level }));
 }

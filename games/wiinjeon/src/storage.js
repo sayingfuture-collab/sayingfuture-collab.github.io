@@ -8,6 +8,7 @@ import {
 import { TITLE_IDS } from './titles/catalog.js';
 import { sumEffects } from './titles/effects.js';
 import { GIFT_BY_ID } from './gifts.js';
+import { TOWER_BY_ID, GOLD_TOWER } from './towers/catalog.js';
 
 /** key 하나에 대한 읽기/쓰기 창구를 만든다. */
 export function createStore(key) {
@@ -256,6 +257,13 @@ function sanitize(raw) {
     ? [...new Set(raw.titles.filter((id) => TITLE_IDS.has(id)))]
     : [];
 
+  // 완주한 탑. 모르는 id 는 버린다 — 탑을 접으면 그 기록도 같이 사라져야 한다.
+  const towerClears = Array.isArray(raw?.towerClears)
+    ? [...new Set(raw.towerClears.filter((id) => TOWER_BY_ID.has(id)))]
+    : [];
+  // 황금 탑을 마지막으로 완주한 날(YYYY-MM-DD). 하루 한 번만 값을 한다.
+  const goldTowerDay = typeof raw?.goldTowerDay === 'string' ? raw.goldTowerDay : '';
+
   // 받은 선물. **모르는 id 는 버린다** — 선물을 접으면 그 기록도 같이 사라져야
   // 나중에 같은 id 를 다시 쓸 때 옛 기록에 막히지 않는다.
   const giftsTaken = Array.isArray(raw?.giftsTaken)
@@ -271,6 +279,7 @@ function sanitize(raw) {
   return {
     owned, pulls, bestFloor, party, levels, stock,
     titles, totals: sanitizeTotals(raw?.totals), bonusStock, giftsTaken,
+    towerClears, goldTowerDay,
     gold: int0(raw?.gold),
     tickets: int0(raw?.tickets),
     economyVersion: int0(raw?.economyVersion),
@@ -406,6 +415,59 @@ export function addGold(n) {
 /** 이미 받은 선물 id 목록 */
 export function getGiftsTaken() {
   return [...state.giftsTaken];
+}
+
+// ── 탑 ────────────────────────────────────────────────
+
+/** 오늘 날짜 열쇠. **현지 시각으로 센다** — 자정이 지나면 새 날이다 */
+export function todayKey(now = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
+}
+
+/** 완주한 탑 id 목록 */
+export function getTowerClears() {
+  return [...state.towerClears];
+}
+
+/**
+ * 황금 탑이 오늘 값을 하는가. **하루 한 번**이라 두 번째부터는 골드가 안 나온다.
+ * 들어가는 것 자체는 막지 않는다 — 연습은 해도 되고, 막으면 왜 막혔는지 설명할 데가 없다.
+ */
+export function goldTowerReadyToday(today = todayKey()) {
+  return state.goldTowerDay !== today;
+}
+
+/**
+ * 탑을 완주했다. **골드를 여기서 준다** — 화면이 계산하면 두 화면이 다른 값을 준다.
+ *
+ * ⚠️ **첫 완주와 재완주가 다르다.** 첫 완주가 큰 몫이고 다시 깨면 소액이다.
+ * 황금 탑만 예외로 재완주가 크고, 대신 **하루 한 번**이다.
+ *
+ * @returns {{gold: number, first: boolean, spent: boolean}}
+ *   spent 는 「오늘 몫을 이미 썼다」는 뜻. 황금 탑에서만 true 가 될 수 있다
+ */
+export function finishTower(id, today = todayKey()) {
+  const tower = TOWER_BY_ID.get(id);
+  if (!tower) return { gold: 0, first: false, spent: false };
+
+  const first = !state.towerClears.includes(id);
+  let gold = first ? tower.first : tower.again;
+  let spent = false;
+
+  if (id === GOLD_TOWER.id && !first) {
+    // 오늘 몫을 이미 받았으면 소액만 준다. 0으로 만들면 「왜 아무것도 없지」가 된다.
+    if (state.goldTowerDay === today) { gold = Math.round(tower.again * 0.05); spent = true; }
+    else state.goldTowerDay = today;
+  } else if (id === GOLD_TOWER.id) {
+    state.goldTowerDay = today;
+  }
+
+  if (first) state.towerClears.push(id);
+  state.gold += gold;
+  state.totals.goldEarned += gold;
+  write();
+  return { gold, first, spent };
 }
 
 /**

@@ -56,6 +56,29 @@ const WEAKEN_MAX = 0.6;   // 팔진도가 깎을 수 있는 한계. 적을 0으�
 const REVIVE_PCT = 0.5;   // 소생 시 돌아오는 체력 비율. 치유 한 명당 판당 1회
 // 적이 전원 앞줄이면 포격이 관통할 데가 없다. 대신 몰려 있는 만큼 크게 맞는다.
 const PIERCE_MASSED = Number(globalThis.process?.env?.PIERCE_MASSED ?? 1.6);
+/**
+ * 반대쪽 — **전원 뒷줄이면 막아설 앞줄이 없다.**
+ *
+ * ── 왜 넣었나 (2026-08-22) ──
+ *
+ * 전원 앞줄(4/0)에는 벌칙이 있는데(위 PIERCE_MASSED) **전원 뒷줄에는 없었다.**
+ * 관통은 「앞줄을 뚫고 뒤를 친다」라 앞줄이 없으면 배수가 안 붙었고, 그래서
+ * **전원 뒷줄이 적 포격을 통째로 무력화하는 공짜 수**가 됐다.
+ *
+ * 그 결과가 나빴다 — 실측에서 **전사를 앞에 세우면 아무도 안 세우는 것보다 손해**였고
+ * (54층 대 57층), 「앞줄에 세우면 뒷줄이 안 맞는다」는 설명이 거짓이 됐다(제보로 들어왔다).
+ * **직관대로 논 사람이 벌을 받는 게 이 게임에서 제일 나쁜 쪽이다.**
+ *
+ * 2.0 인 이유: 훑어보니 1.6 부터 답이 뒤집히고 2.0 에서 확실해진다.
+ *   ×1   전원 뒷줄 55층 · 한 명 앞 53층   ← 뒷줄이 정답(고장)
+ *   ×1.6 전원 뒷줄 50층 · 한 명 앞 59층
+ *   ×2.0 전원 뒷줄 46층 · 한 명 앞 60층   ← 여기
+ *   ×2.5 전원 뒷줄 40층 · 한 명 앞 60층   ← 더 줘도 최선은 안 오르고 벌만 세진다
+ *
+ * ⚠️ **적에게도 똑같이 걸린다.** 한쪽만 묶으면 그게 곧 밸런스 변경이다.
+ * 다시 잴 때는 `tools/balance/formation-audit.mjs`.
+ */
+const PIERCE_EXPOSED = Number(globalThis.process?.env?.PIERCE_EXPOSED ?? 2);
 
 // 광폭화 — 이 턴을 넘기면 매 턴 피해가 불어난다.
 // 치유가 양쪽에 있으면 회복이 피해를 앞질러 아무도 안 죽는다.
@@ -175,14 +198,16 @@ function auraOf(units) {
  */
 export const FLOOR_HEAL = 0.2;
 
-/** 다음 층으로. 다 회복하지는 않는다 — FLOOR_HEAL 만큼만 되찾는다. */
-export function startFloor(state, rng = Math.random) {
-  state.floor += 1;
-  // 적 진형은 역할로 정한다 — 전사는 앞줄, 나머지는 뒷줄.
-  // 전사가 없으면 앞줄이 비고, 그러면 처음부터 다 노출된다.
-  state.enemies = enemiesFor(state.floor, rng).map((e) =>
-    toUnit(e.uid, e.character, e.level, defaultFront(e.character))
-  );
+/**
+ * 적을 세운 **뒤에** 층을 시작하는 일들. 회복·원정·철벽·초기화가 여기 다 있다.
+ *
+ * ⚠️ **탑도 이 함수를 쓴다.** 적을 만드는 곳만 다르고 나머지 규칙은 같아야 한다 —
+ * 따로 베껴 쓰면 조용히 어긋난다(실제로 탑에서 알렉산더의 원정과 철벽 보상이 빠져 있었다).
+ * @param {object} state
+ * @param {Array<object>} enemies 이미 만들어진 적 유닛들
+ */
+export function enterFloor(state, enemies) {
+  state.enemies = enemies;
   state.enemyAura = auraOf(state.enemies);
   state.enemyBuff = 0;
   state.turn = 0; // 광폭화는 층마다 다시 센다
@@ -199,6 +224,19 @@ export function startFloor(state, rng = Math.random) {
       u.shield = Math.max(u.shield, Math.round(u.maxHp * state.startShield));
     }
   }
+}
+
+/** 적 하나를 유닛으로. 탑이 자기 적 표로 세울 때도 쓴다 */
+export function toEnemy(e) {
+  return toUnit(e.uid, e.character, e.level, defaultFront(e.character));
+}
+
+/** 다음 층으로. 다 회복하지는 않는다 — FLOOR_HEAL 만큼만 되찾는다. */
+export function startFloor(state, rng = Math.random) {
+  state.floor += 1;
+  // 적 진형은 역할로 정한다 — 전사는 앞줄, 나머지는 뒷줄.
+  // 전사가 없으면 앞줄이 비고, 그러면 처음부터 다 노출된다.
+  enterFloor(state, enemiesFor(state.floor, rng).map(toEnemy));
 }
 
 /**
@@ -258,8 +296,8 @@ function chooseTarget(actor, foes, rng) {
       const pierced = living.some((u) => u.front);
       return {
         target: back.reduce((a, b) => (b.hp > a.hp ? b : a)),
-        via: pierced ? 'pierce' : null,
-        mult: pierced ? pierceMult(actor) : 1,
+        via: pierced ? 'pierce' : (PIERCE_EXPOSED === 1 ? null : 'exposed'),
+        mult: pierced ? pierceMult(actor) : PIERCE_EXPOSED * pierceMult(actor),
       };
     }
     // 뒷줄이 아예 없다 = 전원이 앞줄에 몰려 있다. 포탄이 그 안에 꽂힌다.

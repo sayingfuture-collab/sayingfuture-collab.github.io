@@ -6,6 +6,7 @@ import { CHARACTERS } from '../data/characters.js';
 import {
   getParty, setParty, getBestFloor, setBestFloor,
   countOf, levelOf, isMaxLevel, addGold, recordRun, getTitles,
+  finishTower, goldTowerReadyToday,
 } from '../storage.js';
 import { createRunSummary } from '../titles/summary.js';
 import { applyTitleBoost, goldBonus } from '../titles/effects.js';
@@ -15,6 +16,7 @@ import { runReward } from '../economy.js';
 import { statsOf, rowMult, ROLE_SKILL, LEVEL_CAP } from '../battle/stats.js';
 import { skillInfo } from '../battle/skills.js';
 import { createRun, startFloor } from '../battle/engine.js';
+import { TOWER_FLOORS, makeTowerFloor, GOLD_TOWER } from '../towers/catalog.js';
 import { climb } from '../battle/runner.js';
 import { isRewardFloor, offerRewards, applyReward } from '../battle/rewards.js';
 import { createRewardView } from './reward-view.js';
@@ -38,9 +40,13 @@ export function createBattleScreen() {
   const root = el('div', 'battle');
 
   const best = el('div', 'battle__best');
+  // 지금 도전 중인 탑. null 이면 등반(끝없이 오르는 판)이다.
+  /** @type {import('../towers/catalog.js').Tower|null} */
+  let tower = null;
+  const banner = el('div', 'battle__tower');
   const body = el('div', 'battle__body');
   const buttons = el('div', 'battle__buttons');
-  root.append(best, body, buttons);
+  root.append(best, banner, body, buttons);
 
   /** @type {Array<{id: string, front: boolean}>} */
   let party = [];
@@ -61,7 +67,9 @@ export function createBattleScreen() {
   };
   const pct = (v) => `${Math.round(Math.abs(1 - v) * 100)}%`;
   rowBack.append(
-    rowHead('뒷줄', `앞줄이 버티는 동안 안 맞음 · 앞줄이 얇으면 샘`),
+    // ⚠️ **「안 맞음」이라고 쓰면 안 된다.** 앞줄 빈자리 하나당 15%씩 새서, 한 명만
+    // 세우면 절반 가까이가 그대로 뒤로 온다. 제보로 들어온 오해가 정확히 이 문구였다.
+    rowHead('뒷줄', '앞줄이 두꺼울수록 덜 맞음 · 적 포격은 뒷줄부터 노림'),
     backSlots
   );
   rowFront.append(
@@ -71,6 +79,10 @@ export function createBattleScreen() {
 
   const formHint = el('div', 'form__hint',
     `인물을 누르면 줄이 바뀝니다 · 레벨은 ${LEVEL_CAP}에서 멈춥니다`);
+
+  // 앞줄이 비었을 때만 뜬다. **이걸 안 알려주면 고장으로 보인다** —
+  // 전원 뒷줄은 적 포격에게 무방비라 크게 맞는데, 화면에는 그 이유가 안 나온다.
+  const formWarn = el('div', 'form__warn');
 
   // 역할이 무엇을 하는지 모르면 진형을 짤 수가 없다. 접어두되 한 번에 펼쳐진다.
   const roles = el('details', 'form__roles');
@@ -87,7 +99,7 @@ export function createBattleScreen() {
     roles.append(line);
   }
 
-  form.append(rowBack, rowFront, formHint, roles);
+  form.append(rowBack, rowFront, formWarn, formHint, roles);
 
   const go = el('button', 'battle__go', '도전 시작');
   go.type = 'button';
@@ -143,6 +155,9 @@ export function createBattleScreen() {
       slots.append(addButton(front));
     }
     go.disabled = party.length === 0;
+    // 아무도 앞에 없으면 막아설 사람이 없다. 한 명이라도 세우면 사라진다.
+    const naked = party.length > 0 && !party.some((p) => p.front);
+    formWarn.textContent = naked ? '⚠ 앞줄이 비었습니다 — 적 포격이 뒷줄을 그대로 때립니다' : '';
   }
 
   function commit() {
@@ -234,6 +249,8 @@ export function createBattleScreen() {
   let runLog = null;
   let playing = false;
   let stopped = false;
+  /** 이 판에서 층을 세우는 방법. 판이 시작될 때 정해진다 */
+  let makeFloor = startFloor;
   let speedIndex = 0;
 
   const speedBtn = el('button', 'battle__auto', '×1');
@@ -280,7 +297,9 @@ export function createBattleScreen() {
     // 칭호 효과는 **여기 한 번만** 얹는다. 엔진은 칭호를 모르고, 두 번 부르면 두 번 곱해진다.
     applyTitleBoost(run, getTitles());
     runLog = createRunSummary(entries);
-    startFloor(run);
+    // 탑은 자기 적 표로 층을 세운다. 전투 규칙은 등반과 똑같다.
+    makeFloor = tower ? makeTowerFloor(tower) : startFloor;
+    makeFloor(run);
     showFight();
     fight.setup(run);
     fight.setLog('1층 시작');
@@ -298,7 +317,11 @@ export function createBattleScreen() {
       sync: (r) => fight.sync(r),
       setup: (r) => { fight.setup(r); fight.setLog(`${r.floor}층 시작`); },
       betweenFloors: askReward,
-    }, () => stopped);
+    }, () => stopped, undefined, {
+      makeFloor,
+      // 탑은 끝이 있다. 등반은 전멸할 때까지다.
+      maxFloors: tower ? TOWER_FLOORS : Infinity,
+    });
     playing = false;
     // null이면 화면이 갈아엎힌 것 — 기록도 결과 화면도 내지 않는다
     if (reached !== null) endRun(reached);
@@ -321,26 +344,38 @@ export function createBattleScreen() {
     // 무엇보다 최고 기록보다 먼저 해야 「제약 걸고 오르기」가 이 판을 놓치지 않는다.
     recordRun(runLog.result(reached));
 
+    const inTower = tower;          // 결과 화면을 그리는 동안 바뀌지 않게 잡아둔다
+    const done = inTower && reached >= TOWER_FLOORS;
     const prevBest = getBestFloor();
     // **setBestFloor보다 먼저 계산한다.** 뒤에 하면 기록이 이미 갱신되어
     // 갱신분이 늘 0이 되고, 아무리 기록을 깨도 골드가 안 붙는다.
-    const base = runReward(reached, prevBest);
+    const base = runReward(reached, inTower ? Infinity : prevBest);
     const bonus = goldBonus(base.total, getTitles());
     addGold(base.total + bonus);
-    const isBest = setBestFloor(reached);
+    // 탑을 완주하면 그 몫이 따로 나온다. 골드를 주는 곳은 저장 한 군데다.
+    const prize = done ? finishTower(inTower.id) : null;
+    // ⚠️ **탑은 최고 기록을 안 건드린다.** 15층이 끝이라 등반 기록과 뜻이 다르다 —
+    // 처음 하는 사람의 「최고 15층」이 탑에서 나오면 등반 갱신 보상이 통째로 막힌다.
+    const isBest = inTower ? false : setBestFloor(reached);
     // 저장이 세 번 바뀌었고(누적·골드·기록) 그때마다 칭호 검사가 돌았다.
     // 누가 땄든 대기줄에 모여 있으므로 여기서 한꺼번에 가져간다.
     const news = takeTitleNews();
     const members = party.map((p) => ({ c: byId.get(p.id), front: p.front }));
 
     const panel = el('div', 'result-panel');
-    panel.append(el('div', 'result-panel__title', '전멸'));
+    panel.append(el('div', 'result-panel__title', done ? '완주' : '전멸'));
 
     const floor = el('div', 'result-panel__floor');
-    floor.append(el('b', null, String(reached)), '층');
+    floor.append(el('b', null, String(reached)), inTower ? ` / ${TOWER_FLOORS}층` : '층');
     panel.append(floor);
 
-    if (isBest) {
+    if (inTower) {
+      panel.append(el('div', done ? 'result-panel__best' : 'result-panel__prev',
+        done ? `${inTower.mark} ${inTower.name} 완주!` : `${inTower.mark} ${inTower.name}`));
+      if (prize?.first) panel.append(el('div', 'result-panel__prev', '첫 완주 보상'));
+      // 오늘 몫을 이미 썼으면 반드시 밝힌다. 안 밝히면 「왜 이것밖에 안 주지」가 된다.
+      if (prize?.spent) panel.append(el('div', 'result-panel__prev', '오늘 몫은 이미 받았습니다'));
+    } else if (isBest) {
       panel.append(el('div', 'result-panel__best', '최고 기록!'));
       if (prevBest > 0) panel.append(el('div', 'result-panel__prev', `이전 기록 ${prevBest}층`));
     } else {
@@ -368,7 +403,9 @@ export function createBattleScreen() {
     // 이번 판에 얼마를 벌었는지. 기록 갱신분을 따로 보여줘야
     // "기록을 깨야 번다"는 규칙이 한 판 만에 전달된다.
     const purse = el('div', 'result-panel__gold');
-    purse.append(el('b', null, `+${(base.total + bonus).toLocaleString()} 골드`));
+    const got = base.total + bonus + (prize?.gold ?? 0);
+    purse.append(el('b', null, `+${got.toLocaleString()} 골드`));
+    if (prize?.gold) purse.append(el('span', null, `완주 +${prize.gold.toLocaleString()}`));
     if (base.record > 0) {
       purse.append(el('span', null, `기록 갱신 +${base.record.toLocaleString()}`));
     }
@@ -409,8 +446,39 @@ export function createBattleScreen() {
     best.replaceChildren('최고 ', el('b', null, String(getBestFloor())), '층');
   }
 
+  /**
+   * 어느 탑에 도전할지 정한다. null 이면 등반(끝없이 오르는 판)으로 돌아간다.
+   *
+   * ⚠️ **전투 중에는 안 바꾼다.** 판이 도는 중에 바꾸면 층 세우는 방법과 끝나는 조건이
+   * 판 중간에 갈리고, 결과 화면이 엉뚱한 탑 이름을 단다.
+   */
+  function setTower(next) {
+    if (run) return false;
+    tower = next ?? null;
+    showForm();
+    return true;
+  }
+
+  function renderBanner() {
+    banner.replaceChildren();
+    if (!tower) return;
+    banner.style.setProperty('--tower', tower.color);
+    const name = el('div', 'battle__towerName', `${tower.mark} ${tower.name} · ${TOWER_FLOORS}층`);
+    const hint = el('div', 'battle__towerHint', tower.hint);
+    const off = el('button', 'battle__towerOff', '등반으로');
+    off.type = 'button';
+    off.onclick = () => setTower(null);
+    banner.append(name, hint, off);
+    // 황금 탑은 하루 한 번만 값을 한다. **들어가기 전에 알려준다** —
+    // 다 깨고 나서 알면 그 15층이 통째로 헛수고가 된다.
+    if (tower.id === GOLD_TOWER.id && !goldTowerReadyToday()) {
+      banner.append(el('div', 'battle__towerWarn', '오늘 몫은 이미 받았습니다 — 연습은 됩니다'));
+    }
+  }
+
   function refresh() {
     refreshBest();
+    renderBanner();
     if (run) return; // 전투 중에는 편성을 다시 그리지 않는다
     party = getParty();
     // 뽑기로 새로 얻은 인물이 있어도 편성은 그대로 둔다. 줄 정보는 저장이 들고 있다.
@@ -418,5 +486,5 @@ export function createBattleScreen() {
   }
 
   showForm();
-  return { el: root, refresh };
+  return { el: root, refresh, setTower };
 }
