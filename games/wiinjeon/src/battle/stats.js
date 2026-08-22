@@ -17,18 +17,30 @@ export const LEVEL_CAP = 20;
 export const TIER_MULT = { N: 1.0, R: 1.3, SR: 1.7, SSR: 2.2 };
 
 // front는 이제 "이 역할을 처음 넣으면 어느 줄에 서는가"라는 제안일 뿐이다.
-// 실제 앞뒤는 플레이어가 정한다(적은 이 값으로 정한다).
-export const ROLE_MULT = {
-  전사: { hp: 2.2, atk: 1.0, front: true },
-  포격: { hp: 0.6, atk: 1.8, front: false },
-  지휘: { hp: 0.8, atk: 0.8, front: false },
-  치유: { hp: 0.8, atk: 0.6, front: false },
-  장인: { hp: 0.9, atk: 0.9, front: false },
-};
-
 // 밸런스 훑기용 손잡이. 브라우저에는 process가 없어서 항상 기본값이 쓰인다.
 // scripts/formation-sweep.js가 이 값을 바꿔가며 돌린다.
 const tune = (key, fallback) => Number(globalThis.process?.env?.[key] ?? fallback);
+
+/**
+ * 역할의 뼈대 수치. 실제 앞뒤는 플레이어가 정한다(적은 front 값으로 정한다).
+ *
+ * ⚠️ **적도 같은 표를 쓴다.** 한쪽만 고치면 그게 곧 밸런스 변경이다.
+ *
+ * ── 공격 배수를 손잡이로 열어둔 이유 (2026-08-22) ──
+ *
+ * 통제된 바꿔치기(`tools/balance/role-swap.mjs`)에서 **포격이 든 편성만 20층 앞섰다.**
+ * 포격 95~116층 · 포격 없으면 79~91층. 나머지 넷은 서로 12층 안에 촘촘히 모여 있으니
+ * 문제는 역할 넷이 아니라 **포격 하나**였다.
+ * 수치는 손으로 고르지 않고 `tools/balance/role-tune.mjs` 가 찾는다.
+ */
+// ⚠️ 손잡이 이름은 **영문만.** 셸이 한글 환경변수 이름을 못 받는다(실제로 걸렸다).
+export const ROLE_MULT = {
+  전사: { hp: tune('HP_WAR', 2.2), atk: tune('ATK_WAR', 1.0), front: true },
+  포격: { hp: tune('HP_ART', 0.6), atk: tune('ATK_ART', 1.8), front: false },
+  지휘: { hp: tune('HP_CMD', 0.8), atk: tune('ATK_CMD', 0.8), front: false },
+  치유: { hp: tune('HP_HEAL', 0.8), atk: tune('ATK_HEAL', 0.6), front: false },
+  장인: { hp: tune('HP_SMITH', 0.9), atk: tune('ATK_SMITH', 0.9), front: false },
+};
 
 // 진형. 뒷줄이 기본이고, 앞줄은 방패 노릇을 하는 대신 화력을 내놓는다.
 //

@@ -54,22 +54,22 @@ export const GOLD_TOWER_PER_DAY = 1;
 /** @type {Tower[]} */
 export const TOWERS = [
   { id: 'red', name: '빨강 탑', color: '#e5534b', mark: '🔴', role: '전사',
-    hint: '단단해서 싸움이 길어집니다', base: 6.7, step: 1.52, first: 3000, again: 200 },
+    hint: '단단해서 싸움이 길어집니다', base: 5.2, step: 1.17, first: 3000, again: 200 },
   { id: 'orange', name: '주황 탑', color: '#e08b3c', mark: '🟠', role: '포격',
-    hint: '포탄이 앞줄을 넘어 뒷줄에 꽂힙니다', base: 4.8, step: 0.97, first: 3500, again: 250 },
+    hint: '포탄이 앞줄을 넘어 뒷줄에 꽂힙니다', base: 3.9, step: 0.8, first: 3500, again: 250 },
   { id: 'yellow', name: '노랑 탑', color: '#d6c035', mark: '🟡', role: '치유',
-    hint: '쓰러져도 다시 일어납니다', base: 21, step: 3.3, first: 4000, again: 300 },
+    hint: '쓰러져도 다시 일어납니다', base: 21.8, step: 3.43, first: 4000, again: 300 },
   { id: 'green', name: '초록 탑', color: '#3fb950', mark: '🟢', role: '장인',
-    hint: '방어막을 두르고 버팁니다', base: 17, step: 2.54, first: 4500, again: 350 },
+    hint: '방어막을 두르고 버팁니다', base: 16.4, step: 2.45, first: 4500, again: 350 },
   { id: 'blue', name: '파랑 탑', color: '#58a6ff', mark: '🔵', role: '지휘',
-    hint: '시간이 갈수록 강해집니다', base: 16.6, step: 2.39, first: 5000, again: 400 },
+    hint: '시간이 갈수록 강해집니다', base: 14.8, step: 2.13, first: 5000, again: 400 },
   { id: 'indigo', name: '남색 탑', color: '#7c72e8', mark: '🟣', role: null,
-    hint: '무엇이 나올지 모릅니다', base: 17.8, step: 2.49, first: 5500, again: 450 },
+    hint: '무엇이 나올지 모릅니다', base: 15.1, step: 2.11, first: 5500, again: 450 },
   { id: 'violet', name: '보라 탑', color: '#bc8cff', mark: '🟪', role: null, tiers: ['SSR'],
-    hint: '이름난 자들만 올라옵니다', base: 11.2, step: 1.53, first: 6500, again: 500 },
+    hint: '이름난 자들만 올라옵니다', base: 10.7, step: 1.46, first: 6500, again: 500 },
   // ⚠️ 일곱 색을 다 깨야 열린다. **여기만 반복해서 도는 자리다.**
   { id: 'gold', name: '황금 탑', color: '#ffd75e', mark: '🏆', role: null, tiers: ['SR', 'SSR'],
-    hint: '무지개를 넘은 자에게만 열립니다', base: 18.6, step: 2.44, first: 8000, again: 5000 },
+    hint: '무지개를 넘은 자에게만 열립니다', base: 17.7, step: 2.33, first: 8000, again: 5000 },
 ];
 
 export const TOWER_BY_ID = new Map(TOWERS.map((t) => [t.id, t]));
@@ -95,6 +95,9 @@ export function isOpen(tower, clears) {
  * (치유 넷은 사람을 거의 못 죽이고 포격 넷은 종잇장이다) 같은 레벨을 줘도 탑마다
  * 난이도가 딴판이다. `tools/balance/tower-tune.mjs` 가 **목표 완주율에 맞춰 찾아준다.**
  * 수치를 고치고 싶으면 그 파일의 GOAL 표를 고치고 다시 돌릴 것.
+ *
+ * ⚠️ **전투 규칙을 고치면 여기도 반드시 다시 잰다.** 관통 막힘(PIERCE_BLOCK)을 넣었더니
+ * 빨강 탑 입문 완주율이 80%에서 48%로 떨어졌다 — 규칙 하나가 탑 여덟 개를 통째로 흔든다.
  */
 export function levelAt(tower, floor) {
   return tower.base + (floor - 1) * tower.step;

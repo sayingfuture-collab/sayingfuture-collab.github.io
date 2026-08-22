@@ -67,6 +67,21 @@ export function enemiesFor(floor, rng = Math.random) {
   const pool = CHARACTERS.filter((c) => tiers.includes(c.tier));
   const picked = [];
 
+  /**
+   * 적에 전사를 **반드시 한 명** 섞을지. 0 이면 안 섞는다(옛 동작).
+   *
+   * ── 왜 재보나 (2026-08-22) ──
+   *
+   * 적의 45%가 전원 뒷줄이었다. 134명 중 지휘 43·장인 40인데 전사는 23명뿐이라
+   * 앞줄이 자주 비기 때문이다. 그래서 **관통이 알맹이를 그대로 쓸어담고**,
+   * 포격이 든 편성만 20층 앞섰다.
+   *
+   * 포격 자체를 약하게 해봤지만 둘 다 실패했다(공격 배수·관통 대가) —
+   * **적도 같은 표를 쓰기 때문이다.** 적 포격이 같이 약해지면 물렁한 포격 파티가
+   * 반사이익을 본다. 그래서 지렛대를 적 **구성** 쪽으로 옮긴다.
+   */
+  const NEED_FRONT = Number(globalThis.process?.env?.ENEMY_FRONT ?? 0);
+
   /** 후보에서 하나 빼서 세운다. **뽑은 것을 빼는 방식이라 고정 rng 에서도 반드시 끝난다** */
   const take = (from) => {
     const i = Math.floor(rng() * from.length);
@@ -75,6 +90,11 @@ export function enemiesFor(floor, rng = Math.random) {
     return chosen;
   };
 
+  // 전사를 먼저 한 명. 머릿수가 둘 이상일 때만 — 1명짜리 층까지 전사면 초반이 통째로 단단해진다.
+  if (NEED_FRONT && count >= 2) {
+    const wall = pool.filter((c) => c.role === '전사');
+    if (wall.length) picked.push(take(wall));
+  }
   while (picked.length < count && pool.length) picked.push(take(pool));
 
   return picked.map((character, i) => ({ uid: `e${i}`, character, level }));

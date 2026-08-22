@@ -57,28 +57,45 @@ const REVIVE_PCT = 0.5;   // 소생 시 돌아오는 체력 비율. 치유 한 �
 // 적이 전원 앞줄이면 포격이 관통할 데가 없다. 대신 몰려 있는 만큼 크게 맞는다.
 const PIERCE_MASSED = Number(globalThis.process?.env?.PIERCE_MASSED ?? 1.6);
 /**
- * 반대쪽 — **전원 뒷줄이면 막아설 앞줄이 없다.**
+ * 관통의 대가 — **앞줄을 뚫고 가느라 위력이 준다.** 1 이면 대가가 없다(옛 동작).
  *
  * ── 왜 넣었나 (2026-08-22) ──
  *
- * 전원 앞줄(4/0)에는 벌칙이 있는데(위 PIERCE_MASSED) **전원 뒷줄에는 없었다.**
- * 관통은 「앞줄을 뚫고 뒤를 친다」라 앞줄이 없으면 배수가 안 붙었고, 그래서
- * **전원 뒷줄이 적 포격을 통째로 무력화하는 공짜 수**가 됐다.
+ * 통제된 바꿔치기에서 **포격이 든 편성만 20층 앞섰다**(95~116층 대 79~91층).
+ * 공격 배수를 내려봤지만 **오히려 올랐다** — 적도 같은 표를 써서 적 포격이 같이 약해지고,
+ * 물렁한 우리 뒷줄이 덜 죽기 때문이다. 즉 **공격력은 지렛대가 아니다.**
  *
- * 그 결과가 나빴다 — 실측에서 **전사를 앞에 세우면 아무도 안 세우는 것보다 손해**였고
- * (54층 대 57층), 「앞줄에 세우면 뒷줄이 안 맞는다」는 설명이 거짓이 됐다(제보로 들어왔다).
- * **직관대로 논 사람이 벌을 받는 게 이 게임에서 제일 나쁜 쪽이다.**
- *
- * 2.0 인 이유: 훑어보니 1.6 부터 답이 뒤집히고 2.0 에서 확실해진다.
- *   ×1   전원 뒷줄 55층 · 한 명 앞 53층   ← 뒷줄이 정답(고장)
- *   ×1.6 전원 뒷줄 50층 · 한 명 앞 59층
- *   ×2.0 전원 뒷줄 46층 · 한 명 앞 60층   ← 여기
- *   ×2.5 전원 뒷줄 40층 · 한 명 앞 60층   ← 더 줘도 최선은 안 오르고 벌만 세진다
- *
- * ⚠️ **적에게도 똑같이 걸린다.** 한쪽만 묶으면 그게 곧 밸런스 변경이다.
- * 다시 잴 때는 `tools/balance/formation-audit.mjs`.
+ * 포격의 진짜 이점은 **표적 선택**이다. 다른 역할은 reachable() 을 거쳐 단단한 앞줄을
+ * 때리는데 포격만 그걸 건너뛰고 물렁한 뒷줄을 지목한다. 적의 83%가 지휘·장인·치유라
+ * 그 뒷줄이 곧 알맹이다. 그래서 **이점은 그대로 두고 대가를 붙인다** —
+ * 표적을 고르는 값으로 위력을 내놓는다.
  */
-const PIERCE_EXPOSED = Number(globalThis.process?.env?.PIERCE_EXPOSED ?? 2);
+const PIERCE_COST = Number(globalThis.process?.env?.PIERCE_COST ?? 1);   // 훑어보니 1 이 제일 나았다
+
+/**
+ * 앞줄 한 명당 관통이 **막힐** 확률. 0 이면 안 막힌다(옛 동작).
+ *
+ * ── 왜 이것만 통하나 (2026-08-22) ──
+ *
+ * 포격을 약하게 하는 손질은 **전부 실패했다** — 공격 배수도, 관통 대가도, 적 진형도.
+ * 이유는 하나다: **적도 같은 표를 쓴다.** 포격을 깎으면 적 포격도 깎여서,
+ * 체력이 물렁한 포격 파티가 되레 오래 산다. 대칭인 손질은 전부 이 함정에 빠진다.
+ *
+ * 이건 다르다. 관통을 막는 건 **앞줄**인데, 포격만 넣은 파티는 앞줄이 없다.
+ * 즉 이 규칙은 **자기를 지킬 수 있는 편성에만 값을 준다** — 대칭인 규칙인데
+ * 효과는 비대칭이다. 전사에게 「적 포격을 막는다」는 할 일이 생기는 건 덤이다.
+ */
+const PIERCE_BLOCK = Number(globalThis.process?.env?.PIERCE_BLOCK ?? 0.25);
+
+/**
+ * 앞줄이 하나도 없는 쪽이 **모든 공격에서** 더 맞는 배수. 1 이면 안 걸린다.
+ *
+ * ⚠️ **포격만 이득 보게 두면 안 된다.** 예전에는 이 벌이 포격의 표적 선택에만 붙어서,
+ * 적의 45%가 전원 뒷줄인 이 게임에서 **포격 전용 보너스**가 되어 있었다.
+ * 방어하는 쪽 문제이므로 때리는 사람이 누구든 똑같이 걸려야 한다.
+ */
+const EXPOSED_TAKEN = Number(globalThis.process?.env?.EXPOSED_TAKEN ?? 1.3);
+
 
 // 광폭화 — 이 턴을 넘기면 매 턴 피해가 불어난다.
 // 치유가 양쪽에 있으면 회복이 피해를 앞질러 아무도 안 죽는다.
@@ -148,6 +165,9 @@ function pierceMult(actor) {
 }
 
 const alive = (list) => list.filter((u) => u.hp > 0);
+
+/** 이 편에 살아 있는 앞줄이 하나도 없는가. **막아설 사람이 없다는 뜻이다** */
+const isExposed = (list) => !list.some((u) => u.hp > 0 && u.front);
 
 /**
  * @param {Array<{character: object, level: number, front?: boolean}>} partyEntries 최대 4명
@@ -265,9 +285,13 @@ function reachable(list, rng) {
  * 전사를 넣으나 마나가 되어서, 실제로 줄여야 값을 한다.
  * 뒷줄은 앞줄이 무너진 뒤에도 감소가 없다. 버티라고 세운 게 아니다.
  */
-function applyDamage(target, dmg) {
+/**
+ * @param {boolean} [exposed] 맞는 쪽에 살아 있는 앞줄이 하나도 없는가.
+ *   **때리는 사람이 누구든 똑같이 걸린다** — 방어하는 쪽 문제이기 때문이다.
+ */
+function applyDamage(target, dmg, exposed = false) {
   // guard는 판 중에 고른 보상이 얹어주는 추가 감소. 없으면 0.
-  const taken = rowMult(target.front).taken * (1 - (target.guard ?? 0));
+  const taken = rowMult(target.front).taken * (exposed ? EXPOSED_TAKEN : 1) * (1 - (target.guard ?? 0));
   const actual = Math.round(dmg * taken);
   let rest = actual;
   if (target.shield > 0) {
@@ -293,11 +317,17 @@ function chooseTarget(actor, foes, rng) {
     const back = living.filter((u) => !u.front);
     if (back.length) {
       // 관통은 뒤를 노렸는데 앞줄이 실제로 있었을 때만 관통이라 부른다
-      const pierced = living.some((u) => u.front);
+      const front = living.filter((u) => u.front);
+      // 앞줄이 두꺼우면 관통이 막힌다. 막히면 앞줄을 때린다 — 평타와 같아진다.
+      if (front.length && rng() < front.length * PIERCE_BLOCK) {
+        return { target: front[Math.floor(rng() * front.length)], via: 'blocked', mult: 1 };
+      }
+      // 뚫을 앞줄이 있을 때만 「관통」이고, 그때만 대가를 낸다.
+      // 앞줄이 없으면 그냥 때리는 것이라 대가도 없다 — 대신 무방비 배수가 걸린다.
       return {
         target: back.reduce((a, b) => (b.hp > a.hp ? b : a)),
-        via: pierced ? 'pierce' : (PIERCE_EXPOSED === 1 ? null : 'exposed'),
-        mult: pierced ? pierceMult(actor) : PIERCE_EXPOSED * pierceMult(actor),
+        via: front.length ? 'pierce' : null,
+        mult: (front.length ? PIERCE_COST : 1) * pierceMult(actor),
       };
     }
     // 뒷줄이 아예 없다 = 전원이 앞줄에 몰려 있다. 포탄이 그 안에 꽂힌다.
@@ -329,7 +359,7 @@ function attack(actor, allies, foes, power, rng, events) {
   // 때린 사건을 먼저, 그 결과인 쓰러짐을 뒤에 넣는다.
   // 순서가 뒤집히면 로그가 어색하고, 나중에 그래픽을 얹었을 때
   // 죽는 연출이 공격 연출보다 먼저 재생된다.
-  const { actual, died } = applyDamage(target, Math.round(power * mult));
+  const { actual, died } = applyDamage(target, Math.round(power * mult), isExposed(foes));
   const e = {
     t: 'attack', from: actor.uid, to: target.uid,
     dmg: actual, hp: target.hp, shield: target.shield,
@@ -382,8 +412,9 @@ function castActive(actor, active, allies, foes, power, ctx, events) {
       case 'aoeDamage': {
         const hits = [];
         const deaths = [];
+        const bare = isExposed(foes);
         for (const target of alive(foes)) {
-          const { actual, died } = applyDamage(target, Math.round(power * eff.pct));
+          const { actual, died } = applyDamage(target, Math.round(power * eff.pct), bare);
           hits.push({ to: target.uid, dmg: actual, hp: target.hp, shield: target.shield });
           if (died) deaths.push(target.uid);
         }
@@ -398,7 +429,7 @@ function castActive(actor, active, allies, foes, power, ctx, events) {
       case 'nuke': {
         const chosen = chooseTarget(actor, foes, () => 0.99);
         if (!chosen) break;
-        const { actual, died } = applyDamage(chosen.target, Math.round(power * eff.pct));
+        const { actual, died } = applyDamage(chosen.target, Math.round(power * eff.pct), isExposed(foes));
         events.push({
           t: 'attack', from: actor.uid, to: chosen.target.uid,
           dmg: actual, hp: chosen.target.hp, shield: chosen.target.shield, skill: active.name,
