@@ -120,9 +120,9 @@ export function createGachaScreen({ pull, onDone }) {
   stage.append(intro.el);
 
   const buttons = el('div', 'gacha__buttons');
-  const one = el('button', 'gacha__btn', '뽑기');
+  const one = el('button', 'gacha__btn', '한 장 뽑기');
   one.type = 'button';
-  const ten = el('button', 'gacha__btn gacha__btn--sub', '10연차');
+  const ten = el('button', 'gacha__btn gacha__btn--sub', '열 장 뽑기');
   ten.type = 'button';
   buttons.append(one, ten);
 
@@ -167,9 +167,15 @@ export function createGachaScreen({ pull, onDone }) {
 
     // 뽑기권이 있으면 권을, 없으면 값을 보여준다.
     // 낼 수 없으면 버튼을 잠그고 어디서 버는지 알려준다 — 막힌 이유가 보여야 한다.
+    //
+    // ⚠️ **두 버튼은 반드시 같은 것을 센다 — 「드는 값」이다.**
+    // 예전엔 단발이 `뽑기 (권 200)`으로 **남은 권 수**를, 열 장이 `10연차 (권 10)`으로
+    // **드는 권 수**를 보여줬다. 같은 「권 N」 꼴에 뜻이 둘이라
+    // 페르소나 테스트에서 두 갈래로 걸렸다 — "10연차가 무슨 말인가"와
+    // "뽑기권 200이 왜 이렇게 많은가". **남은 수는 위 지갑 줄에 이미 있다.**
     const t = getTickets();
-    one.textContent = t >= 1 ? `뽑기 (권 ${t})` : `뽑기 (${PULL_COST}골드)`;
-    ten.textContent = t >= 10 ? '10연차 (권 10)' : `10연차 (${PULL_COST * 10}골드)`;
+    one.textContent = t >= 1 ? '한 장 뽑기 (권 1)' : `한 장 뽑기 (${PULL_COST}골드)`;
+    ten.textContent = t >= 10 ? '열 장 뽑기 (권 10)' : `열 장 뽑기 (${PULL_COST * 10}골드)`;
     one.disabled = busy || !canAfford(1);
     ten.disabled = busy || !canAfford(10);
     shortage.hidden = canAfford(1);

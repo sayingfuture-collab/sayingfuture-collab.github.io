@@ -149,7 +149,7 @@ export const TITLES = [
     effect: { hp: 3 }, met: (c) => c.totals.rageWins >= 1 },
   { id: 'ssr-twice', name: '연달아', need: '2연속 SSR 뽑기',
     effect: { gold: 5 }, met: (c) => c.totals.gotBackToBackSSR },
-  { id: 'ten-two-ssr', name: '쓸어담기', need: '10연차 한 번에 SSR 2명',
+  { id: 'ten-two-ssr', name: '쓸어담기', need: '열 장 뽑기 한 번에 SSR 2명',
     effect: { gold: 6 }, met: (c) => c.totals.gotTwoSSRInTen },
 ];
 

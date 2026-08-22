@@ -3,7 +3,7 @@ import { draw } from './gacha.js';
 import { recordPull, spendPull, getGold, getTickets, onSaveChange, noteTenPull } from './storage.js';
 import { checkTitles, takeTitleNews } from './titles/check.js';
 import { pendingGift } from './gifts.js';
-import { getGiftsTaken, getStats } from './storage.js';
+import { getGiftsTaken, getStats, getBestFloor, getTitles } from './storage.js';
 import { showGiftScroll } from './ui/gift-scroll.js';
 // 개발자용 치트. 지우려면 이 줄과 아래 installCheat 한 줄만 지우면 된다.
 import { installCheat } from './cheat.js';
@@ -80,6 +80,34 @@ if (location.protocol !== 'file:') {
     { btn: document.getElementById('tab-titles'), screen: document.getElementById('screen-titles') },
   ];
 
+  // ── 아직 쓸 일이 없는 탭은 감춘다 ──────────────────────
+  //
+  // 페르소나 3차에서 **탭 다섯 개 자체가 거절 사유로 올라왔다.**
+  //   "밑에 칸이 다섯 개다. 「탑」이 뭔지 모르겠다"
+  //   "도전·탑·칭호. 시작하기도 전에 할 일이 세 개 더 있다"
+  //
+  // 「탑」을 「도전」 안으로 접는 것도 후보였는데 안 했다 — 등반하러 온 사람에게
+  // 고르는 단계가 하나 더 붙고, 도전을 두 갈래로 나눈 뜻도 흐려진다.
+  // **처음 보는 순간 뜻 모를 낱말이 다섯 개인 것**이 문제였지 갈래가 둘인 게 아니었다.
+  //
+  // ⚠️ 조건은 「그 화면에 볼 것이 생겼는가」로 잡는다. 빈 화면을 열어주는 건
+  //    감추는 것보다 나쁘다 — 칭호 하나도 없는 사람에게 칭호 탭은 빈 종이다.
+  const GATED = {
+    'screen-towers': () => getBestFloor() > 0,        // 한 번이라도 도전해봤다
+    'screen-titles': () => getTitles().length > 0,    // 칭호를 하나라도 땄다
+  };
+
+  function refreshTabs() {
+    for (const x of tabs) {
+      const gate = GATED[x.screen.id];
+      const open = !gate || gate();
+      x.btn.hidden = !open;
+      // 열려 있던 탭이 닫히면(치트로 되돌렸을 때) 뽑기로 돌려보낸다.
+      // 안 그러면 아무 탭도 안 켜진 채 빈 화면이 남는다.
+      if (!open && !x.screen.hidden) showTab('screen-gacha');
+    }
+  }
+
   /** 탭 하나를 연다. 탑 목록에서 전투로 넘길 때도 이걸 쓴다 */
   function showTab(screenId) {
     for (const x of tabs) {
@@ -93,6 +121,7 @@ if (location.protocol !== 'file:') {
   }
 
   for (const t of tabs) t.btn.onclick = () => showTab(t.screen.id);
+  refreshTabs();
 
   // 골드가 바뀌는 자리를 세지 않는다 — 저장이 바뀌면 무조건 다시 그린다.
   //
@@ -101,7 +130,10 @@ if (location.protocol !== 'file:') {
   // 「10연차(300골드)」가 잠긴 채로 남아 있다가, 1뽑을 하고 나서야
   // (그때 화면이 스스로 refresh 를 부른다) 갑자기 열렸다.
   // 지갑 숫자는 늘었는데 버튼은 안 열리니 고장으로 보인다 — 실제로 고장이었다.
-  onSaveChange(() => { checkTitles(); refreshPurse(); gacha.refresh(); titles.refresh(); towers.refresh(); });
+  onSaveChange(() => {
+    checkTitles(); refreshPurse(); gacha.refresh(); titles.refresh(); towers.refresh();
+    refreshTabs();   // 첫 도전·첫 칭호에 탭이 그 자리에서 나타나야 한다
+  });
   refreshPurse();
 
   // 저장을 읽자마자 한 번. v5 로 갓 올라온 사람이 이미 채운 조건
