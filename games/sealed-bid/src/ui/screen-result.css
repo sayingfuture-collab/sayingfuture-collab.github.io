@@ -1,0 +1,80 @@
+/* 라운드 결과 화면 — screen-result.js와 짝. */
+
+.result__mine {
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  background: var(--panel);
+}
+.result__mine b { font-size: 20px; font-weight: 900; }
+.result__mine[data-kind="win"] { border-color: var(--gold-deep); background: #1b1608; }
+.result__mine[data-kind="win"] b { color: var(--gold); }
+.result__mine[data-kind="lose"] b { color: var(--red); }
+.result__mine[data-kind="bye"] b { color: var(--blue); }
+.result__mine span { font-size: 11px; color: var(--dim); line-height: 1.6; }
+
+.result__doom {
+  font-size: 11.5px;
+  color: var(--red);
+  line-height: 1.6;
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+  word-break: keep-all;
+}
+
+.result__ai {
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.result__aiHead { font-size: 10px; color: var(--faint); margin-bottom: 6px; }
+.result__aiLine { font-size: 11.5px; color: var(--dim); line-height: 1.8; }
+.result__aiLine b { color: var(--ink); }
+
+.result__income {
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.result__incomeHead { font-size: 10px; color: var(--faint); margin-bottom: 6px; }
+.result__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--dim);
+  padding: 3px 0;
+}
+.result__row b { color: var(--green); font-weight: 700; }
+.result__row[data-minus="true"] b { color: var(--red); }
+.result__row--net {
+  border-top: 1px dashed var(--line);
+  margin-top: 4px;
+  padding-top: 7px;
+  color: var(--ink);
+}
+.result__row--net b { color: var(--gold); font-size: 14px; font-weight: 800; }
+
+.result__elim {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--red);
+  border: 1px solid #ff7b7244;
+  border-radius: 10px;
+  padding: 9px 12px;
+  margin-bottom: 10px;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.result__next { margin-top: auto; }

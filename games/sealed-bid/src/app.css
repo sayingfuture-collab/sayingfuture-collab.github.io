@@ -1,0 +1,229 @@
+/* 앱 껍데기 — 폰 세로(420px) 기준. 경매장 다크 톤.
+   전장 색(#0d1117 계열, fight-view.css)과 같은 바탕에 금색을 얹는다. */
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; height: 100%; }
+
+body {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel2: #1c2230;
+  --line: #30363d;
+  --ink: #e6edf3;
+  --dim: #8b949e;
+  --faint: #484f58;
+  --gold: #ffd75e;
+  --gold-deep: #d9a02c;
+  --red: #ff7b72;
+  --green: #3fb950;
+  --blue: #58a6ff;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  display: flex;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  width: 100%;
+  max-width: 420px;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  overflow: hidden;
+}
+
+.screens { flex: 1; min-height: 0; position: relative; }
+
+.screen {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 14px 16px;
+  display: flex;
+  flex-direction: column;
+}
+.screen[hidden] { display: none; }
+
+/* ── 상단 HUD ── */
+
+.hud {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 6px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.hud__round { font-weight: 800; color: var(--gold); font-size: 14px; }
+.hud__round span { color: var(--faint); font-weight: 400; font-size: 11px; }
+.hud__me {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hud__gold { color: var(--gold); font-weight: 800; }
+.hud__lives { color: var(--red); letter-spacing: -2px; font-size: 12px; }
+.hud__streak { color: var(--green); font-size: 11px; font-weight: 700; }
+
+/* 저격 예고가 나를 겨눴을 때 */
+.hud--aimed { animation: hud-aim 1.8s ease-out; }
+@keyframes hud-aim {
+  0%, 60% { box-shadow: inset 0 0 0 999px #f8514922; }
+  100% { box-shadow: none; }
+}
+
+/* ── 공통 버튼 ── */
+
+.btn {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  padding: 14px 0;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f0c04a, #d9a02c);
+  color: #2a1e05;
+  cursor: pointer;
+  width: 100%;
+  flex: none;
+}
+.btn:disabled { background: #21262d; color: var(--faint); cursor: default; }
+
+.btn--ghost {
+  background: var(--panel);
+  color: var(--dim);
+  border: 1px solid var(--line);
+}
+
+/* ── 화면 제목 ── */
+
+.title {
+  flex: none;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 800;
+  margin: 2px 0 4px;
+}
+.title small { display: block; font-size: 10.5px; font-weight: 400; color: var(--dim); margin-top: 3px; }
+.title--ssr small { color: var(--gold); }
+
+/* ── 전투 화면 ── */
+
+.battle { display: flex; flex-direction: column; height: 100%; gap: 10px; }
+
+.battle__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+.battle__foe { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.battle__foe b { color: var(--gold); }
+
+.battle__speeds { flex: none; display: flex; gap: 4px; }
+.battle__speed {
+  font: inherit; font-size: 11px; font-weight: 700;
+  padding: 6px 9px; border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel); color: var(--dim); cursor: pointer;
+}
+.battle__speed[data-on="true"] { border-color: var(--gold); color: var(--gold); }
+
+.battle__skip {
+  font: inherit; font-size: 11px; font-weight: 700;
+  padding: 6px 10px; border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel); color: var(--dim); cursor: pointer;
+}
+
+.battle__stage { flex: 1; min-height: 0; position: relative; }
+/* 라운드전은 1판이라 층 표기가 소음이다 — fight-view는 안 고치고 여기서 숨긴다 */
+.battle__stage .fight__floor { display: none; }
+
+.battle__banner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #0d1117cc;
+  z-index: 6;
+  animation: banner-in .35s ease-out;
+}
+.battle__banner b { font-size: 30px; font-weight: 900; }
+.battle__banner[data-kind="win"] b { color: var(--gold); }
+.battle__banner[data-kind="lose"] b { color: var(--red); }
+.battle__banner span { font-size: 12px; color: var(--dim); }
+@keyframes banner-in {
+  from { opacity: 0; transform: scale(1.1); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ── 최종 화면 ── */
+
+.final { display: flex; flex-direction: column; gap: 12px; }
+.final__duel {
+  border: 1px solid var(--gold);
+  border-radius: 12px;
+  padding: 12px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.7;
+  background: #1b1608;
+}
+.final__duel b { color: var(--gold); }
+.final__list { display: flex; flex-direction: column; gap: 8px; }
+.final__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--panel);
+  font-size: 13px;
+}
+.final__row[data-me="true"] { border-color: var(--gold); }
+.final__row[data-rank="1"] { background: #1b1608; }
+.final__rank { font-size: 18px; width: 30px; text-align: center; flex: none; }
+.final__name { flex: 1; font-weight: 800; }
+.final__name small { display: block; font-weight: 400; font-size: 10px; color: var(--dim); margin-top: 2px; }
+.final__stat { font-size: 11px; color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
+.final__stat b { color: var(--gold); }
+.final__crown { text-align: center; font-size: 40px; margin-top: 8px; }
+
+/* ── 시작(이어하기) 오버레이 ── */
+
+.start {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: #0d1117f2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 30px;
+}
+.start h1 { font-size: 22px; margin: 0; color: var(--gold); }
+.start p { font-size: 12px; color: var(--dim); margin: 0 0 10px; text-align: center; line-height: 1.7; }
+.start .btn { max-width: 260px; }
+
+/* ── 도트 그림 — 정수배 확대 유지 ── */
+img.dot {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}

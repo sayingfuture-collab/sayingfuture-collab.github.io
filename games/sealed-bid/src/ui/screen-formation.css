@@ -1,0 +1,133 @@
+/* 편성 화면 — screen-formation.js와 짝. 영웅뽑기의 칩 패턴을 잇는다. */
+
+.form__row {
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  background: #0f141b;
+  margin-bottom: 10px;
+}
+.form__row[data-row="front"] { border-color: #d2914566; background: #16130d; }
+
+.form__head { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.form__head b { font-size: 13px; color: var(--ink); }
+.form__row[data-row="front"] .form__head b { color: #f0c04a; }
+.form__head span { font-size: 10px; color: var(--faint); }
+
+.form__slots { display: flex; gap: 6px; flex-wrap: wrap; align-items: stretch; }
+
+.form__empty {
+  font-size: 10.5px;
+  color: var(--faint);
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 14px 12px;
+}
+
+.form__chip {
+  --tier: #8b949e;
+  position: relative;
+  width: 76px;
+  padding: 7px 4px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--tier);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+  cursor: pointer;
+}
+.form__chip[data-tier="N"]   { --tier: #8b949e66; }
+.form__chip[data-tier="R"]   { --tier: #58a6ff88; }
+.form__chip[data-tier="SR"]  { --tier: #bc8cffaa; }
+.form__chip[data-tier="SSR"] { --tier: #ffd75ecc; }
+
+.form__chipArt {
+  font-size: 32px;
+  line-height: 1;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.form__chipArt img { width: 32px; height: 32px; display: block; }
+.form__chipName { font-size: 9.5px; color: #c9d1d9; line-height: 1.2; word-break: keep-all; }
+.form__chipStat { font-size: 8.5px; color: var(--faint); }
+.form__chipNum { font-size: 8.5px; color: var(--blue); font-variant-numeric: tabular-nums; }
+
+.form__off {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #21262d;
+  color: var(--dim);
+  font: inherit;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.form__warn {
+  flex: none;
+  font-size: 11px;
+  color: var(--red);
+  text-align: center;
+  min-height: 1.2em;
+  margin-bottom: 6px;
+}
+
+/* ── 대기 로스터 ── */
+
+.form__bench { flex: none; margin-bottom: 10px; }
+.form__benchHead { font-size: 10.5px; color: var(--dim); margin-bottom: 6px; }
+.form__benchGrid { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.form__benchCell {
+  --tier: #8b949e;
+  width: 76px;
+  padding: 7px 4px 6px;
+  border-radius: 10px;
+  border: 1px dashed var(--tier);
+  background: none;
+  font: inherit;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+  cursor: pointer;
+  opacity: .8;
+}
+.form__benchCell[data-tier="N"]   { --tier: #8b949e66; }
+.form__benchCell[data-tier="R"]   { --tier: #58a6ff88; }
+.form__benchCell[data-tier="SR"]  { --tier: #bc8cffaa; }
+.form__benchCell[data-tier="SSR"] { --tier: #ffd75ecc; }
+.form__benchCell:disabled { opacity: .3; cursor: default; }
+
+/* ── 역할 설명 ── */
+
+.form__roles {
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  font-size: 11px;
+}
+.form__roles summary { cursor: pointer; color: var(--dim); font-size: 11px; }
+.form__role { display: flex; gap: 6px; margin-top: 7px; line-height: 1.5; }
+.form__role b { flex: none; color: var(--gold); }
+.form__role span { color: var(--dim); }
+
+/* ── 짝 시너지 ── */
+.form__syn { font-size: 11px; color: var(--green); min-height: 15px; }
+.form__chip[data-syn="true"] { box-shadow: inset 0 0 0 1px #3fb95066, 0 0 6px #3fb95022; }

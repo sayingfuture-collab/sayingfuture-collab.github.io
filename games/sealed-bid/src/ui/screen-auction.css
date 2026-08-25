@@ -1,0 +1,265 @@
+/* 경매 화면 — screen-auction.js와 짝. 매물 카드 + 스테퍼 + 공개 연출. */
+
+.auction__lots {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 10px;
+}
+
+.lot {
+  --tier: #8b949e;
+  border: 1px solid var(--tier);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lot[data-tier="N"]   { --tier: #8b949e66; }
+.lot[data-tier="R"]   { --tier: #58a6ff88; }
+.lot[data-tier="SR"]  { --tier: #bc8cffaa; }
+.lot[data-tier="SSR"] { --tier: #ffd75ecc; background: #1b1608; }
+
+.lot[data-bidding="true"] { box-shadow: inset 0 0 0 1px var(--gold); }
+.lot[data-open="true"] { box-shadow: none; }
+.lot[data-won="true"] { box-shadow: inset 0 0 0 2px var(--gold); }
+
+.lot__top { display: flex; gap: 10px; align-items: center; }
+
+.lot__art {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  font-size: 36px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lot__art img { width: 48px; height: 48px; display: block; }
+
+.lot__info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lot__name {
+  font-size: 13.5px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lot__legacy {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--red);
+  border: 1px solid #ff7b7266;
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+.lot__meta { font-size: 11px; color: var(--dim); }
+.lot[data-tier="SSR"] .lot__meta { color: var(--gold); }
+.lot__salary { font-size: 10px; color: var(--faint); }
+
+/* ── 입찰 스테퍼 ── */
+
+.lot__stepper {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.lot__step {
+  flex: none;
+  width: 52px;
+  font: inherit;
+  font-size: 19px;
+  font-weight: 800;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #21262d;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 9px 0;
+}
+.lot__step:disabled { opacity: .3; cursor: default; }
+.lot__amount {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--faint);
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.lot__amount[data-on="true"] {
+  color: var(--gold);
+  border-style: solid;
+  border-color: var(--gold-deep);
+}
+.lot__amount[data-on="true"]::before { content: '💰 '; font-size: 12px; }
+
+.lot__lock {
+  font-size: 11px;
+  color: var(--faint);
+  text-align: center;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 10px 0;
+}
+
+/* ── 공개 연출 ── */
+
+.lot__reveal {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+
+.lot__bidrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity .25s ease, transform .25s ease;
+  font-variant-numeric: tabular-nums;
+}
+.lot__bidrow[data-shown="true"] { opacity: 1; transform: none; }
+.lot__bidrow[data-me="true"] .lot__bidname { color: var(--blue); font-weight: 800; }
+.lot__bidrow[data-winner="true"] {
+  background: #ffd75e1c;
+  box-shadow: inset 0 0 0 1px var(--gold-deep);
+}
+
+.lot__bidname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lot__bidamt { color: var(--gold); font-weight: 800; }
+.lot__bidamt[data-pass="true"] { color: var(--faint); font-weight: 400; }
+.lot__bidwin {
+  flex: none;
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #2a1e05;
+  background: var(--gold);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+.lot__unsold {
+  font-size: 11px;
+  color: var(--faint);
+  text-align: center;
+  padding: 3px 0;
+}
+
+/* ── 하단 ── */
+
+.auction__foot {
+  flex: none;
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(180deg, transparent, var(--bg) 30%);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.auction__budget {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.auction__budget b { color: var(--gold); font-size: 15px; font-weight: 800; }
+.auction__budget i { font-style: normal; color: var(--faint); font-size: 11px; }
+
+/* ── 내 용병단 스트립 ── */
+.band {
+  margin: 10px 0 2px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.band__head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 11px; color: var(--dim); margin-bottom: 6px; gap: 8px;
+}
+.band__head b { color: var(--ink); font-size: 12px; }
+.band__strip {
+  display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+.band__cell {
+  flex: none; width: 56px; text-align: center;
+  border-radius: 8px; padding: 4px 2px;
+  box-shadow: inset 0 0 0 1px var(--tier, var(--line));
+}
+.band__cell[data-tier="N"]   { --tier: #8b949e66; }
+.band__cell[data-tier="R"]   { --tier: #58a6ff88; }
+.band__cell[data-tier="SR"]  { --tier: #bc8cffaa; }
+.band__cell[data-tier="SSR"] { --tier: #ffd75ecc; background: #1b1608; }
+.band__art { display: flex; justify-content: center; }
+.band__art img { width: 32px; height: 32px; image-rendering: pixelated; }
+.band__name {
+  font-size: 9px; font-weight: 700; margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.band__meta { font-size: 9px; color: var(--faint); }
+
+/* ── 정찰 ── */
+.scout {
+  margin: 8px 0 2px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+}
+.scout__label { font-size: 11px; color: var(--dim); margin-bottom: 6px; }
+.scout__row { display: flex; gap: 6px; }
+.scout__btn {
+  flex: 1; min-width: 0;
+  padding: 7px 4px; font-size: 11px; font-weight: 700;
+  background: transparent; color: var(--ink);
+  border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.scout__btn:not(:disabled):active { border-color: var(--gold); }
+.scout__btn:disabled { opacity: .35; cursor: default; }
+.scout__done { font-size: 11px; color: var(--gold); }
+
+/* 정찰 결과 태그 — 매물 카드 안 */
+.lot__scout {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--faint);
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: #0d1117;
+  border: 1px dashed var(--line);
+}
+.lot__scout[data-hot="true"] { color: var(--gold); border-color: #6a5a2a; }
+
+/* ── 짝 시너지 예고 ── */
+.lot__syn { font-size: 10px; color: var(--green); }
+
+/* ── 암시장 ── */
+.title--black small { color: #c8a2ff; }
+.lot--mystery { --tier: #6a5acd88; background: #100d1a; }
+.lot--mystery .lot__art img { filter: brightness(0) drop-shadow(0 0 2px #6a5acd); }
+.lot--mystery .lot__name { color: #c8a2ff; letter-spacing: 2px; }
+.lot--unmasked .lot__art img { animation: unmask .5s ease; }
+@keyframes unmask {
+  from { filter: brightness(0); }
+  to   { filter: none; }
+}

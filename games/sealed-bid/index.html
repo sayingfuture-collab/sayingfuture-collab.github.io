@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<meta name="description" content="라이벌 셋과 봉인 경매로 용병단을 꾸리는 오토배틀러. 쓴 만큼 내고, 동점은 절박한 자가 이긴다.">
+<meta property="og:title" content="봉인 입찰 — SEALED BID">
+<meta property="og:description" content="라이벌 셋과 봉인 경매로 용병단을 꾸리는 오토배틀러">
+<title>봉인 입찰 — SEALED BID</title>
+<link rel="stylesheet" href="./src/app.css">
+<link rel="stylesheet" href="./src/ui/fight-view.css">
+<link rel="stylesheet" href="./src/ui/rival-bar.css">
+<link rel="stylesheet" href="./src/ui/screen-auction.css">
+<link rel="stylesheet" href="./src/ui/screen-formation.css">
+<link rel="stylesheet" href="./src/ui/screen-result.css">
+<!-- Cloudflare Web Analytics — 방문자 수 집계. ⚠️ 이 파일은 원본의 사본이라,
+     그냥 덮어쓰면 이 줄이 사라진다. 배포 스크립트가 배포할 때마다 자동으로 다시 넣는다. -->
+<script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "66d74d758a3b4b68ae33d7a072440b61"}'></script>
+</head>
+<body>
+<div id="app">
+  <header class="hud" id="hud"></header>
+  <div id="rivalbar-mount"></div>
+  <main class="screens" id="screens">
+    <section class="screen" id="screen-auction" hidden></section>
+    <section class="screen" id="screen-formation" hidden></section>
+    <section class="screen" id="screen-battle" hidden></section>
+    <section class="screen" id="screen-result" hidden></section>
+    <section class="screen" id="screen-final" hidden></section>
+  </main>
+</div>
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>
