@@ -3,6 +3,7 @@ import { createHomeView } from './ui/home-view.js';
 import { createPlayView } from './ui/play-view.js';
 import { createDexView } from './ui/dex-view.js';
 import { createDressView } from './ui/dress-view.js';
+import { createBadgeView } from './ui/badge-view.js';
 import { getSave, onSaveChange, getGrade, setGrade, GRADES } from './store.js';
 
 const app = document.getElementById('app');
@@ -19,10 +20,11 @@ function updateFoot() {
   foot.textContent = s.rounds > 0 ? `${s.rounds}판 완주 · 잡은 동사 ${s.catches}마리` : '';
 }
 
-function goHome() { show(createHomeView({ onPlay: goPlay, onDex: goDex, onDress: goDress })); }
+function goHome() { show(createHomeView({ onPlay: goPlay, onDex: goDex, onDress: goDress, onBadges: goBadges })); }
 function goPlay(mode) { show(createPlayView({ mode, onHome: goHome })); }
 function goDex() { show(createDexView({ onBack: goHome })); }
 function goDress() { show(createDressView({ onBack: goHome })); }
+function goBadges() { show(createBadgeView({ onBack: goHome })); }
 
 // 사냥꾼 등록 — 처음 한 번만 학년을 묻는다. 기록에 '누가'가 남아야 하니까.
 // 게임을 막는 문이 아니라 세계관의 일부(면허 발급)로 보이게 한다.

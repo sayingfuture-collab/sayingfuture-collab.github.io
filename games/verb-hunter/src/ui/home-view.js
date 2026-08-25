@@ -19,7 +19,7 @@ function talkLine(save) {
   return `지난번에 ${save.owned}마리 잡았지. 오늘은 어디로 갈까?`;
 }
 
-export function createHomeView({ onPlay, onDex, onDress }) {
+export function createHomeView({ onPlay, onDex, onDress, onBadges }) {
   const root = el('div', 'home');
 
   function render() {
@@ -54,7 +54,10 @@ export function createHomeView({ onPlay, onDex, onDress }) {
     const dressBtn = el('button', 'mode-btn');
     dressBtn.innerHTML = '<b>🎀 꾸미기</b>';
     dressBtn.onclick = onDress;
-    sub.append(dexBtn, dressBtn);
+    const badgeBtn = el('button', 'mode-btn');
+    badgeBtn.innerHTML = '<b>🏅 칭호</b>';
+    badgeBtn.onclick = onBadges;
+    sub.append(dexBtn, dressBtn, badgeBtn);
     menu.append(subjBtn, verbBtn, sub);
 
     root.append(prog, bar, hunter, talk, world, menu);

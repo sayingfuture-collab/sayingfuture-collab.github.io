@@ -211,3 +211,14 @@ button { font-family: inherit; cursor: pointer; }
   border: 2px solid #ddd; background: #fff;
 }
 .gate__btn:active { border-color: #e8630a; background: #fff4ec; }
+
+/* ── 칭호 방 — 얻은 건 색깔 카드, 못 얻은 건 잠금/??? ── */
+.bdgview { text-align: center; padding-top: 8px; }
+.bdg__list { margin-top: 4px; }
+.bdg__list .badge-card { animation: none; text-align: center; }
+.badge-card.locked {
+  border-color: #ddd; background: #f4f1ea; box-shadow: none;
+}
+.badge-card.locked .stars { color: #c9c3b6; }
+.badge-card.locked .bname { color: #8a8574; font-weight: normal; font-size: 16px; }
+.badge-card.locked .bdesc { color: #a9a394; }
