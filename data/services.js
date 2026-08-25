@@ -27,6 +27,7 @@ window.SERVICES = [
   { id: "balloon-bust", title: "풍선빵 Balloon Bust", emoji: "🎈", type: "game", status: "live", href: "./games/balloon-bust/index.html", desc: "매일 전 세계가 같은 풍선 5개 — 터지기 전에 놓아라", tag: "데일리 배짱", thumb: "" },
   { id: "wiinjeon", title: "위인전", emoji: "⚔️", type: "game", status: "live", href: "./games/wiinjeon/index.html", desc: "힌트 세 개로 역사 속 인물을 맞히고, 모아서 싸우는 오토배틀러", tag: "수집형 오토배틀러", thumb: "" },
   { id: "sealed-bid", title: "봉인 입찰 SEALED BID", emoji: "🔏", type: "game", status: "live", href: "./games/sealed-bid/index.html", desc: "라이벌 셋과 봉인 경매로 용병단을 꾸리는 오토배틀러 — 쓴 만큼 내고, 동점은 절박한 자가 이긴다", tag: "경매 오토배틀러", thumb: "" },
+  { id: "verb-hunter", title: "동사 사냥꾼", emoji: "🏹", type: "game", status: "live", href: "./games/verb-hunter/index.html", desc: "문장 속에 숨은 동사를 탭으로 잡아 도감을 채우는 영문법 사냥 게임", tag: "영어 학습", thumb: "" },
   { id: "sentence-forms", title: "문장의 형식 Vol.1", emoji: "📘", type: "worksheet", status: "live", href: "./worksheets/sentence-forms/index.html", desc: "영문법 학습지 — 기본편 280제·실전편 340제", format: "WEB", thumb: "./worksheets/sentence-forms/images/cover-basic-thumb.png" }
 
   // ── 웹에 올리면 아래 형식으로 한 줄씩 다시 추가하세요 (status: "live", href 채우기) ──
