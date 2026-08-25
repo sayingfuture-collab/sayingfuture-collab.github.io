@@ -23,6 +23,9 @@ const KEY = 'verbHunter.v1';
 const store = createStore(KEY);
 const int0 = (v) => (Number.isInteger(v) && v >= 0 ? v : 0);
 
+// 등록 화면에서 고를 수 있는 학년 — 시트의 '이름' 칸에 그대로 찍힌다.
+export const GRADES = ['초4', '초5', '초6', '중1', '중2', '중3', '고등', '선생님'];
+
 // 시작 선물 3마리 — endowed progress: "0/25"가 아니라 "3/25"로 시작해야 완주 확률이 오른다.
 // 진단에서 이미 아는 것으로 확인된 쉬운 동사들로 준다 — 거짓 진행이 아니라 사실의 반영.
 const STARTER_LEMMAS = ['run', 'eat', 'go'];
@@ -54,6 +57,7 @@ function sanitize(raw) {
   return {
     dex,
     equipped,
+    grade: GRADES.includes(raw?.grade) ? raw.grade : null,
     badges: Array.isArray(raw?.badges) ? raw.badges.filter((b) => typeof b === 'string') : [],
     rounds: int0(raw?.rounds),
     perfects: int0(raw?.perfects),
@@ -135,6 +139,17 @@ export function ownedCount() {
 }
 
 export function dexTotal() { return VERBS.length; }
+
+// ── 사냥꾼 등록(학년) ────────────────────────────────────────
+// 처음 한 번만 묻는다. 원격 기록의 '이름' 칸이 되어 누가 했는지 구분해 준다.
+
+export function getGrade() { return state.grade; }
+
+export function setGrade(g) {
+  if (!GRADES.includes(g)) return;
+  state.grade = g;
+  write();
+}
 
 // ── 캐릭터 ───────────────────────────────────────────────────
 

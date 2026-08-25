@@ -188,3 +188,26 @@ button { font-family: inherit; cursor: pointer; }
 
 .backrow { margin-top: 16px; text-align: center; }
 .foot { margin-top: auto; padding-top: 14px; font-size: 11.5px; color: #aaa; text-align: center; }
+
+/* ── 사냥꾼 면허 발급(학년 등록) — 처음 한 번만 뜨는 게이트 ── */
+.gate {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(30, 25, 18, .55);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.gate__card {
+  background: #fff; border-radius: 20px; padding: 28px 22px 24px;
+  width: 100%; max-width: 340px; text-align: center;
+  box-shadow: 0 8px 30px rgba(0,0,0,.25);
+  animation: gate-in .35s cubic-bezier(.2, 1.4, .4, 1);
+}
+@keyframes gate-in { from { transform: scale(.85); opacity: 0; } }
+.gate__emoji { font-size: 40px; margin-bottom: 6px; }
+.gate__card h2 { font-size: 20px; margin-bottom: 4px; }
+.gate__card p { font-size: 14px; color: #666; margin-bottom: 16px; }
+.gate__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.gate__btn {
+  font-size: 15px; padding: 12px 4px; border-radius: 12px;
+  border: 2px solid #ddd; background: #fff;
+}
+.gate__btn:active { border-color: #e8630a; background: #fff4ec; }

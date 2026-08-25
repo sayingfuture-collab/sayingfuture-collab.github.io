@@ -2,12 +2,13 @@
 // 원칙: fire-and-forget. 전송이 실패하든 느리든 게임은 절대 모른다.
 // 목적: 선생님이 시트만 열면 "학생이 스스로 몇 판 했는지"가 보인다 — 이 게임의 진짜 성공 지표.
 import { LOG_URL, PLAYER } from './log-config.js';
+import { getGrade } from './store.js';
 
 export function logRound(rec, save) {
   if (!LOG_URL) return;
   try {
     const body = JSON.stringify({
-      player: PLAYER,
+      player: getGrade() || PLAYER, // 등록 화면에서 고른 학년 — 시트의 '이름' 칸
       at: new Date().toISOString(),
       mode: rec.mode,
       firstTryHits: rec.firstTryHits,

@@ -3,7 +3,7 @@ import { createHomeView } from './ui/home-view.js';
 import { createPlayView } from './ui/play-view.js';
 import { createDexView } from './ui/dex-view.js';
 import { createDressView } from './ui/dress-view.js';
-import { getSave, onSaveChange } from './store.js';
+import { getSave, onSaveChange, getGrade, setGrade, GRADES } from './store.js';
 
 const app = document.getElementById('app');
 const foot = document.getElementById('foot');
@@ -24,7 +24,31 @@ function goPlay(mode) { show(createPlayView({ mode, onHome: goHome })); }
 function goDex() { show(createDexView({ onBack: goHome })); }
 function goDress() { show(createDressView({ onBack: goHome })); }
 
+// 사냥꾼 등록 — 처음 한 번만 학년을 묻는다. 기록에 '누가'가 남아야 하니까.
+// 게임을 막는 문이 아니라 세계관의 일부(면허 발급)로 보이게 한다.
+function showGradeGate() {
+  const gate = document.createElement('div');
+  gate.className = 'gate';
+  gate.innerHTML = `
+    <div class="gate__card">
+      <div class="gate__emoji">🏹</div>
+      <h2>사냥꾼 면허 발급</h2>
+      <p>몇 학년 사냥꾼인가요?</p>
+      <div class="gate__grid"></div>
+    </div>`;
+  const grid = gate.querySelector('.gate__grid');
+  for (const g of GRADES) {
+    const b = document.createElement('button');
+    b.className = 'gate__btn';
+    b.textContent = g;
+    b.onclick = () => { setGrade(g); gate.remove(); };
+    grid.appendChild(b);
+  }
+  document.body.append(gate);
+}
+
 // 저장이 바뀔 때마다 하단 줄 갱신 — 판이 끝나도, 포획해도 최신으로.
 onSaveChange(updateFoot);
 
 goHome();
+if (!getGrade()) showGradeGate();
