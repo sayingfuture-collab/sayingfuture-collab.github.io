@@ -2,10 +2,11 @@
 // be동사 자리가 비어 있고 셋 중 하나를 고른다. am/is/are/was/were 구분이 몸에 붙는 곳.
 import { makeFillDeck, emptyRound, noteSentenceClear } from '../game.js';
 import { registerCatch, registerSeen, recordRound, getSave, noteRecent } from '../store.js';
-import { judgeBadges, BADGES, BADGE_BY_ID } from '../badges.js';
-import { popSound, dodgeSound, catchSound, fanfare } from '../audio.js';
+import { judgeBadges } from '../badges.js';
+import { popSound, dodgeSound, catchSound } from '../audio.js';
 import { logRound } from '../log.js';
-import { hitStop, shake, burst, floatText, confetti, buzz } from '../juice.js';
+import { hitStop, shake, burst, floatText, buzz } from '../juice.js';
+import { createEndScreen } from './end-screen.js';
 import { VERB_BY_LEMMA } from '../data.js';
 import { lemmaOfWord } from '../data.js';
 
@@ -160,43 +161,24 @@ export function createFillView({ onHome }) {
     const earned = recordRound(rec, judgeBadges);
     const save = getSave();
     logRound(rec, save);
-    const perfect = rec.firstTryHits >= deck.length;
-    confetti(); fanfare();
     card.innerHTML = '';
-    const end = el('div', 'end');
-    end.append(el('div', 'big', perfect ? '🌟' : '🎉'));
-    end.append(el('h2', null, '유령 소환 완주!'));
-    const keep = el('div', 'keep');
-    keep.innerHTML =
-      `소환한 유령: <b>${roundCatches.length}마리</b><br>` +
-      `도감: <b>${save.owned} / ${save.total}</b> — 전부 그대로 남아요<br>` +
-      `한 번에 맞힌 빈칸: <b>${rec.firstTryHits}개</b> · 최고 연속: ${rec.bestCombo}`;
-    end.append(keep);
-    end.append(el('p', 'msg', perfect
-      ? '빈칸만 보고도 유령을 불러냈어요 — be동사가 손에 붙었다는 뜻이에요.'
-      : '헷갈린 유령은 다음 소환 때 다시 나와요. 주어 수와 시제, 두 가지만 보면 돼요.'));
-    if (earned.length) {
-      end.append(el('div', 'badge-title', '🏅 칭호 획득!'));
-      earned.forEach((id, i) => {
-        const b = BADGE_BY_ID.get(id);
-        const bc = el('div', `badge-card r${b.r}`);
-        bc.style.animationDelay = `${i * 0.25}s`;
-        bc.append(el('div', 'stars', '★'.repeat(b.r)));
-        bc.append(el('div', 'bname', b.n));
-        bc.append(el('div', 'bdesc', b.d || b.cond));
-        end.append(bc);
-      });
-    }
-    const nextGoal = BADGES.find((b) => !b.hidden && !save.badges.includes(b.id));
-    if (nextGoal) end.append(el('div', 'next-goal', `🔒 ${nextGoal.n} — ${nextGoal.cond}`));
-    const btns = el('div', 'btns');
-    const again = el('button', 'btn', '한 판 더');
-    again.onclick = restart;
-    const home = el('button', 'btn ghost', '홈으로');
-    home.onclick = onHome;
-    btns.append(again, home);
-    end.append(btns);
-    card.append(end);
+    card.append(createEndScreen({
+      perfect: rec.firstTryHits >= deck.length,
+      title: '유령 소환 완주!',
+      keepHtml:
+        `소환한 유령: <b>${roundCatches.length}마리</b><br>` +
+        `도감: <b>${save.owned} / ${save.total}</b> — 전부 그대로 남아요<br>` +
+        `한 번에 맞힌 빈칸: <b>${rec.firstTryHits}개</b> · 최고 연속: ${rec.bestCombo}`,
+      message: rec.firstTryHits >= deck.length
+        ? '빈칸만 보고도 유령을 불러냈어요 — be동사가 손에 붙었다는 뜻이에요.'
+        : '헷갈린 유령은 다음 소환 때 다시 나와요. 주어만 보면 돼요.',
+      earned,
+      save,
+      buttons: [
+        { label: '한 판 더', onClick: restart },
+        { label: '홈으로', onClick: onHome, ghost: true },
+      ],
+    }));
     roundLabel.textContent = ''; comboLabel.textContent = '';
     card.classList.remove('glow');
   }

@@ -2,10 +2,11 @@
 // 흩어진 단어 조각을 순서대로 눌러 문장을 완성한다. 한국어 어순 전이를 정면으로 교정하는 곳.
 import { makeOrderDeck, emptyRound, noteSentenceClear, verbLemma, explainLine } from '../game.js';
 import { registerCatch, registerSeen, recordRound, getSave, noteRecent } from '../store.js';
-import { judgeBadges, BADGES, BADGE_BY_ID } from '../badges.js';
-import { popSound, dodgeSound, catchSound, fanfare } from '../audio.js';
+import { judgeBadges } from '../badges.js';
+import { popSound, dodgeSound, catchSound } from '../audio.js';
 import { logRound } from '../log.js';
-import { hitStop, shake, burst, floatText, confetti, buzz } from '../juice.js';
+import { hitStop, shake, burst, floatText, buzz } from '../juice.js';
+import { createEndScreen } from './end-screen.js';
 import { VERB_BY_LEMMA } from '../data.js';
 
 function el(tag, className, text) {
@@ -148,43 +149,24 @@ export function createOrderView({ onHome }) {
     const earned = recordRound(rec, judgeBadges);
     const save = getSave();
     logRound(rec, save);
-    const perfect = rec.firstTryHits >= deck.length;
-    confetti(); fanfare();
     card.innerHTML = '';
-    const end = el('div', 'end');
-    end.append(el('div', 'big', perfect ? '🌟' : '🎉'));
-    end.append(el('h2', null, '문장 조립 완주!'));
-    const keep = el('div', 'keep');
-    keep.innerHTML =
-      `조립하며 잡은 동사: <b>${roundCatches.length}마리</b><br>` +
-      `도감: <b>${save.owned} / ${save.total}</b> — 전부 그대로 남아요<br>` +
-      `한 번에 조립한 문장: <b>${rec.firstTryHits}개</b> · 최고 연속: ${rec.bestCombo}`;
-    end.append(keep);
-    end.append(el('p', 'msg', perfect
-      ? '어순을 직접 만들었어요 — 이제 읽는 사람이 아니라 쓰는 사람이에요.'
-      : '헷갈린 문장은 힌트가 알려준 대로 — 주어 먼저, 동사는 바로 다음.'));
-    if (earned.length) {
-      end.append(el('div', 'badge-title', '🏅 칭호 획득!'));
-      earned.forEach((id, i) => {
-        const b = BADGE_BY_ID.get(id);
-        const bc = el('div', `badge-card r${b.r}`);
-        bc.style.animationDelay = `${i * 0.25}s`;
-        bc.append(el('div', 'stars', '★'.repeat(b.r)));
-        bc.append(el('div', 'bname', b.n));
-        bc.append(el('div', 'bdesc', b.d || b.cond));
-        end.append(bc);
-      });
-    }
-    const nextGoal = BADGES.find((b) => !b.hidden && !save.badges.includes(b.id));
-    if (nextGoal) end.append(el('div', 'next-goal', `🔒 ${nextGoal.n} — ${nextGoal.cond}`));
-    const btns = el('div', 'btns');
-    const again = el('button', 'btn', '한 판 더');
-    again.onclick = restart;
-    const home = el('button', 'btn ghost', '홈으로');
-    home.onclick = onHome;
-    btns.append(again, home);
-    end.append(btns);
-    card.append(end);
+    card.append(createEndScreen({
+      perfect: rec.firstTryHits >= deck.length,
+      title: '문장 조립 완주!',
+      keepHtml:
+        `조립하며 잡은 동사: <b>${roundCatches.length}마리</b><br>` +
+        `도감: <b>${save.owned} / ${save.total}</b> — 전부 그대로 남아요<br>` +
+        `한 번에 조립한 문장: <b>${rec.firstTryHits}개</b> · 최고 연속: ${rec.bestCombo}`,
+      message: rec.firstTryHits >= deck.length
+        ? '어순을 직접 만들었어요 — 이제 읽는 사람이 아니라 쓰는 사람이에요.'
+        : '헷갈린 문장은 힌트가 알려준 대로 — 주어 먼저, 동사는 바로 다음.',
+      earned,
+      save,
+      buttons: [
+        { label: '한 판 더', onClick: restart },
+        { label: '홈으로', onClick: onHome, ghost: true },
+      ],
+    }));
     roundLabel.textContent = ''; comboLabel.textContent = '';
     card.classList.remove('glow');
   }

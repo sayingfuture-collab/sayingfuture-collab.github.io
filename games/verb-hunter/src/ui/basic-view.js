@@ -5,10 +5,11 @@ import {
 } from '../basics.js';
 import { emptyRound } from '../game.js';
 import { recordRound, getSave, noteRecent, markBasicsDone } from '../store.js';
-import { judgeBadges, BADGE_BY_ID } from '../badges.js';
-import { popSound, dodgeSound, fanfare } from '../audio.js';
+import { judgeBadges } from '../badges.js';
+import { popSound, dodgeSound } from '../audio.js';
 import { logRound } from '../log.js';
 import { hitStop, shake, burst, floatText, confetti, buzz } from '../juice.js';
+import { createEndScreen } from './end-screen.js';
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -255,42 +256,27 @@ export function createBasicView({ onHome }) {
     const earned = recordRound(rec, judgeBadges);
     const save = getSave();
     logRound(rec, save);
-    confetti(); fanfare();
     fill.style.width = '100%';
     roundLabel.textContent = ''; comboLabel.textContent = '';
     card.innerHTML = '';
-    const end = el('div', 'end');
-    end.append(el('div', 'big', '🚂'));
-    end.append(el('h2', null, '기초 캠프 수료!'));
-    const keep = el('div', 'keep');
-    keep.innerHTML =
-      '이제 세 칸을 알아요:<br>' +
-      '<b class="p-s">누가</b> → <b class="p-v">뭐 한다</b> → <b class="p-o">무엇을</b><br>' +
-      `한 번에 맞힌 문제: <b>${rec.firstTryHits}개</b> · 최고 연속: ${rec.bestCombo}`;
-    end.append(keep);
-    end.append(el('p', 'msg', '영어는 "뭐 한다"가 주어 바로 다음에 온다는 것 — 이것만 알아도 절반은 온 거예요.'));
-    if (earned.length) {
-      end.append(el('div', 'badge-title', '🏅 칭호 획득!'));
-      earned.forEach((id, i) => {
-        const b = BADGE_BY_ID.get(id);
-        const bc = el('div', `badge-card r${b.r}`);
-        bc.style.animationDelay = `${i * 0.25}s`;
-        bc.append(el('div', 'stars', '★'.repeat(b.r)));
-        bc.append(el('div', 'bname', b.n));
-        bc.append(el('div', 'bdesc', b.d || b.cond));
-        end.append(bc);
-      });
-    }
-    end.append(el('div', 'next-goal', '➡️ 다음은 주어 사냥터 — 두 단어짜리 주어도 나와요!'));
-    const btns = el('div', 'btns');
-    const home = el('button', 'btn', '사냥터로 가기');
-    home.onclick = onHome;
-    const again = el('button', 'btn ghost', '한 번 더 보기');
-    // 기록을 새로 시작한다 — 안 그러면 두 번째 완주가 첫 판 성적에 얹혀 60개처럼 찍힌다
-    again.onclick = () => { step = 0; idx = 0; combo = 0; rec = emptyRound('basic'); render(); };
-    btns.append(home, again);
-    end.append(btns);
-    card.append(end);
+    card.append(createEndScreen({
+      bigEmoji: '🚂',
+      title: '기초 캠프 수료!',
+      keepHtml:
+        '이제 세 칸을 알아요:<br>' +
+        '<b class="p-s">누가</b> → <b class="p-v">뭐 한다</b> → <b class="p-o">무엇을</b><br>' +
+        `한 번에 맞힌 문제: <b>${rec.firstTryHits}개</b> · 최고 연속: ${rec.bestCombo}`,
+      message: '영어는 "뭐 한다"가 주어 바로 다음에 온다는 것 — 이것만 알아도 절반은 온 거예요.',
+      earned,
+      save,
+      nextLine: '➡️ 다음은 주어 사냥터 — 두 단어짜리 주어도 나와요!',
+      buttons: [
+        { label: '사냥터로 가기', onClick: onHome },
+        // 기록을 새로 시작한다 — 안 그러면 두 번째 완주가 첫 판 성적에 얹혀 60개처럼 찍힌다
+        { label: '한 번 더 보기', ghost: true,
+          onClick: () => { step = 0; idx = 0; combo = 0; rec = emptyRound('basic'); render(); } },
+      ],
+    }));
   }
 
   render();

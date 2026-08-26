@@ -7,10 +7,11 @@ import {
   registerCatch, registerSeen, recordRound, getSave,
   noteRecent, recentAccuracy, ruleSeen, markRuleSeen,
 } from '../store.js';
-import { judgeBadges, BADGES, BADGE_BY_ID } from '../badges.js';
-import { popSound, dodgeSound, catchSound, fanfare } from '../audio.js';
+import { judgeBadges } from '../badges.js';
+import { popSound, dodgeSound, catchSound } from '../audio.js';
 import { logRound } from '../log.js';
-import { hitStop, shake, burst, floatText, confetti, buzz } from '../juice.js';
+import { hitStop, shake, burst, floatText, buzz } from '../juice.js';
+import { createEndScreen } from './end-screen.js';
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -219,64 +220,35 @@ export function createPlayView({ mode, onHome, deck: fixedDeck }) {
     const save = getSave();
     logRound(rec, save); // 원격 기록 — 실패해도 게임은 모른다
     const perfect = rec.firstTryHits >= deck.length;
-    confetti();
-    fanfare();
 
     const modeName = mode === 'subj' ? '주어 사냥' : mode === 'review' ? '오늘의 사냥터' : '동사 사냥';
     const newCards = roundCatches.filter((c) => c.isNew).length;
     const starUps = roundCatches.filter((c) => !c.isNew && c.starUp).length;
+    const tail = `도감: <b>${save.owned} / ${save.total}</b> — 전부 그대로 남아요<br>` +
+      `한 번에 잡은 문장: <b>${rec.firstTryHits}개</b> · 최고 연속: ${rec.bestCombo}`;
 
     card.innerHTML = '';
-    const end = el('div', 'end');
-    end.append(el('div', 'big', perfect ? '🌟' : '🎉'));
-    end.append(el('h2', null, `${modeName} 완주!`));
-
-    // "실패해도 남는 것" 3줄 — 한 판도 헛되지 않게 (Hades 원칙)
-    const keep = el('div', 'keep');
-    keep.innerHTML = mode === 'subj'
+    card.append(createEndScreen({
+      perfect,
+      title: `${modeName} 완주!`,
       // 주어 사냥은 동사를 잡지 않는다 — 성과도 주어의 말로 적어야 정직하다
-      ? `덩어리째 잡은 주어: <b>${rec.chunkFirstTry}개</b><br>` +
-        `도감: <b>${save.owned} / ${save.total}</b> — 전부 그대로 남아요<br>` +
-        `한 번에 잡은 문장: <b>${rec.firstTryHits}개</b> · 최고 연속: ${rec.bestCombo}`
-      : `이번 사냥에서 잡은 동사: <b>${roundCatches.length}마리</b>` +
-        (newCards ? ` (새 카드 ${newCards})` : '') + (starUps ? ` (★강화 ${starUps})` : '') + '<br>' +
-        `도감: <b>${save.owned} / ${save.total}</b> — 전부 그대로 남아요<br>` +
-        `한 번에 잡은 문장: <b>${rec.firstTryHits}개</b> · 최고 연속: ${rec.bestCombo}`;
-    end.append(keep);
-
-    end.append(el('p', 'msg', perfect
-      ? '망설임 없이 전부 정확했어요. 이제 안 배운 게 아니라 배운 사람이에요.'
-      : mode === 'subj'
-        ? '주어가 한 단어가 아닐 때가 있다는 것 — 그걸 알아가는 중이에요.'
-        : '틀린 동사는 "목격"으로 도감에 남았어요 — 다음 판에 잡으러 가면 돼요.'));
-
-    if (earned.length) {
-      end.append(el('div', 'badge-title', '🏅 칭호 획득!'));
-      earned.forEach((id, i) => {
-        const b = BADGE_BY_ID.get(id);
-        const bc = el('div', `badge-card r${b.r}`);
-        bc.style.animationDelay = `${i * 0.25}s`;
-        bc.append(el('div', 'stars', '★'.repeat(b.r)));
-        bc.append(el('div', 'bname', b.n));
-        bc.append(el('div', 'bdesc', b.d || b.cond));
-        end.append(bc);
-      });
-      if (earned.some((id) => BADGE_BY_ID.get(id).r === 4)) setTimeout(confetti, 500);
-    }
-
-    // 다음 목표: '보이는(진행형)' 칭호만 하나. 숨은 칭호는 예고하지 않는다 —
-    // 예고된 보상은 내재동기를 갉아먹는다 (과잉정당화).
-    const nextGoal = BADGES.find((b) => !b.hidden && !save.badges.includes(b.id));
-    if (nextGoal) end.append(el('div', 'next-goal', `🔒 ${nextGoal.n} — ${nextGoal.cond}`));
-
-    const btns = el('div', 'btns');
-    const again = el('button', 'btn', '한 판 더');
-    again.onclick = restart;
-    const home = el('button', 'btn ghost', '홈으로');
-    home.onclick = onHome;
-    btns.append(again, home);
-    end.append(btns);
-    card.append(end);
+      keepHtml: mode === 'subj'
+        ? `덩어리째 잡은 주어: <b>${rec.chunkFirstTry}개</b><br>${tail}`
+        : `이번 사냥에서 잡은 동사: <b>${roundCatches.length}마리</b>` +
+          (newCards ? ` (새 카드 ${newCards})` : '') + (starUps ? ` (★강화 ${starUps})` : '') +
+          `<br>${tail}`,
+      message: perfect
+        ? '망설임 없이 전부 정확했어요. 이제 안 배운 게 아니라 배운 사람이에요.'
+        : mode === 'subj'
+          ? '주어가 한 단어가 아닐 때가 있다는 것 — 그걸 알아가는 중이에요.'
+          : '틀린 동사는 "목격"으로 도감에 남았어요 — 다음 판에 잡으러 가면 돼요.',
+      earned,
+      save,
+      buttons: [
+        { label: '한 판 더', onClick: restart },
+        { label: '홈으로', onClick: onHome, ghost: true },
+      ],
+    }));
     roundLabel.textContent = '';
     comboLabel.textContent = '';
     comboLabel.className = 'play__combo';
