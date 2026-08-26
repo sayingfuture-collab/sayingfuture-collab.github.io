@@ -65,8 +65,23 @@ export const BE_FORMS = [...BE_PRESENT, ...BE_PAST];
  * "주어가 몇 명이고 누구냐" 하나로 좁혀진다 — 그게 진짜 배울 것.
  */
 export function makeFillDeck(rng = Math.random) {
-  return shuffle([...BE], rng).slice(0, 10).map((s) => {
-    const answer = s.w[s.v].replace(/[.!?]$/, '');
+  const beForm = (s) => s.w[s.v].replace(/[.!?]$/, '');
+  // 형태별로 최소 한 문장씩 먼저 확보한다. 무작위로만 뽑으면 문장이 적은 am·were 가
+  // 한 판에 아예 안 나올 수 있어서, 핵심 형태를 한 번도 연습 안 하고 진급하게 된다.
+  const byForm = new Map();
+  for (const s of BE) {
+    const f = beForm(s);
+    if (!byForm.has(f)) byForm.set(f, []);
+    byForm.get(f).push(s);
+  }
+  const picked = [];
+  for (const f of BE_FORMS) {
+    const pool = byForm.get(f);
+    if (pool?.length) picked.push(shuffle([...pool], rng)[0]);
+  }
+  const rest = shuffle(BE.filter((s) => !picked.includes(s)), rng).slice(0, Math.max(0, 10 - picked.length));
+  return shuffle([...picked, ...rest], rng).slice(0, 10).map((s) => {
+    const answer = beForm(s);
     const family = BE_PAST.includes(answer) ? BE_PAST : BE_PRESENT;
     return { ...s, answer, choices: shuffle([...family], rng) };
   });
@@ -75,18 +90,30 @@ export function makeFillDeck(rng = Math.random) {
 /** 조각 배열(산출 2단계): 단어 조각을 순서대로 눌러 문장을 만든다. 짧은 문장만 */
 export function makeOrderDeck(rng = Math.random) {
   const pool = [...GENERAL, ...BE].filter((s) => s.w.length <= 4);
-  return shuffle(pool, rng).slice(0, 10).map((s) => ({ ...s, chips: shuffle([...s.w], rng) }));
+  return shuffle(pool, rng).slice(0, 10).map((s) => {
+    // 섞은 결과가 원문과 같으면 다시 섞는다 — 그대로면 왼쪽부터 누르기만 해도 통과된다.
+    let chips = shuffle([...s.w], rng);
+    for (let i = 0; i < 12 && chips.every((w, j) => w === s.w[j]); i++) chips = shuffle([...s.w], rng);
+    return { ...s, chips };
+  });
 }
 
 /**
- * 오늘의 사냥터: 복습 기한이 찬 동사들의 문장만. 모자라면 아무 문장으로 채워 10장.
+ * 오늘의 사냥터: 복습 기한이 찬 동사마다 최소 한 문장을 보장하고, 남는 자리를 채워 10장.
+ * 그냥 합쳐서 자르면 문장이 많은 동사(is 등)가 적은 동사를 밀어내 복습에서 통째로 빠진다.
  */
 export function makeReviewDeck(due, rng = Math.random) {
-  const dueSet = new Set(due);
   const all = [...GENERAL, ...BE];
-  const hit = shuffle(all.filter((s) => dueSet.has(verbLemma(s))), rng).slice(0, 10);
-  const rest = shuffle(all.filter((s) => !dueSet.has(verbLemma(s))), rng).slice(0, 10 - hit.length);
-  return shuffle([...hit, ...rest], rng);
+  const picked = [];
+  for (const lemma of shuffle([...due], rng)) {
+    if (picked.length >= 10) break;
+    const pool = shuffle(all.filter((s) => verbLemma(s) === lemma && !picked.includes(s)), rng);
+    if (pool.length) picked.push(pool[0]);
+  }
+  const dueSet = new Set(due);
+  const more = shuffle(all.filter((s) => dueSet.has(verbLemma(s)) && !picked.includes(s)), rng);
+  const rest = shuffle(all.filter((s) => !dueSet.has(verbLemma(s))), rng);
+  return shuffle([...picked, ...more, ...rest].slice(0, 10), rng);
 }
 
 /**
@@ -100,9 +127,12 @@ export function explainLine(sentence, mode) {
       : `주어는 "${chunk}" — 문장 맨 앞, "누가"에 해당하는 말이에요.`;
   }
   const word = sentence.w[sentence.v].replace(/[.!?]$/, '');
-  return sentence.be
-    ? `정답은 "${word}" — 한국어 "~이다"는 붙어서 숨지만, 영어 be동사는 따로 서 있는 진짜 동사예요.`
-    : `정답은 "${word}" — 동사는 주어(누가) 바로 다음 자리에 서요.`;
+  if (!sentence.be) return `정답은 "${word}" — 동사는 주어(누가) 바로 다음 자리에 서요.`;
+  // 과거형까지 "~이다"로 뭉뚱그리면 틀린 설명이 된다 (was/were는 "~였다")
+  const past = BE_PAST.includes(word);
+  return past
+    ? `정답은 "${word}" — 한국어 "~였다"는 붙어서 숨지만, 영어 be동사는 따로 서 있는 진짜 동사예요.`
+    : `정답은 "${word}" — 한국어 "~이다"는 붙어서 숨지만, 영어 be동사는 따로 서 있는 진짜 동사예요.`;
 }
 
 /** 문장의 동사 lemma (도감 키). 없으면 null — 데이터 오류를 테스트가 잡는다 */

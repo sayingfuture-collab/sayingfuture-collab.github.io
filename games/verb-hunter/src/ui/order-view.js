@@ -29,9 +29,14 @@ export function createOrderView({ onHome }) {
   let placed = 0; // 지금까지 맞게 놓은 조각 수
   let rec = emptyRound('order');
   let roundCatches = [];
+  let triedWrong = new Set(); // 같은 조각을 또 눌러도 새 실수로 안 센다 (연타 방지)
+
+  // 잘못 집은 조각도 말대꾸를 한다 — 오답=개그 원칙을 이 모드에도 맞춘다
+  const CHIP_TALK = ['난 아직 차례 아냐!', '내 자리 여기 아닌데?ㅋ', '순서 좀 지켜줄래~', '나 나중에 나갈게'];
 
   function showSentence() {
     missCount = 0; placed = 0; busy = false;
+    triedWrong = new Set();
     const s = deck[idx];
     roundLabel.textContent = `${idx + 1} / ${deck.length}`;
     card.innerHTML = '';
@@ -60,12 +65,19 @@ export function createOrderView({ onHome }) {
   async function tapChip(chipEl, word) {
     const s = deck[idx];
     if (word !== s.w[placed]) {
-      // 어긋난 조각 — 자리를 알려주는 힌트로
-      missCount += 1;
+      // 어긋난 조각 — 말대꾸하고 폴짝, 그다음 자리를 알려주는 힌트
+      const key = `${placed}:${word}`;
+      const repeat = triedWrong.has(key);
+      triedWrong.add(key);
+      if (!repeat) missCount += 1;
       combo = 0; comboLabel.textContent = '';
       dodgeSound();
       chipEl.classList.remove('dodge'); void chipEl.offsetWidth;
       chipEl.classList.add('dodge');
+      chipEl.querySelector('.bubble')?.remove();
+      const b = el('div', 'bubble', CHIP_TALK[Math.floor(Math.random() * CHIP_TALK.length)]);
+      chipEl.append(b);
+      setTimeout(() => b.remove(), 1600);
       const h = hintLine();
       if (missCount >= 2) { revealOrder(); return; }
       h.textContent = placed === 0
@@ -88,7 +100,7 @@ export function createOrderView({ onHome }) {
     const firstTry = missCount === 0;
     combo = firstTry ? combo + 1 : 1;
     noteSentenceClear(rec, s, firstTry, combo);
-    noteRecent(firstTry);
+    noteRecent(firstTry, 'order');
     await hitStop(document.body, 70);
     const r = slot.getBoundingClientRect();
     burst(r.left + r.width / 2, r.top + r.height / 2);
@@ -115,7 +127,7 @@ export function createOrderView({ onHome }) {
   function revealOrder() {
     busy = true;
     const s = deck[idx];
-    noteRecent(false);
+    noteRecent(false, 'order');
     const slots = card.querySelectorAll('.slot');
     s.w.forEach((word, i) => { slots[i].textContent = word; slots[i].classList.add('reveal'); });
     card.querySelectorAll('.chip').forEach((c) => c.classList.add('used'));

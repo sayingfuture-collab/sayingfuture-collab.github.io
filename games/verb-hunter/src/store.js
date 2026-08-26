@@ -81,8 +81,13 @@ function sanitize(raw) {
     perfects: int0(raw?.perfects),
     catches: int0(raw?.catches),          // 누적 포획 수 — "잡은 동사 N마리"의 N
     lastFirstTry: Number.isInteger(raw?.lastFirstTry) ? raw.lastFirstTry : null,
-    // 최근 문장별 첫시도 성공 여부 (0/1, 최대 20) — 은닉 난이도 조절의 재료. 화면엔 안 보인다.
-    recent: Array.isArray(raw?.recent) ? raw.recent.filter((x) => x === 0 || x === 1).slice(-20) : [],
+    // 최근 첫시도 성공 여부를 **모드별로** 따로 쌓는다 (0/1, 모드당 최대 20).
+    // 한 통에 담으면 안내형 0단계(고정 위치·손잡고 가기) 성적이 진짜 사냥터의 숙달로 오인돼서,
+    // 주어 사냥을 한 번도 안 한 학생이 첫 판부터 최고 난이도+혼합을 맞는다. 0단계는 아예 안 쌓는다.
+    recent: (raw?.recent && typeof raw.recent === 'object' && !Array.isArray(raw.recent))
+      ? Object.fromEntries(Object.entries(raw.recent).map(([m, list]) =>
+        [m, Array.isArray(list) ? list.filter((x) => x === 0 || x === 1).slice(-20) : []]))
+      : {},
     // 규칙 카드를 본 모드들 — 모드마다 딱 한 번만 보여준다.
     seenRules: Array.isArray(raw?.seenRules) ? raw.seenRules.filter((m) => typeof m === 'string') : [],
     // 모드별 최고 기록 — 새 사냥터 자물쇠(진급)의 근거.
@@ -162,16 +167,21 @@ export function dueLemmas(now = new Date()) {
 
 // ── 은닉 난이도 조절 재료 ────────────────────────────────────
 
-/** 문장 하나 끝날 때마다: 첫 시도 성공이면 1, 아니면 0 */
-export function noteRecent(ok) {
-  state.recent.push(ok ? 1 : 0);
-  if (state.recent.length > 20) state.recent = state.recent.slice(-20);
+/**
+ * 문장 하나 끝날 때마다: 첫 시도 성공이면 1, 아니면 0.
+ * 기초 캠프(basic)는 기록하지 않는다 — 안내형 단계의 성적은 숙달의 증거가 아니다.
+ */
+export function noteRecent(ok, mode) {
+  if (!mode || mode === 'basic') return;
+  const list = state.recent[mode] || (state.recent[mode] = []);
+  list.push(ok ? 1 : 0);
+  if (list.length > 20) state.recent[mode] = list.slice(-20);
   write();
 }
 
-/** 최근 10문장 첫시도 정답률 (0~1). 기록이 5개 미만이면 null — 조절하지 않는다 */
-export function recentAccuracy() {
-  const r = state.recent.slice(-10);
+/** 그 모드의 최근 10문장 첫시도 정답률 (0~1). 5개 미만이면 null — 조절하지 않는다 */
+export function recentAccuracy(mode) {
+  const r = (state.recent[mode] || []).slice(-10);
   if (r.length < 5) return null;
   return r.reduce((a, b) => a + b, 0) / r.length;
 }

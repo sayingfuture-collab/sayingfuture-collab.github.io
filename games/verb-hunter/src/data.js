@@ -11,7 +11,7 @@ export const VERBS = [
   { lemma: 'is',   family: 'be', emoji: '👻', ko: '~이다 (한 명)',     forms: ['is'] },
   { lemma: 'are',  family: 'be', emoji: '👻', ko: '~이다 (여럿/너)',   forms: ['are'] },
   { lemma: 'was',  family: 'be', emoji: '🌫️', ko: '~였다 (한 명)',     forms: ['was'] },
-  { lemma: 'were', family: 'be', emoji: '🌫️', ko: '~였다 (여럿)',      forms: ['were'] },
+  { lemma: 'were', family: 'be', emoji: '🌫️', ko: '~였다 (여럿/너)',   forms: ['were'] },
   // 일반동사족 — 움직임이 보이는 동사들
   { lemma: 'like',  family: 'act', emoji: '💖', ko: '좋아하다',   forms: ['like', 'likes'] },
   { lemma: 'read',  family: 'act', emoji: '📖', ko: '읽다',       forms: ['read', 'reads'] },
@@ -99,41 +99,67 @@ export const BE = [
   { w: ['I', 'was', 'late.'], v: 1, be: true, k: '나는 늦었어.' },
   { w: ['The', 'movie', 'was', 'long.'], v: 2, be: true, k: '그 영화는 길었어.' },
   { w: ['She', 'is', 'smart.'], v: 1, be: true, k: '그녀는 똑똑해.' },
+  // am·were 문장을 보강한다 — 한 판에 그 형태가 아예 안 나오면 연습이 안 된 채 진급한다
+  { w: ['I', 'am', 'ready.'], v: 1, be: true, k: '나는 준비됐어.' },
+  { w: ['I', 'am', 'tired.'], v: 1, be: true, k: '나는 피곤해.' },
+  { w: ['You', 'were', 'right.'], v: 1, be: true, k: '네 말이 맞았어.' },
+  { w: ['We', 'were', 'friends.'], v: 1, be: true, k: '우리는 친구였어.' },
+  { w: ['You', 'are', 'kind.'], v: 1, be: true, k: '너는 착해.' },
 ];
 
 // ── 오답 연출 ────────────────────────────────────────────────
 // 리서치 근거: 실패의 감정 톤을 '수치'에서 '아쉬움/개그'로 바꾼다.
 // 빨간 X·경고음 대신, 잘못 잡은 단어가 말대꾸를 하고 도망간다.
 // bubble = 단어의 말대꾸(개그), hint = 남는 한 줄(교육) — 역할을 나눈다.
+// be동사 문장의 끝말(small·happy…)은 '꾸미는 말'이라고 하면 나중에 보어를 배울 때 말이 꼬인다.
+// (꾸미는 말 = 명사에 붙는 말, 이건 주어의 상태를 말하는 자리) → "상태를 말하는 말"로 통일.
+// 일반동사 문장의 끝말(fast·well·loudly)은 진짜 부사라서 '꾸미는 말'이 맞다.
 export const DODGE = {
-  'small.':  { bubble: '난 "작은"인데?ㅋ',        hint: '"~한"으로 끝나는 건 꾸미는 말! 동사가 아니에요.' },
-  'happy.':  { bubble: '행복할 뿐 동사 아님~',     hint: '"행복한"은 꾸미는 말! be동사가 진짜 동사예요.' },
-  'fun.':    { bubble: '재미만 담당함ㅎ',          hint: '"재미있는"은 꾸미는 말! was가 동사예요.' },
+  'small.':  { bubble: '난 "작은"인데?ㅋ',        hint: '"작은"은 상태를 말하는 말! is가 진짜 동사예요.' },
+  'happy.':  { bubble: '행복할 뿐 동사 아님~',     hint: '"행복한"은 상태를 말하는 말! are가 동사예요.' },
+  'fun.':    { bubble: '재미만 담당함ㅎ',          hint: '"재미있는"은 상태를 말하는 말! was가 동사예요.' },
   'fast.':   { bubble: '난 그냥 빠를 뿐!',         hint: '"빠르게"는 꾸미는 말! 달리는 동작이 동사.' },
-  'hungry.': { bubble: '배고픈 건 나지만ㅋ',       hint: '"배고픈"은 꾸미는 말! am이 동사예요.' },
-  'tall.':   { bubble: '키만 클 뿐이야',           hint: '"키 큰"은 꾸미는 말! is가 동사예요.' },
-  'sleepy.': { bubble: '졸려서 도망도 못 가겠다',  hint: '"졸린"은 꾸미는 말! were가 동사예요.' },
-  'sad.':    { bubble: '슬프지만 동사는 아냐',     hint: '"슬픈"은 꾸미는 말! was가 동사예요.' },
-  'easy.':   { bubble: '쉬워 보여도 난 아님ㅋ',    hint: '"쉬운"은 꾸미는 말! was가 동사예요.' },
-  'busy.':   { bubble: '바빠서 이만~',             hint: '"바쁜"은 꾸미는 말! is가 동사예요.' },
-  'dark.':   { bubble: '어두워서 잘못 봤지?',      hint: '"어두운"은 꾸미는 말! was가 동사예요.' },
-  'pink.':   { bubble: '난 색깔이라구~',           hint: '"분홍색"은 꾸미는 말! is가 동사예요.' },
-  'tired.':  { bubble: '피곤해서 안 잡힘ㅋ',       hint: '"피곤한"은 꾸미는 말! were가 동사예요.' },
-  'hot.':    { bubble: '앗 뜨거! 놓쳤지?',         hint: '"뜨거운"은 꾸미는 말! is가 동사예요.' },
-  'late.':   { bubble: '늦은 건 나지만 동사 아님', hint: '"늦은"은 꾸미는 말! was가 동사예요.' },
-  'long.':   { bubble: '길기만 한 놈이야 난',      hint: '"긴"은 꾸미는 말! was가 동사예요.' },
-  'smart.':  { bubble: '똑똑하면 뭐해 동사도 아닌데', hint: '"똑똑한"은 꾸미는 말! is가 동사예요.' },
+  'hungry.': { bubble: '배고픈 건 나지만ㅋ',       hint: '"배고픈"은 상태를 말하는 말! am이 동사예요.' },
+  'tall.':   { bubble: '키만 클 뿐이야',           hint: '"키 큰"은 상태를 말하는 말! is가 동사예요.' },
+  'sleepy.': { bubble: '졸려서 도망도 못 가겠다',  hint: '"졸린"은 상태를 말하는 말! were가 동사예요.' },
+  'sad.':    { bubble: '슬프지만 동사는 아냐',     hint: '"슬픈"은 상태를 말하는 말! was가 동사예요.' },
+  'easy.':   { bubble: '쉬워 보여도 난 아님ㅋ',    hint: '"쉬운"은 상태를 말하는 말! was가 동사예요.' },
+  'busy.':   { bubble: '바빠서 이만~',             hint: '"바쁜"은 상태를 말하는 말! is가 동사예요.' },
+  'dark.':   { bubble: '어두워서 잘못 봤지?',      hint: '"어두운"은 상태를 말하는 말! was가 동사예요.' },
+  'pink.':   { bubble: '난 색깔이라구~',           hint: '"분홍색"은 상태를 말하는 말! is가 동사예요.' },
+  'tired.':  { bubble: '피곤해서 안 잡힘ㅋ',       hint: '"피곤한"은 상태를 말하는 말! be동사가 동사예요.' },
+  'hot.':    { bubble: '앗 뜨거! 놓쳤지?',         hint: '"뜨거운"은 상태를 말하는 말! is가 동사예요.' },
+  'late.':   { bubble: '늦은 건 나지만 동사 아님', hint: '"늦은"은 상태를 말하는 말! was가 동사예요.' },
+  'long.':   { bubble: '길기만 한 놈이야 난',      hint: '"긴"은 상태를 말하는 말! was가 동사예요.' },
+  'smart.':  { bubble: '똑똑하면 뭐해 동사도 아닌데', hint: '"똑똑한"은 상태를 말하는 말! is가 동사예요.' },
+  'ready.':  { bubble: '준비만 됐지 동사는 아냐',  hint: '"준비된"은 상태를 말하는 말! am이 동사예요.' },
+  'right.':  { bubble: '맞는 건 맞는데 나 아님ㅋ', hint: '"맞은"은 상태를 말하는 말! were가 동사예요.' },
+  'kind.':   { bubble: '착하다고 잡히진 않아~',    hint: '"착한"은 상태를 말하는 말! are가 동사예요.' },
   'well.':   { bubble: '난 "잘"이야, 거들 뿐',     hint: '"잘"은 꾸미는 말! 노래하는 동작이 동사.' },
   'here.':   { bubble: '여긴 그냥 장소야~',        hint: '"여기"는 장소 말! live가 동사예요.' },
   'loudly.': { bubble: '(크게) 나 아니라니까!',    hint: '"크게"는 꾸미는 말! cries가 동사예요.' },
 };
 
-/** 도감에 없는 단어(명사·대명사 등)를 잘못 잡았을 때 */
+/** 도감에 없는 단어를 잘못 잡았을 때 — 대명사(I/She…)에 "난 물건이야"가 나오면 안 되니 나눠 쓴다 */
+const PRONOUNS = new Set(['i', 'you', 'he', 'she', 'it', 'we', 'they', 'my', 'her', 'his', 'the']);
+
 export const DODGE_DEFAULT = [
   { bubble: '나 이름(명사)인데?ㅋ', hint: '주어(누가) 바로 다음 말을 봐요!' },
   { bubble: '난 물건이야, 움직이질 않아', hint: '동사는 "~하다/~이다" — 주어 바로 다음!' },
   { bubble: '헛 잡았다~', hint: '주어(누가) 바로 다음 말이 동사예요.' },
 ];
+
+const DODGE_PRONOUN = [
+  { bubble: '난 "누가"야! 주어라구', hint: '내(주어) 바로 다음 말이 동사예요.' },
+  { bubble: '주어를 잡아서 뭐 하게~', hint: '동사는 주어 바로 다음! 한 칸 옆을 봐요.' },
+];
+
+/** 단어에 맞는 기본 도망 대사 하나 */
+export function dodgeFor(word, rand = Math.random) {
+  const key = word.replace(/[.!?]$/, '').toLowerCase();
+  const pool = PRONOUNS.has(key) ? DODGE_PRONOUN : DODGE_DEFAULT;
+  return pool[Math.floor(rand() * pool.length)];
+}
 
 // 주어 사냥 모드 전용 오답 대사
 export const DODGE_SUBJ = {

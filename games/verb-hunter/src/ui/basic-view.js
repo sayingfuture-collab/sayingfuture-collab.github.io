@@ -40,8 +40,21 @@ export function createBasicView({ onHome }) {
   let step = 0;          // STEPS 안에서의 위치
   let idx = 0;           // 이번 연습에서 몇 번째 문장인지
   let combo = 0, missCount = 0, busy = false;
-  let finalPart = 0;     // 종합 단계에서 s→v→o 중 어디인지
-  const rec = emptyRound('basic');
+  let finalPart = 0;     // 종합 단계에서 몇 번째 질문인지
+  let finalOrder = [];   // 종합 단계의 질문 순서 (문장마다 섞는다)
+  let triedWrong = new Set();
+  let rec = emptyRound('basic'); // '한 번 더 보기'가 이전 기록에 얹히지 않도록 let
+
+  // 종합 단계는 묻는 순서를 섞는다 — 늘 주어→동사→목적어면 문장을 안 읽고
+  // 왼쪽부터 차례로 눌러도 통과된다 (위치 암기로 빠져나가는 구멍).
+  function shuffledParts() {
+    const p = ['s', 'v', 'o'];
+    for (let i = p.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [p[i], p[j]] = [p[j], p[i]];
+    }
+    return p;
+  }
 
   function progress() {
     fill.style.width = `${Math.round((step / STEPS.length) * 100)}%`;
@@ -53,7 +66,7 @@ export function createBasicView({ onHome }) {
     if (!s) { finish(); return; }
     if (s.type === 'lesson') renderLesson(s.part);
     else if (s.type === 'drill') { idx = 0; renderDrill(s.part); }
-    else { idx = 0; finalPart = 0; renderFinal(); }
+    else { idx = 0; finalPart = 0; finalOrder = shuffledParts(); renderFinal(); }
   }
 
   // ── 설명 화면 ──────────────────────────────────────────────
@@ -86,6 +99,7 @@ export function createBasicView({ onHome }) {
   // ── 연습 화면 ──────────────────────────────────────────────
   function renderDrill(part) {
     missCount = 0; busy = false;
+    triedWrong = new Set();
     const s = BASIC_SENTENCES[idx];
     roundLabel.textContent = `${PART_NAME[part]} 찾기 · ${idx + 1} / ${BASIC_SENTENCES.length}`;
     card.innerHTML = '';
@@ -110,8 +124,10 @@ export function createBasicView({ onHome }) {
   // ── 종합 화면: 한 문장에서 주어 → 동사 → 목적어를 순서대로 ──
   function renderFinal() {
     missCount = 0; busy = false;
+    triedWrong = new Set();
     const s = BASIC_SENTENCES[idx];
-    const part = ['s', 'v', 'o'][finalPart];
+    const part = finalOrder[finalPart];
+    const solved = finalOrder.slice(0, finalPart); // 이미 맞힌 성분들
     roundLabel.textContent = `세 칸 완성 · ${idx + 1} / 4`;
     card.innerHTML = '';
     const quest = el('p', 'play__quest');
@@ -119,9 +135,11 @@ export function createBasicView({ onHome }) {
     const words = el('div', 'words');
     s.w.forEach((word, i) => {
       const w = el('div', 'word', word);
-      // 앞서 맞힌 칸은 색을 입은 채로 남는다 — 기차가 채워지는 게 보이게
-      if (i < finalPart) w.classList.add('hit', `p-bg-${['s', 'v', 'o'][i]}`);
-      w.onclick = () => { if (!busy && i >= finalPart) tap(w, i, part, true); };
+      // 앞서 맞힌 칸은 색을 입은 채로 남는다 — 기차가 채워지는 게 보이게.
+      // 단, 잠그지는 않는다. 남은 칸이 하나뿐이면 마지막 판단이 공짜가 되니까.
+      const done = solved.find((p) => s[p] === i);
+      if (done) w.classList.add('hit', `p-bg-${done}`);
+      w.onclick = () => { if (!busy) tap(w, i, part, true); };
       words.append(w);
     });
     const kzone = el('div', 'kzone');
@@ -147,7 +165,7 @@ export function createBasicView({ onHome }) {
     if (firstTry) rec.firstTryHits += 1;
     combo = firstTry ? combo + 1 : 1;
     rec.bestCombo = Math.max(rec.bestCombo, combo);
-    noteRecent(firstTry);
+    noteRecent(firstTry, 'basic'); // 0단계는 store 가 기록하지 않는다 (숙달의 증거가 아니라서)
 
     wordEl.classList.add('hit', `p-bg-${part}`);
     await hitStop(document.body, 70);
@@ -170,7 +188,7 @@ export function createBasicView({ onHome }) {
       if (finalPart < 3) { setTimeout(renderFinal, 700); return; }
       setTimeout(() => {
         confetti();
-        finalPart = 0; idx += 1;
+        finalPart = 0; idx += 1; finalOrder = shuffledParts();
         if (idx < 4) renderFinal(); else { step += 1; render(); }
       }, 900);
       return;
@@ -183,7 +201,9 @@ export function createBasicView({ onHome }) {
   }
 
   function wrong(wordEl, i, part, isFinal) {
-    missCount += 1;
+    const repeat = triedWrong.has(i);
+    triedWrong.add(i);
+    if (!repeat) missCount += 1; // 같은 자리 연타로 힌트를 건너뛰지 못하게
     combo = 0; comboLabel.textContent = '';
     const s = BASIC_SENTENCES[idx];
 
@@ -207,7 +227,7 @@ export function createBasicView({ onHome }) {
   function reveal(part, isFinal) {
     busy = true;
     const s = BASIC_SENTENCES[idx];
-    noteRecent(false);
+    noteRecent(false, 'basic');
     const words = [...card.querySelectorAll('.word')];
     words[s[part]].classList.add('reveal');
     const h = hintLine();
@@ -219,7 +239,7 @@ export function createBasicView({ onHome }) {
       if (isFinal) {
         finalPart += 1;
         if (finalPart < 3) { renderFinal(); return; }
-        finalPart = 0; idx += 1;
+        finalPart = 0; idx += 1; finalOrder = shuffledParts();
         if (idx < 4) renderFinal(); else { step += 1; render(); }
         return;
       }
@@ -266,7 +286,8 @@ export function createBasicView({ onHome }) {
     const home = el('button', 'btn', '사냥터로 가기');
     home.onclick = onHome;
     const again = el('button', 'btn ghost', '한 번 더 보기');
-    again.onclick = () => { step = 0; idx = 0; combo = 0; render(); };
+    // 기록을 새로 시작한다 — 안 그러면 두 번째 완주가 첫 판 성적에 얹혀 60개처럼 찍힌다
+    again.onclick = () => { step = 0; idx = 0; combo = 0; rec = emptyRound('basic'); render(); };
     btns.append(home, again);
     end.append(btns);
     card.append(end);

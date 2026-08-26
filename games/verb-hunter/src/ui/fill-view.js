@@ -29,9 +29,17 @@ export function createFillView({ onHome }) {
   let idx = 0, combo = 0, missCount = 0, busy = false;
   let rec = emptyRound('fill');
   let roundCatches = [];
+  let triedWrong = new Set(); // 같은 선택지를 또 눌러도 새 실수로 안 센다 (연타 방지)
+
+  // 잘못 고른 유령이 말대꾸를 한다 — 오답은 벌이 아니라 개그 (다른 모드와 톤을 맞춘다)
+  const GHOST_TALK = {
+    am: '나는 I 전용인데?ㅋ', is: '난 한 명일 때만~', are: '난 여럿 담당이야!',
+    was: '난 옛날 얘기 한 명', were: '난 옛날 얘기 여럿~',
+  };
 
   function showSentence() {
     missCount = 0; busy = false;
+    triedWrong = new Set();
     const s = deck[idx];
     roundLabel.textContent = `${idx + 1} / ${deck.length}`;
     card.innerHTML = '';
@@ -62,10 +70,18 @@ export function createFillView({ onHome }) {
   async function pick(btn, c) {
     const s = deck[idx];
     if (c !== s.answer) {
-      missCount += 1;
+      const repeat = triedWrong.has(c);
+      triedWrong.add(c);
+      if (!repeat) missCount += 1;
       combo = 0; comboLabel.textContent = '';
       dodgeSound();
       btn.classList.add('dim');
+      // 말풍선으로 자기 역할을 말하고 도망간다
+      btn.querySelector('.bubble')?.remove();
+      const b = el('div', 'bubble', GHOST_TALK[c] || '난 아닌데?ㅋ');
+      btn.append(b);
+      setTimeout(() => b.remove(), 1600);
+      btn.classList.remove('dodge'); void btn.offsetWidth; btn.classList.add('dodge');
       const h = hintLine();
       if (missCount >= 2) { revealAnswer(); return; }
       h.textContent = fillHint(s.answer);
@@ -77,7 +93,7 @@ export function createFillView({ onHome }) {
     combo = firstTry ? combo + 1 : 1;
     noteSentenceClear(rec, s, firstTry, combo);
     if (firstTry && s.be) rec.beFirstTry += 1;
-    noteRecent(firstTry);
+    noteRecent(firstTry, 'fill');
 
     // 빈칸이 채워진다 — 유령 소환 연출
     const blank = card.querySelector('.blank');
@@ -120,7 +136,7 @@ export function createFillView({ onHome }) {
   function revealAnswer() {
     busy = true;
     const s = deck[idx];
-    noteRecent(false);
+    noteRecent(false, 'fill');
     const blank = card.querySelector('.blank');
     blank.textContent = s.w[s.v];
     blank.classList.add('reveal');
