@@ -105,12 +105,14 @@ export function makeOrderDeck(rng = Math.random) {
 export function makeReviewDeck(due, rng = Math.random) {
   const all = [...GENERAL, ...BE];
   const picked = [];
-  for (const lemma of shuffle([...due], rng)) {
-    if (picked.length >= 10) break;
+  // 대상이 10마리를 넘으면 매번 앞쪽만 복습되지 않도록 섞어서 10마리를 고른다.
+  // (나머지는 내일 다시 기한이 차 있으므로 다음 판에 나온다)
+  const todays = shuffle([...due], rng).slice(0, 10);
+  for (const lemma of todays) {
     const pool = shuffle(all.filter((s) => verbLemma(s) === lemma && !picked.includes(s)), rng);
     if (pool.length) picked.push(pool[0]);
   }
-  const dueSet = new Set(due);
+  const dueSet = new Set(todays);
   const more = shuffle(all.filter((s) => dueSet.has(verbLemma(s)) && !picked.includes(s)), rng);
   const rest = shuffle(all.filter((s) => !dueSet.has(verbLemma(s))), rng);
   return shuffle([...picked, ...more, ...rest].slice(0, 10), rng);

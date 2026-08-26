@@ -140,24 +140,27 @@ export const DODGE = {
   'loudly.': { bubble: '(크게) 나 아니라니까!',    hint: '"크게"는 꾸미는 말! cries가 동사예요.' },
 };
 
-/** 도감에 없는 단어를 잘못 잡았을 때 — 대명사(I/She…)에 "난 물건이야"가 나오면 안 되니 나눠 쓴다 */
-const PRONOUNS = new Set(['i', 'you', 'he', 'she', 'it', 'we', 'they', 'my', 'her', 'his', 'the']);
-
 export const DODGE_DEFAULT = [
   { bubble: '나 이름(명사)인데?ㅋ', hint: '주어(누가) 바로 다음 말을 봐요!' },
   { bubble: '난 물건이야, 움직이질 않아', hint: '동사는 "~하다/~이다" — 주어 바로 다음!' },
   { bubble: '헛 잡았다~', hint: '주어(누가) 바로 다음 말이 동사예요.' },
 ];
 
-const DODGE_PRONOUN = [
+const DODGE_SUBJECT = [
   { bubble: '난 "누가"야! 주어라구', hint: '내(주어) 바로 다음 말이 동사예요.' },
   { bubble: '주어를 잡아서 뭐 하게~', hint: '동사는 주어 바로 다음! 한 칸 옆을 봐요.' },
 ];
 
-/** 단어에 맞는 기본 도망 대사 하나 */
-export function dodgeFor(word, rand = Math.random) {
-  const key = word.replace(/[.!?]$/, '').toLowerCase();
-  const pool = PRONOUNS.has(key) ? DODGE_PRONOUN : DODGE_DEFAULT;
+/**
+ * 단어에 맞는 기본 도망 대사.
+ * '주어' 판정은 단어가 아니라 **자리**로 한다 — the·my·her 는 목적어 쪽에도 나오기 때문에
+ * 단어만 보고 "난 주어야"라고 하면 틀린 문법 설명이 된다 (He opens **the** door).
+ * @param {string} word 잘못 잡은 단어
+ * @param {number} [i] 그 단어의 위치 · @param {number} [v] 그 문장의 동사 위치
+ */
+export function dodgeFor(word, i, v, rand = Math.random) {
+  const inSubject = Number.isInteger(i) && Number.isInteger(v) && i < v;
+  const pool = inSubject ? DODGE_SUBJECT : DODGE_DEFAULT;
   return pool[Math.floor(rand() * pool.length)];
 }
 

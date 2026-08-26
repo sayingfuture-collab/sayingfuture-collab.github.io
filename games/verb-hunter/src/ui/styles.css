@@ -250,6 +250,7 @@ button { font-family: inherit; cursor: pointer; }
 .choice {
   font-size: 18px; padding: 12px 20px; border-radius: 14px;
   border: 2px solid #ddd; background: #fff; min-width: 76px;
+  position: relative; /* 말풍선(.bubble)이 이 버튼 기준으로 뜨게 — 없으면 엉뚱한 데 나타난다 */
 }
 .choice:active { border-color: #7e57c2; background: #f3eefc; }
 .choice.dim { opacity: .35; }

@@ -175,7 +175,7 @@ export function createPlayView({ mode, onHome, deck: fixedDeck }) {
     // ① 첫 오답 → 개그 + 힌트  ② 재시도 기회 1번  ③ 또 틀리면 정답 공개 + 이유 한 줄.
     if (missCount >= 2) { reveal(); return; }
 
-    const d = forced || trap || dodgeFor(word || '');
+    const d = forced || trap || dodgeFor(word || '', i, deck[idx].v);
 
     // 개그 연출: 말풍선 + 폴짝 도망 + "휙" 소리. 흔들림·빨간색·경고음 없음.
     dodgeSound();
