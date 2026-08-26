@@ -222,3 +222,41 @@ button { font-family: inherit; cursor: pointer; }
 .badge-card.locked .stars { color: #c9c3b6; }
 .badge-card.locked .bname { color: #8a8574; font-weight: normal; font-size: 16px; }
 .badge-card.locked .bdesc { color: #a9a394; }
+
+/* ── v0.6 학습 엔진 ── */
+/* 정답 공개(두 번 틀림): 벌색이 아니라 발견색 — 파랑 계열로 부드럽게 */
+.word.reveal { border-color: #42a5f5; background: #e8f4fd; color: #1565c0; font-weight: bold; }
+.hintline.explain { color: #1565c0; font-weight: bold; }
+
+/* 규칙 카드 */
+.gate__card.rule .rule__line { font-size: 14.5px; color: #444; margin-bottom: 8px; }
+.gate__card.rule .rule__ex {
+  font-size: 17px; background: #fff4ec; border: 2px dashed #e8630a;
+  border-radius: 12px; padding: 10px; margin: 12px 0 16px;
+}
+.gate__card.rule .rule__ex b { color: #e8630a; }
+
+/* 오늘의 사냥터 배너 */
+.mode-btn.review { border-color: #7e57c2; background: #f3eefc; }
+.mode-btn.review b { color: #5e35b1; }
+
+/* 잠긴 사냥터 */
+.mode-btn.locked { background: #efece4; border-color: #ddd8cc; color: #a9a394; cursor: default; }
+.mode-btn.locked span { color: #b8b2a4; }
+
+/* 유령 소환: 빈칸과 선택지 */
+.word.blank { border-style: dashed; border-color: #7e57c2; color: #7e57c2; min-width: 64px; }
+.choices { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+.choice {
+  font-size: 18px; padding: 12px 20px; border-radius: 14px;
+  border: 2px solid #ddd; background: #fff; min-width: 76px;
+}
+.choice:active { border-color: #7e57c2; background: #f3eefc; }
+.choice.dim { opacity: .35; }
+
+/* 문장 조립: 슬롯과 조각 */
+.words.slots { min-height: 46px; margin-bottom: 14px; }
+.word.slot { border-style: dashed; color: #c9c3b6; min-width: 46px; }
+.word.slot.hit { border-style: solid; color: inherit; }
+.words.chips .chip { background: #fdf8ef; border-color: #e0c9a0; }
+.word.chip.used { opacity: .25; pointer-events: none; }

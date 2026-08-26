@@ -2,8 +2,11 @@
 // juice 순서(리서치 수치): 터치다운 즉시 반응 → 판정 → 히트스톱 70ms → 파편+음+흔들림.
 // 오답은 벌이 아니라 개그 — 말풍선 + 도망 + 힌트 한 줄. 빨간색·경고음 없음.
 import { DODGE, DODGE_DEFAULT, DODGE_SUBJ, CHEERS, CHUNK_CHEERS, VERB_BY_LEMMA } from '../data.js';
-import { makeDeck, verbLemma, emptyRound, noteSentenceClear } from '../game.js';
-import { registerCatch, registerSeen, recordRound, getSave } from '../store.js';
+import { makeDeck, verbLemma, emptyRound, noteSentenceClear, explainLine } from '../game.js';
+import {
+  registerCatch, registerSeen, recordRound, getSave,
+  noteRecent, recentAccuracy, ruleSeen, markRuleSeen,
+} from '../store.js';
 import { judgeBadges, BADGES, BADGE_BY_ID } from '../badges.js';
 import { popSound, dodgeSound, catchSound, fanfare } from '../audio.js';
 import { logRound } from '../log.js';
@@ -19,9 +22,16 @@ function el(tag, className, text) {
 const QUEST = {
   verb: '동사는 어디에? <b>주어(누가) 바로 다음!</b>',
   subj: '주어는 어디에? <b>문장 맨 앞 덩어리!</b>',
+  review: '도망갔던 동사들이 돌아왔다! <b>주어 바로 다음!</b>',
 };
 
-export function createPlayView({ mode, onHome }) {
+// 첫 입장 때 딱 한 번 보여주는 규칙 카드 — 10초짜리, 스킵 가능.
+const RULES = {
+  subj: { emoji: '🕵️', title: '주어 사냥법', lines: ['주어 = "누가/무엇이" — 문장 <b>맨 앞 덩어리</b>', '"My brother"처럼 <b>두 단어일 수도</b> 있어요 (전부 탭!)'], ex: '<b>My brother</b> likes games.' },
+  verb: { emoji: '🎯', title: '동사 사냥법', lines: ['동사 = "~하다/~이다" — <b>주어 바로 다음</b> 자리', 'is·am·are도 동사! 유령 👻 처럼 안 보여도 꼭 있어요'], ex: 'The cat <b>is</b> small.' },
+};
+
+export function createPlayView({ mode, onHome, deck: fixedDeck }) {
   const root = el('div', 'play');
   const top = el('div', 'play__top');
   const roundLabel = el('span', 'play__round');
@@ -30,18 +40,19 @@ export function createPlayView({ mode, onHome }) {
   const card = el('div', 'play__card');
   root.append(top, card);
 
-  let deck = makeDeck(mode);
-  let idx = 0, combo = 0, missedThis = false;
+  const playMode = mode === 'review' ? 'verb' : mode; // 복습은 동사 사냥 규칙으로 논다
+  let deck = fixedDeck || makeDeck(playMode, Math.random, recentAccuracy());
+  let idx = 0, combo = 0, missCount = 0;
   let rec = emptyRound(mode);
   let roundCatches = [];   // 이번 판 포획 [{lemma, isNew, stars}]
   let subjRemain = null;
   let busy = false;        // 연출 중 중복 탭 방지
 
   function showSentence() {
-    missedThis = false;
+    missCount = 0;
     busy = false;
     const s = deck[idx];
-    subjRemain = mode === 'subj' ? new Set(Array.from({ length: s.v }, (_, i) => i)) : null;
+    subjRemain = playMode === 'subj' ? new Set(Array.from({ length: s.v }, (_, i) => i)) : null;
     roundLabel.textContent = `${idx + 1} / ${deck.length}`;
     card.innerHTML = '';
     const quest = el('p', 'play__quest');
@@ -69,7 +80,7 @@ export function createPlayView({ mode, onHome }) {
 
   function tap(wordEl, i, word) {
     const s = deck[idx];
-    if (mode === 'subj') tapSubj(wordEl, i);
+    if (playMode === 'subj') tapSubj(wordEl, i);
     else if (i === s.v) correct(wordEl);
     else wrong(wordEl, word);
   }
@@ -94,9 +105,10 @@ export function createPlayView({ mode, onHome }) {
   async function correct(wordEl, alreadyMarked = false) {
     busy = true;
     const s = deck[idx];
-    const firstTry = !missedThis;
+    const firstTry = missCount === 0;
     combo = firstTry ? combo + 1 : 1;
     noteSentenceClear(rec, s, firstTry, combo);
+    noteRecent(firstTry); // 은닉 난이도 조절의 재료 — 다음 판 덱이 이걸 본다
     if (!alreadyMarked) wordEl.classList.add('hit');
     card.querySelectorAll('.word').forEach((w) => w.classList.add('done'));
 
@@ -106,7 +118,7 @@ export function createPlayView({ mode, onHome }) {
     // ② 터진다: 파편 + 음(콤보 반음계) + 흔들림(정답 전용) + 진동
     const r = wordEl.getBoundingClientRect();
     burst(r.left + r.width / 2, r.top + r.height / 2);
-    if (mode === 'verb' || s.v >= 2) wordEl.classList.add('caught');
+    if (playMode === 'verb' || s.v >= 2) wordEl.classList.add('caught');
     popSound(combo);
     shake(card, combo >= 5 ? 6 : 3);
     buzz(15);
@@ -131,7 +143,7 @@ export function createPlayView({ mode, onHome }) {
       }
     }
 
-    const cheers = (mode === 'subj' && s.v >= 2) ? CHUNK_CHEERS : CHEERS;
+    const cheers = (playMode === 'subj' && s.v >= 2) ? CHUNK_CHEERS : CHEERS;
     const h = hintLine();
     if (h) { h.textContent = cheers[Math.floor(Math.random() * cheers.length)]; h.className = 'hintline good'; }
 
@@ -139,13 +151,19 @@ export function createPlayView({ mode, onHome }) {
   }
 
   function wrong(wordEl, word, forced) {
-    missedThis = true;
+    missCount += 1;
     combo = 0;
     comboLabel.textContent = '';
     card.classList.remove('glow');
+
+    // 피드백 3단 (Li 2010/2014, 저숙련자엔 명시적 피드백):
+    // ① 첫 오답 → 개그 + 힌트  ② 재시도 기회 1번  ③ 또 틀리면 정답 공개 + 이유 한 줄.
+    // 정답 공개는 도배탭(막 누르기)도 함께 차단한다.
+    if (missCount >= 2) { reveal(); return; }
+
     const key = word ? word.toLowerCase() : null;
     const trap = key ? DODGE[key] : null; // 함정(꾸미는 말) 집계는 DODGE 사전에 있는 단어만
-    if (trap && mode === 'verb') rec.trapTaps += 1;
+    if (trap && playMode === 'verb') rec.trapTaps += 1;
     const d = forced || trap || DODGE_DEFAULT[Math.floor(Math.random() * DODGE_DEFAULT.length)];
 
     // 개그 연출: 말풍선 + 폴짝 도망 + "휙" 소리. 흔들림·빨간색·경고음 없음.
@@ -159,6 +177,24 @@ export function createPlayView({ mode, onHome }) {
 
     const h = hintLine();
     if (h) { h.textContent = d.hint; h.className = 'hintline'; }
+  }
+
+  // 두 번 틀림 → 정답을 보여주고 이유 한 줄. 벌이 아니라 "다음 판의 재료" 톤.
+  function reveal() {
+    busy = true;
+    const s = deck[idx];
+    noteRecent(false);
+    const words = [...card.querySelectorAll('.word')];
+    const targets = playMode === 'subj' ? words.slice(0, s.v) : [words[s.v]];
+    targets.forEach((w) => w && w.classList.add('reveal'));
+    words.forEach((w) => w.classList.add('done'));
+
+    const lemma = verbLemma(s);
+    if (lemma && playMode !== 'subj') registerSeen(lemma); // 목격으로 남는다 — 다음 판의 이유
+
+    const h = hintLine();
+    if (h) { h.textContent = explainLine(s, playMode); h.className = 'hintline explain'; }
+    setTimeout(next, 2600); // 이유를 읽을 시간
   }
 
   function next() {
@@ -175,7 +211,7 @@ export function createPlayView({ mode, onHome }) {
     confetti();
     fanfare();
 
-    const modeName = mode === 'subj' ? '주어 사냥' : '동사 사냥';
+    const modeName = mode === 'subj' ? '주어 사냥' : mode === 'review' ? '오늘의 사냥터' : '동사 사냥';
     const newCards = roundCatches.filter((c) => c.isNew).length;
     const starUps = roundCatches.filter((c) => !c.isNew && c.starUp).length;
 
@@ -231,13 +267,31 @@ export function createPlayView({ mode, onHome }) {
   }
 
   function restart() {
-    deck = makeDeck(mode);
+    deck = fixedDeck ? [...fixedDeck].sort(() => Math.random() - 0.5) : makeDeck(playMode, Math.random, recentAccuracy());
     idx = 0; combo = 0;
     rec = emptyRound(mode);
     roundCatches = [];
     showSentence();
   }
 
+  // 규칙 카드 — 이 모드에 처음 들어왔을 때만. 읽으면(또는 스킵하면) 다신 안 나온다.
+  function showRuleCard() {
+    const r = RULES[playMode];
+    const gate = el('div', 'gate');
+    gate.innerHTML = `
+      <div class="gate__card rule">
+        <div class="gate__emoji">${r.emoji}</div>
+        <h2>${r.title}</h2>
+        ${r.lines.map((l) => `<p class="rule__line">${l}</p>`).join('')}
+        <div class="rule__ex">${r.ex}</div>
+      </div>`;
+    const go = el('button', 'btn', '알겠어, 사냥 시작!');
+    go.onclick = () => { markRuleSeen(playMode); gate.remove(); };
+    gate.querySelector('.gate__card').append(go);
+    root.append(gate);
+  }
+
   showSentence();
+  if (RULES[playMode] && !ruleSeen(playMode)) showRuleCard();
   return { el: root };
 }

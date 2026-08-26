@@ -4,7 +4,10 @@ import { createPlayView } from './ui/play-view.js';
 import { createDexView } from './ui/dex-view.js';
 import { createDressView } from './ui/dress-view.js';
 import { createBadgeView } from './ui/badge-view.js';
-import { getSave, onSaveChange, getGrade, setGrade, GRADES } from './store.js';
+import { createFillView } from './ui/fill-view.js';
+import { createOrderView } from './ui/order-view.js';
+import { makeReviewDeck } from './game.js';
+import { getSave, onSaveChange, getGrade, setGrade, GRADES, dueLemmas } from './store.js';
 
 const app = document.getElementById('app');
 const foot = document.getElementById('foot');
@@ -21,7 +24,15 @@ function updateFoot() {
 }
 
 function goHome() { show(createHomeView({ onPlay: goPlay, onDex: goDex, onDress: goDress, onBadges: goBadges })); }
-function goPlay(mode) { show(createPlayView({ mode, onHome: goHome })); }
+function goPlay(mode) {
+  if (mode === 'fill') { show(createFillView({ onHome: goHome })); return; }
+  if (mode === 'order') { show(createOrderView({ onHome: goHome })); return; }
+  if (mode === 'review') {
+    show(createPlayView({ mode, onHome: goHome, deck: makeReviewDeck(dueLemmas()) }));
+    return;
+  }
+  show(createPlayView({ mode, onHome: goHome }));
+}
 function goDex() { show(createDexView({ onBack: goHome })); }
 function goDress() { show(createDressView({ onBack: goHome })); }
 function goBadges() { show(createBadgeView({ onBack: goHome })); }

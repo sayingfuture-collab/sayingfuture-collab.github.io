@@ -1,7 +1,8 @@
 // 홈 — 점수가 아니라 '완성도'가 주인공 (Completion 동기, 10대 여성 최빈 게임 동기).
 // 캐릭터가 저장을 기억해서 말을 건다 — 리더보드 없는 게임의 관계성은 캐릭터가 채운다.
-import { getSave, getEquipped } from '../store.js';
+import { getSave, getEquipped, dueLemmas } from '../store.js';
 import { hunterSVG, resolveEquip } from '../hunter.js';
+import { VERB_BY_LEMMA } from '../data.js';
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -41,12 +42,38 @@ export function createHomeView({ onPlay, onDex, onDress, onBadges }) {
     const world = el('div', 'home__world', '— 문장 속에 동사들이 숨어 산다 —');
 
     const menu = el('div', 'home__menu');
+
+    // 오늘의 사냥터 — 복습 기한이 찬 동사가 있을 때만 뜬다 (간격 반복의 얼굴)
+    const due = dueLemmas();
+    if (due.length > 0) {
+      const emojis = due.slice(0, 4).map((l) => VERB_BY_LEMMA.get(l)?.emoji ?? '').join('');
+      const reviewBtn = el('button', 'mode-btn review');
+      reviewBtn.innerHTML = `<b>🌅 오늘의 사냥터</b><span>${emojis} 잡았던 동사 ${due.length}마리가 다시 나타났다!</span>`;
+      reviewBtn.onclick = () => onPlay('review');
+      menu.append(reviewBtn);
+    }
+
     const subjBtn = el('button', 'mode-btn primary');
     subjBtn.innerHTML = '<b>🕵️ 주어 사냥터</b><span>1단계 — "누가"를 덩어리째 잡기</span>';
     subjBtn.onclick = () => onPlay('subj');
     const verbBtn = el('button', 'mode-btn');
     verbBtn.innerHTML = '<b>🎯 동사 사냥터</b><span>2단계 — 숨은 동사를 잡아 도감에!</span>';
     verbBtn.onclick = () => onPlay('verb');
+
+    // 진급 사냥터 — 앞 단계 8/10 이면 열린다. 조건이 보이는 자물쇠 (진행형이라 안전)
+    const fillOpen = (save.modeBest?.verb ?? 0) >= 8;
+    const fillBtn = el('button', 'mode-btn' + (fillOpen ? '' : ' locked'));
+    fillBtn.innerHTML = fillOpen
+      ? '<b>👻 유령 소환</b><span>3단계 — 빈칸에 알맞은 be동사 고르기</span>'
+      : '<b>🔒 유령 소환</b><span>동사 사냥터에서 한 번에 8마리 잡으면 열림</span>';
+    if (fillOpen) fillBtn.onclick = () => onPlay('fill');
+    const orderOpen = (save.modeBest?.fill ?? 0) >= 8;
+    const orderBtn = el('button', 'mode-btn' + (orderOpen ? '' : ' locked'));
+    orderBtn.innerHTML = orderOpen
+      ? '<b>🧩 문장 조립</b><span>4단계 — 조각을 순서대로 눌러 문장 만들기</span>'
+      : '<b>🔒 문장 조립</b><span>유령 소환에서 한 번에 8칸 맞히면 열림</span>';
+    if (orderOpen) orderBtn.onclick = () => onPlay('order');
+
     const sub = el('div', 'home__sub');
     const dexBtn = el('button', 'mode-btn');
     dexBtn.innerHTML = '<b>📖 도감</b>';
@@ -58,7 +85,7 @@ export function createHomeView({ onPlay, onDex, onDress, onBadges }) {
     badgeBtn.innerHTML = '<b>🏅 칭호</b>';
     badgeBtn.onclick = onBadges;
     sub.append(dexBtn, dressBtn, badgeBtn);
-    menu.append(subjBtn, verbBtn, sub);
+    menu.append(subjBtn, verbBtn, fillBtn, orderBtn, sub);
 
     root.append(prog, bar, hunter, talk, world, menu);
   }
