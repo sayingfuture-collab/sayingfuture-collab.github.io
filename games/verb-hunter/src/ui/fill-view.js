@@ -36,7 +36,8 @@ export function createFillView({ onHome }) {
     roundLabel.textContent = `${idx + 1} / ${deck.length}`;
     card.innerHTML = '';
     const quest = el('p', 'play__quest');
-    quest.innerHTML = '빈칸의 유령 👻 을 소환하라! <b>알맞은 be동사는?</b>';
+    // 시제는 선택지가 이미 정해줬다 — 주어만 보면 된다고 대놓고 말해준다
+    quest.innerHTML = '빈칸의 유령 👻 을 소환하라! <b>주어를 보고 고르세요</b>';
     const words = el('div', 'words');
     s.w.forEach((word, i) => {
       const w = el('div', 'word' + (i === s.v ? ' blank' : ''), i === s.v ? '👻 ?' : word);
@@ -105,15 +106,15 @@ export function createFillView({ onHome }) {
     setTimeout(next, 720);
   }
 
-  // 왜 그 be동사인지 — 주어와 시제로 짚어주는 힌트
+  // 왜 그 be동사인지 — 선택지가 이미 같은 시제라서, 볼 것은 '주어' 하나뿐이다.
   function fillHint(answer) {
     return {
-      am: '주어가 I(나)일 때는? 그리고 지금 이야기라면?',
-      is: '주어가 한 명/한 개이고 지금 이야기라면?',
-      are: '주어가 여럿(또는 You)이고 지금 이야기라면?',
-      was: '한 명/한 개인데 지난 일(과거)이라면?',
-      were: '여럿인데 지난 일(과거)이라면?',
-    }[answer] || '주어가 몇 명인지, 지금인지 옛날인지 보세요!';
+      am: '주어가 I(나)일 때만 쓰는 짝이에요.',
+      is: '주어가 한 명 / 한 개일 때예요.',
+      are: '주어가 여럿이거나 You일 때예요.',
+      was: '주어가 한 명 / 한 개일 때예요 (지난 일).',
+      were: '주어가 여럿이거나 You일 때예요 (지난 일).',
+    }[answer] || '주어가 몇 명인지 보세요!';
   }
 
   function revealAnswer() {

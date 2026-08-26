@@ -6,6 +6,7 @@ import { createDressView } from './ui/dress-view.js';
 import { createBadgeView } from './ui/badge-view.js';
 import { createFillView } from './ui/fill-view.js';
 import { createOrderView } from './ui/order-view.js';
+import { createBasicView } from './ui/basic-view.js';
 import { makeReviewDeck } from './game.js';
 import { getSave, onSaveChange, getGrade, setGrade, GRADES, dueLemmas } from './store.js';
 
@@ -25,6 +26,7 @@ function updateFoot() {
 
 function goHome() { show(createHomeView({ onPlay: goPlay, onDex: goDex, onDress: goDress, onBadges: goBadges })); }
 function goPlay(mode) {
+  if (mode === 'basic') { show(createBasicView({ onHome: goHome })); return; }
   if (mode === 'fill') { show(createFillView({ onHome: goHome })); return; }
   if (mode === 'order') { show(createOrderView({ onHome: goHome })); return; }
   if (mode === 'review') {

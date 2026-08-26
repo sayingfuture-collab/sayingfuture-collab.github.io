@@ -1,6 +1,6 @@
 // 홈 — 점수가 아니라 '완성도'가 주인공 (Completion 동기, 10대 여성 최빈 게임 동기).
 // 캐릭터가 저장을 기억해서 말을 건다 — 리더보드 없는 게임의 관계성은 캐릭터가 채운다.
-import { getSave, getEquipped, dueLemmas } from '../store.js';
+import { getSave, getEquipped, dueLemmas, basicsDone } from '../store.js';
 import { hunterSVG, resolveEquip } from '../hunter.js';
 import { VERB_BY_LEMMA } from '../data.js';
 
@@ -53,7 +53,16 @@ export function createHomeView({ onPlay, onDex, onDress, onBadges }) {
       menu.append(reviewBtn);
     }
 
-    const subjBtn = el('button', 'mode-btn primary');
+    // 기초 캠프 — 성분 자체를 모르는 학생의 입구. 수료 전이면 여기가 주인공.
+    const done = basicsDone();
+    const basicBtn = el('button', 'mode-btn basic' + (done ? '' : ' primary'));
+    basicBtn.innerHTML = done
+      ? '<b>🚂 기초 캠프 ✅</b><span>0단계 — 다시 보기</span>'
+      : '<b>🚂 기초 캠프</b><span>0단계 — 주어·동사·목적어가 뭔지부터</span>';
+    basicBtn.onclick = () => onPlay('basic');
+    menu.append(basicBtn);
+
+    const subjBtn = el('button', 'mode-btn' + (done ? ' primary' : ''));
     subjBtn.innerHTML = '<b>🕵️ 주어 사냥터</b><span>1단계 — "누가"를 덩어리째 잡기</span>';
     subjBtn.onclick = () => onPlay('subj');
     const verbBtn = el('button', 'mode-btn');

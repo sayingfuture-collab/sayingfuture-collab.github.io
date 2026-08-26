@@ -51,17 +51,24 @@ export function makeDeck(mode, rng = Math.random, accuracy = null) {
 
 // ── 새 사냥터 덱 ─────────────────────────────────────────────
 
-export const BE_FORMS = ['am', 'is', 'are', 'was', 'were'];
+export const BE_PRESENT = ['am', 'is', 'are'];
+export const BE_PAST = ['was', 'were'];
+export const BE_FORMS = [...BE_PRESENT, ...BE_PAST];
 
 /**
- * 빈칸 고르기(산출 1단계): be동사 자리를 비우고 3택.
+ * 빈칸 고르기(산출 1단계): be동사 자리를 비우고 고른다.
  * 탭(재인)에서 고르기(선택 산출)로 — 전이 사다리의 다음 칸.
+ *
+ * 선택지는 반드시 정답과 '같은 시제'끼리만 모은다.
+ * 영어 문장만 봐서는 과거인지 현재인지 알 길이 없어서(뜻을 봐야만 알 수 있어서),
+ * 시제를 섞으면 풀 수 없는 문제가 된다. 시제를 고정하면 묻는 것이
+ * "주어가 몇 명이고 누구냐" 하나로 좁혀진다 — 그게 진짜 배울 것.
  */
 export function makeFillDeck(rng = Math.random) {
   return shuffle([...BE], rng).slice(0, 10).map((s) => {
     const answer = s.w[s.v].replace(/[.!?]$/, '');
-    const others = shuffle(BE_FORMS.filter((f) => f !== answer), rng).slice(0, 2);
-    return { ...s, answer, choices: shuffle([answer, ...others], rng) };
+    const family = BE_PAST.includes(answer) ? BE_PAST : BE_PRESENT;
+    return { ...s, answer, choices: shuffle([...family], rng) };
   });
 }
 

@@ -32,15 +32,16 @@ export const BADGES = [
   { id: 'nofool',   n: '유혹 면역',    r: 2, hidden: true, cond: '함정을 안 밟고 5개 이상 한 번에',
     d: '꾸미는 말들이 전부 손을 흔들었지만 한 번도 안 속았다',
     check: (r) => r.mode === 'verb' && r.trapTaps === 0 && r.firstTryHits >= 5 },
+  // 실력 칭호는 '진짜 사냥터'에서만 — 손잡고 가는 0단계(기초 캠프)에서 나오면 값이 떨어진다.
   { id: 'perfect',  n: '무결점 사냥',  r: 3, hidden: true, cond: '10문장 전부 한 번에',
     d: '망설임 없이 열 번, 전부 정확했다',
-    check: (r) => r.firstTryHits >= 10 },
+    check: (r) => r.mode !== 'basic' && r.firstTryHits >= 10 },
   { id: 'combo10',  n: '연쇄 사냥꾼',  r: 4, hidden: true, cond: '10연속 콤보로 완주',
     d: '한 번도 끊기지 않은 사냥 — 흐름을 탔다는 증거',
-    check: (r) => r.bestCombo >= 10 },
+    check: (r) => r.mode !== 'basic' && r.bestCombo >= 10 },
   { id: 'growth',   n: '어제의 나 초월', r: 2, hidden: true, cond: '지난 판보다 한 번에 더 많이 (만점 유지 포함)',
     // 첫 판 만점이면 '더 많이'가 불가능 — 천장에서는 유지가 곧 성장 (v0.3에서 잡은 버그)
-    check: (r, s) => s.lastFirstTry != null
+    check: (r, s) => r.mode !== 'basic' && s.lastFirstTry != null
       && (r.firstTryHits > s.lastFirstTry || (r.firstTryHits >= 10 && s.lastFirstTry >= 10)) },
   { id: 'chunk',    n: '덩어리 사냥꾼', r: 3, hidden: true, cond: '두 단어 주어를 헤매지 않고 3번',
     d: '주어를 한 단어가 아니라 덩어리로 보기 시작했다',

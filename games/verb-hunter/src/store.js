@@ -89,6 +89,7 @@ function sanitize(raw) {
     modeBest: (raw?.modeBest && typeof raw.modeBest === 'object')
       ? Object.fromEntries(Object.entries(raw.modeBest).map(([m, v]) => [m, int0(v)]))
       : {},
+    basicsDone: raw?.basicsDone === true,   // 기초 캠프 수료 여부
   };
 }
 
@@ -177,6 +178,15 @@ export function recentAccuracy() {
 
 // ── 규칙 카드 ────────────────────────────────────────────────
 
+/** 기초 캠프 수료 — 한 번 수료하면 홈 버튼에 ✅ 가 붙는다 (다시 볼 수는 있다) */
+export function basicsDone() { return state.basicsDone; }
+
+export function markBasicsDone() {
+  if (state.basicsDone) return;
+  state.basicsDone = true;
+  write();
+}
+
 export function ruleSeen(mode) { return state.seenRules.includes(mode); }
 
 export function markRuleSeen(mode) {
@@ -251,11 +261,14 @@ export function getSave() {
  */
 export function recordRound(rec, judgeBadges) {
   state.rounds += 1;
-  if (rec.firstTryHits >= 10) state.perfects += 1;
-  state.modeBest[rec.mode] = Math.max(state.modeBest[rec.mode] ?? 0, rec.firstTryHits);
+  // 기초 캠프(0단계)는 문항 수가 달라서 실력 기록에 섞으면 기준이 망가진다.
+  // 판 수와 칭호 판정에는 들어가되, 최고 기록·성장 비교에는 안 들어간다.
+  const isBasic = rec.mode === 'basic';
+  if (!isBasic && rec.firstTryHits >= 10) state.perfects += 1;
+  if (!isBasic) state.modeBest[rec.mode] = Math.max(state.modeBest[rec.mode] ?? 0, rec.firstTryHits);
   const earned = judgeBadges ? judgeBadges(rec, getSave()).filter((id) => !state.badges.includes(id)) : [];
   state.badges.push(...earned);
-  state.lastFirstTry = rec.firstTryHits; // growth 판정이 끝난 뒤에 갱신해야 한다
+  if (!isBasic) state.lastFirstTry = rec.firstTryHits; // growth 판정이 끝난 뒤에 갱신해야 한다
   write();
   return earned;
 }

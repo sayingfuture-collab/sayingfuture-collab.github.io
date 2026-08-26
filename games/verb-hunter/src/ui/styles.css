@@ -254,6 +254,34 @@ button { font-family: inherit; cursor: pointer; }
 .choice:active { border-color: #7e57c2; background: #f3eefc; }
 .choice.dim { opacity: .35; }
 
+/* ── 0단계 기초 캠프 ── */
+/* 성분마다 고정 색 — 설명·연습·종합에서 같은 색이 반복돼야 색이 곧 이름이 된다 */
+.p-s { color: #1976d2; }  .p-bg-s { background: #e3f2fd !important; border-color: #1976d2 !important; color: #1976d2 !important; }
+.p-v { color: #e8630a; }  .p-bg-v { background: #fff4ec !important; border-color: #e8630a !important; color: #e8630a !important; }
+.p-o { color: #2e7d32; }  .p-bg-o { background: #e8f5e9 !important; border-color: #2e7d32 !important; color: #2e7d32 !important; }
+
+.mode-btn.basic { border-color: #1976d2; }
+.mode-btn.basic b { color: #1976d2; }
+
+.basic__bar { height: 6px; background: #e5e1d8; border-radius: 999px; overflow: hidden; margin: 8px 0 0; }
+.basic__bar i { display: block; height: 100%; background: linear-gradient(90deg, #42a5f5, #1976d2); transition: width .5s; }
+
+.lesson { text-align: center; padding: 4px 2px; }
+.lesson__emoji { font-size: 40px; }
+.lesson__title { font-size: 21px; margin: 4px 0 18px; }
+.lesson__row { display: flex; align-items: center; gap: 10px; justify-content: center; margin-top: 12px; }
+.lesson__flag {
+  font-size: 11px; background: #efece4; color: #777;
+  border-radius: 999px; padding: 3px 9px; flex-shrink: 0;
+}
+.lesson__flag.en { background: #e3f2fd; color: #1976d2; }
+.lesson__sent { font-size: 19px; }
+.lesson__note { font-size: 13px; color: #666; margin-top: 5px; }
+.lesson__rule {
+  font-size: 14.5px; background: #fffbf2; border: 2px dashed #e0c9a0;
+  border-radius: 12px; padding: 12px 10px; margin: 18px 0 16px; line-height: 1.6;
+}
+
 /* 문장 조립: 슬롯과 조각 */
 .words.slots { min-height: 46px; margin-bottom: 14px; }
 .word.slot { border-style: dashed; color: #c9c3b6; min-width: 46px; }
