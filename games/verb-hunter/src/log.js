@@ -9,7 +9,7 @@ import { getGrade } from './store.js';
 export function logRound(rec, save) {
   if (!LOG_URL) return;
   try {
-    const MODE_NAMES = { basic: '기초캠프', subj: '주어', verb: '동사', fill: '유령소환', order: '문장조립', review: '복습' };
+    const MODE_NAMES = { basic: '기초캠프', subj: '주어', verb: '동사', fill: '유령소환', order: '문장조립', review: '복습', train: '특훈' };
     const body = JSON.stringify({
       player: getGrade() || PLAYER, // 등록 화면에서 고른 학년 — 시트의 '이름' 칸
       at: new Date().toISOString(),

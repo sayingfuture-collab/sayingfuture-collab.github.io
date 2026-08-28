@@ -28,7 +28,7 @@ export const GRADES = ['초4', '초5', '초6', '중1', '중2', '중3', '고등',
 
 // 시작 선물 3마리 — endowed progress: "0/25"가 아니라 "3/25"로 시작해야 완주 확률이 오른다.
 // 진단에서 이미 아는 것으로 확인된 쉬운 동사들로 준다 — 거짓 진행이 아니라 사실의 반영.
-const STARTER_LEMMAS = ['run', 'eat', 'go'];
+export const STARTER_LEMMAS = ['run', 'eat', 'go'];
 
 function emptyDex() {
   const dex = {};
@@ -95,6 +95,8 @@ function sanitize(raw) {
       ? Object.fromEntries(Object.entries(raw.modeBest).map(([m, v]) => [m, int0(v)]))
       : {},
     basicsDone: raw?.basicsDone === true,   // 기초 캠프 수료 여부
+    // 특훈(철자 각인)을 마친 동사들 — 도감 카드에 🧠 훈장이 붙는다
+    trained: Array.isArray(raw?.trained) ? raw.trained.filter((l) => typeof l === 'string') : [],
   };
 }
 
@@ -259,6 +261,7 @@ export function getSave() {
     lastFirstTry: state.lastFirstTry, badges: [...state.badges],
     owned: ownedCount(), total: VERBS.length,
     modeBest: { ...state.modeBest },
+    trained: state.trained.length, // 특훈(철자 각인) 마친 동사 수
   };
 }
 
@@ -273,7 +276,7 @@ export function recordRound(rec, judgeBadges) {
   state.rounds += 1;
   // 기초 캠프(0단계)는 문항 수가 달라서 실력 기록에 섞으면 기준이 망가진다.
   // 판 수와 칭호 판정에는 들어가되, 최고 기록·성장 비교에는 안 들어간다.
-  const isBasic = rec.mode === 'basic';
+  const isBasic = rec.mode === 'basic' || rec.mode === 'train';
   if (!isBasic && rec.firstTryHits >= 10) state.perfects += 1;
   if (!isBasic) state.modeBest[rec.mode] = Math.max(state.modeBest[rec.mode] ?? 0, rec.firstTryHits);
   const earned = judgeBadges ? judgeBadges(rec, getSave()).filter((id) => !state.badges.includes(id)) : [];
@@ -281,6 +284,20 @@ export function recordRound(rec, judgeBadges) {
   if (!isBasic) state.lastFirstTry = rec.firstTryHits; // growth 판정이 끝난 뒤에 갱신해야 한다
   write();
   return earned;
+}
+
+// ── 동사 특훈(철자 각인) ─────────────────────────────────────
+export function isTrained(lemma) { return state.trained.includes(lemma); }
+
+export function markTrained(lemma) {
+  if (!state.trained.includes(lemma)) { state.trained.push(lemma); write(); }
+}
+
+export function trainedCount() { return state.trained.length; }
+
+/** 잡은(★1+) 동사 lemma 목록 — 특훈 덱의 재료 */
+export function caughtLemmas() {
+  return Object.entries(state.dex).filter(([, d]) => d.stars > 0).map(([l]) => l);
 }
 
 export function resetAll() {

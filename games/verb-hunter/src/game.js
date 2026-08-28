@@ -1,5 +1,5 @@
 // 순수 게임 로직 — DOM 없음. node --test 로 검사한다.
-import { GENERAL, BE, lemmaOfWord } from './data.js';
+import { GENERAL, BE, lemmaOfWord, VERB_BY_LEMMA } from './data.js';
 
 export function shuffle(a, rng = Math.random) {
   for (let i = a.length - 1; i > 0; i--) {
@@ -169,4 +169,55 @@ export function noteSentenceClear(rec, sentence, firstTry, combo) {
  */
 export function captureKind(firstTry) {
   return firstTry ? 'catch' : 'seen';
+}
+
+// ── 동사 특훈(철자 각인) ─────────────────────────────────────
+// "재인 → 산출" 사다리의 마지막 칸. 잡은 동사를 뜻만 보고 철자로 다시 만든다.
+// 도감에 있는 동사만 나온다 — 안 잡은 동사를 외우라고 하면 그건 그냥 단어장이다.
+const ALPHA = 'abcdefghijklmnopqrstuvwxyz';
+
+/** 정답에 없는 글자에서 미끼 n개 */
+export function decoyLetters(word, n, rng = Math.random) {
+  const pool = [...ALPHA].filter((c) => !word.includes(c));
+  const a = [...pool];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a.slice(0, n);
+}
+
+/** 정답 철자 + 미끼를 섞은 칩 배열 */
+export function trainChips(lemma, rng = Math.random) {
+  const decoys = decoyLetters(lemma, lemma.length >= 5 ? 3 : 2, rng);
+  const all = [...lemma, ...decoys];
+  for (let i = all.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [all[i], all[j]] = [all[j], all[i]];
+  }
+  return all;
+}
+
+/**
+ * 특훈 덱 — 아직 각인 안 한 동사를 먼저, 부족하면 이미 각인한 것으로 채운다.
+ * be동사(am/is/are/was/were)는 철자가 아니라 짝 고르기가 핵심이라 제외한다.
+ * @param {string[]} caught 잡은 동사 lemma 들
+ * @param {string[]} trained 이미 각인한 lemma 들
+ */
+export function makeTrainDeck(caught, trained, rng = Math.random, size = 5) {
+  const pool = caught.filter((l) => {
+    const v = VERB_BY_LEMMA.get(l);
+    return v && v.family === 'act';
+  });
+  const fresh = pool.filter((l) => !trained.includes(l));
+  const old = pool.filter((l) => trained.includes(l));
+  const shuffle = (arr) => {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+  return [...shuffle(fresh), ...shuffle(old)].slice(0, size);
 }

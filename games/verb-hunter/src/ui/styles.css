@@ -293,3 +293,13 @@ button { font-family: inherit; cursor: pointer; }
 /* 자매 게임 다리 — 링크지만 모드 버튼처럼 보이게 */
 a.mode-btn.daily { text-decoration: none; display: block; border-color: #90caf9; background: #f3f9ff; }
 a.mode-btn.daily b { color: #1565c0; }
+
+/* 동사 특훈 — 철자 각인 */
+.mode-btn.train { border-color: #b39ddb; background: #f7f3ff; }
+.mode-btn.train b { color: #5e35b1; }
+.trainface { text-align: center; margin-bottom: 16px; }
+.trainface__emo { font-size: 46px; line-height: 1; }
+.trainface__ko { font-size: 21px; font-weight: bold; color: #333; margin-top: 6px; }
+.word.letter { min-width: 38px; padding: 10px 8px; font-size: 18px; }
+.dexcard.trained { border-color: #7e57c2; box-shadow: 0 0 0 2px #ede7f6 inset; }
+.dexcard .brain { font-size: 13px; margin-top: 2px; }

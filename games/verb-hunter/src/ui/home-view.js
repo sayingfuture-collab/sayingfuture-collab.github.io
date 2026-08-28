@@ -1,6 +1,6 @@
 // 홈 — 점수가 아니라 '완성도'가 주인공 (Completion 동기, 10대 여성 최빈 게임 동기).
 // 캐릭터가 저장을 기억해서 말을 건다 — 리더보드 없는 게임의 관계성은 캐릭터가 채운다.
-import { getSave, getEquipped, dueLemmas, basicsDone } from '../store.js';
+import { getSave, getEquipped, dueLemmas, basicsDone, caughtLemmas, isTrained, STARTER_LEMMAS } from '../store.js';
 import { hunterSVG, resolveEquip } from '../hunter.js';
 import { VERB_BY_LEMMA } from '../data.js';
 
@@ -83,6 +83,19 @@ export function createHomeView({ onPlay, onDex, onDress, onBadges }) {
       : '<b>🔒 문장 조립</b><span>유령 소환에서 한 번에 8칸 맞히면 열림</span>';
     if (orderOpen) orderBtn.onclick = () => onPlay('order');
 
+    // 동사 특훈 — 도감이 어느 정도 찬 뒤에 열리는 '산출' 칸.
+    // 잡은 동사가 재료라서, 사냥을 해야 특훈할 게 생긴다 (수집 → 암기 순서).
+    const trainable = caughtLemmas().filter((l) => VERB_BY_LEMMA.get(l)?.family === 'act');
+    // 튜토리얼 선물 3장은 '잡은 것'이 아니다 — 직접 사냥한 동사가 3마리 있어야 연다.
+    const hunted = trainable.filter((l) => !STARTER_LEMMAS.includes(l));
+    const trainOpen = hunted.length >= 3;
+    const untrained = trainable.filter((l) => !isTrained(l)).length;
+    const trainBtn = el('button', 'mode-btn train' + (trainOpen ? '' : ' locked'));
+    trainBtn.innerHTML = trainOpen
+      ? `<b>🧠 동사 특훈</b><span>잡은 동사를 철자로 각인 — ${untrained > 0 ? `아직 ${untrained}마리 남았다!` : '전부 각인 완료 ✨ 복습하기'}</span>`
+      : `<b>🔒 동사 특훈</b><span>동사를 ${3 - hunted.length}마리 더 잡으면 열림</span>`;
+    if (trainOpen) trainBtn.onclick = () => onPlay('train');
+
     // 자매 게임으로 가는 다리 — 매일 한 판짜리 «오늘의 영어»
     const dailyBtn = el('a', 'mode-btn daily');
     dailyBtn.href = '../daily-english/index.html';
@@ -99,7 +112,7 @@ export function createHomeView({ onPlay, onDex, onDress, onBadges }) {
     badgeBtn.innerHTML = '<b>🏅 칭호</b>';
     badgeBtn.onclick = onBadges;
     sub.append(dexBtn, dressBtn, badgeBtn);
-    menu.append(subjBtn, verbBtn, fillBtn, orderBtn, dailyBtn, sub);
+    menu.append(subjBtn, verbBtn, fillBtn, orderBtn, trainBtn, dailyBtn, sub);
 
     root.append(prog, bar, hunter, talk, world, menu);
   }

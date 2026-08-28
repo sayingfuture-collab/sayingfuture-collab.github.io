@@ -25,6 +25,10 @@ export const BADGES = [
     d: '이 사냥터의 모든 동사가 네 이름을 안다',
     check: (r, s) => s.owned >= s.total },
 
+  { id: 'train5',   n: '각인 5', r: 2, hidden: false, cond: '동사 5마리 철자 각인',
+    d: '잡은 동사를 손으로 다시 쓸 수 있게 됐다 — 진짜 내 것',
+    check: (r, s) => (s.trained ?? 0) >= 5 },
+
   // 숨은 칭호 — 수행형. 따려고 하는 게 아니라, 해냈더니 뜨는 것.
   { id: 'ghost',    n: '유령 저격수',  r: 3, hidden: true, cond: 'be동사 5문장 전부 한 번에',
     d: '남들 눈에 안 보이는 유령(be동사)만 골라 잡았다 — 그 눈이 생겼다는 뜻',
@@ -41,7 +45,7 @@ export const BADGES = [
     check: (r) => r.mode !== 'basic' && r.bestCombo >= 10 },
   { id: 'growth',   n: '어제의 나 초월', r: 2, hidden: true, cond: '지난 판보다 한 번에 더 많이 (만점 유지 포함)',
     // 첫 판 만점이면 '더 많이'가 불가능 — 천장에서는 유지가 곧 성장 (v0.3에서 잡은 버그)
-    check: (r, s) => r.mode !== 'basic' && s.lastFirstTry != null
+    check: (r, s) => r.mode !== 'basic' && r.mode !== 'train' && s.lastFirstTry != null
       && (r.firstTryHits > s.lastFirstTry || (r.firstTryHits >= 10 && s.lastFirstTry >= 10)) },
   { id: 'chunk',    n: '덩어리 사냥꾼', r: 3, hidden: true, cond: '두 단어 주어를 헤매지 않고 3번',
     d: '주어를 한 단어가 아니라 덩어리로 보기 시작했다',
