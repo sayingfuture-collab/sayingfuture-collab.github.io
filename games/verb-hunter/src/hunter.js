@@ -1,4 +1,4 @@
-// 사냥꾼 캐릭터 — SVG 파츠 조합.
+// 사냥꾼 캐릭터(고양이) — SVG 파츠 조합.
 // 근거(CHI 2016, Birk et al.): '직접 만든' 캐릭터여야 동일시→내재동기→플레이 지속이 생긴다.
 // 파츠 언락 조건 = 도감 소유 수 — 수집(Completion)과 꾸미기(Design)를 한 루프로 묶는다.
 
@@ -46,39 +46,57 @@ export function resolveEquip(equipped, owned) {
 
 const HAT_SVG = {
   'hat-none': '',
-  'hat-cap': '<path d="M20 26 Q40 8 60 26 L60 30 L14 30 L14 27 Z" fill="#4a7c59"/><rect x="14" y="27" width="20" height="5" rx="2" fill="#3a6247"/>',
-  'hat-ribbon': '<circle cx="28" cy="20" r="7" fill="#e8638c"/><circle cx="44" cy="20" r="7" fill="#e8638c"/><circle cx="36" cy="22" r="4" fill="#c94b73"/>',
-  'hat-crown': '<path d="M22 28 L26 14 L36 24 L46 14 L50 28 Z" fill="#f4b942" stroke="#d99a1b" stroke-width="1.5"/>',
+  // 모자는 귀 사이에 얹힌다 — 고양이 귀를 덮지 않게 폭을 좁게 잡았다
+  'hat-cap': '<path d="M22 24 Q45 6 68 24 L68 28 L18 28 L18 25 Z" fill="#4a7c59"/><rect x="18" y="25" width="22" height="5" rx="2" fill="#3a6247"/>',
+  'hat-ribbon': '<circle cx="60" cy="20" r="7" fill="#e8638c"/><circle cx="72" cy="18" r="6" fill="#e8638c"/><circle cx="66" cy="20" r="3.5" fill="#c94b73"/>',
+  'hat-crown': '<path d="M30 24 L34 11 L45 21 L56 11 L60 24 Z" fill="#f4b942" stroke="#d99a1b" stroke-width="1.5"/>',
 };
 const EYES_SVG = {
-  'eyes-dot': '<circle cx="29" cy="46" r="3.2" fill="#222"/><circle cx="47" cy="46" r="3.2" fill="#222"/>',
-  'eyes-star': '<text x="24" y="51" font-size="11">✨</text><text x="42" y="51" font-size="11">✨</text>',
-  'eyes-sleep': '<path d="M25 46 Q29 49 33 46" stroke="#222" stroke-width="2" fill="none"/><path d="M43 46 Q47 49 51 46" stroke="#222" stroke-width="2" fill="none"/>',
-  'eyes-heart': '<text x="23" y="51" font-size="10">💗</text><text x="41" y="51" font-size="10">💗</text>',
+  'eyes-dot': '<ellipse cx="36" cy="46" rx="3.4" ry="4" fill="#222"/><ellipse cx="54" cy="46" rx="3.4" ry="4" fill="#222"/>'
+    + '<circle cx="37.2" cy="44.6" r="1.2" fill="#fff"/><circle cx="55.2" cy="44.6" r="1.2" fill="#fff"/>',
+  'eyes-star': '<text x="31" y="51" font-size="11">✨</text><text x="49" y="51" font-size="11">✨</text>',
+  'eyes-sleep': '<path d="M32 46 Q36 49.5 40 46" stroke="#222" stroke-width="2" fill="none" stroke-linecap="round"/>'
+    + '<path d="M50 46 Q54 49.5 58 46" stroke="#222" stroke-width="2" fill="none" stroke-linecap="round"/>',
+  'eyes-heart': '<text x="30" y="51" font-size="10">💗</text><text x="48" y="51" font-size="10">💗</text>',
 };
 const ACC_SVG = {
   'acc-none': '',
-  'acc-net': '<line x1="62" y1="44" x2="76" y2="24" stroke="#8a6d3b" stroke-width="3"/><ellipse cx="79" cy="19" rx="8" ry="9" fill="none" stroke="#8a6d3b" stroke-width="2"/><path d="M73 14 L85 24 M71 19 L87 19 M73 24 L85 14" stroke="#c9b899" stroke-width="1"/>',
-  'acc-scarf': '<rect x="24" y="60" width="28" height="7" rx="3.5" fill="#e8630a"/><rect x="42" y="64" width="7" height="12" rx="3" fill="#e8630a"/>',
-  'acc-cape': '<path d="M16 62 Q12 84 20 88 L26 66 Z" fill="#7c4ae8"/><path d="M60 62 Q64 84 56 88 L50 66 Z" fill="#7c4ae8"/>',
+  'acc-net': '<line x1="70" y1="52" x2="82" y2="32" stroke="#8a6d3b" stroke-width="3" stroke-linecap="round"/>'
+    + '<ellipse cx="85" cy="27" rx="8" ry="9" fill="none" stroke="#8a6d3b" stroke-width="2"/>'
+    + '<path d="M79 22 L91 32 M77 27 L93 27 M79 32 L91 22" stroke="#c9b899" stroke-width="1"/>',
+  'acc-scarf': '<rect x="31" y="63" width="28" height="7" rx="3.5" fill="#e8630a"/><rect x="49" y="67" width="7" height="12" rx="3" fill="#e8630a"/>',
+  'acc-cape': '<path d="M23 66 Q18 88 27 92 L33 70 Z" fill="#7c4ae8"/><path d="M67 66 Q72 88 63 92 L57 70 Z" fill="#7c4ae8"/>',
 };
 
 /**
- * 사냥꾼 SVG 문자열. size는 CSS로 조절하고 여기는 viewBox 고정.
- * 몸통은 단순한 콩 모양 — 파츠가 주인공이 되게 바탕은 심심하게 둔다.
+ * 고양이 사냥꾼 SVG 문자열. size는 CSS로 조절하고 여기는 viewBox 고정.
+ * 스킨 그림(assets/skins)이 없을 때 나오는 기본 모습이자, 커스텀 조합의 바탕.
+ * 파츠가 주인공이 되게 바탕은 심심하게 둔다.
  */
 export function hunterSVG(equipped) {
   const e = { ...DEFAULT_EQUIP, ...equipped };
   return (
-    '<svg viewBox="0 0 90 92" xmlns="http://www.w3.org/2000/svg">' +
-    // 몸통
-    '<ellipse cx="38" cy="72" rx="20" ry="16" fill="#f7d9a8"/>' +
+    '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">' +
+    // 꼬리 — 몸 뒤에서 살짝 올라온다
+    '<path d="M64 80 Q80 78 78 64 Q77 58 71 59" fill="none" stroke="#f2c894" stroke-width="7" stroke-linecap="round"/>' +
+    // 몸통 (통통하게)
+    '<ellipse cx="45" cy="76" rx="21" ry="16" fill="#f7d9a8"/>' +
+    // 귀 (바깥 → 안쪽 분홍)
+    '<path d="M28 30 L26 13 L41 23 Z" fill="#f7d9a8" stroke="#e8cfa0" stroke-width="1.5" stroke-linejoin="round"/>' +
+    '<path d="M62 30 L64 13 L49 23 Z" fill="#f7d9a8" stroke="#e8cfa0" stroke-width="1.5" stroke-linejoin="round"/>' +
+    '<path d="M30 27 L29 18 L37 24 Z" fill="#f7b1a0"/>' +
+    '<path d="M60 27 L61 18 L53 24 Z" fill="#f7b1a0"/>' +
     // 얼굴
-    '<circle cx="38" cy="44" r="22" fill="#fbe8c8" stroke="#e8cfa0" stroke-width="1.5"/>' +
+    '<circle cx="45" cy="44" r="23" fill="#fbe8c8" stroke="#e8cfa0" stroke-width="1.5"/>' +
     // 볼터치
-    '<circle cx="24" cy="53" r="3.5" fill="#f7b1a0" opacity=".7"/><circle cx="52" cy="53" r="3.5" fill="#f7b1a0" opacity=".7"/>' +
-    // 입
-    '<path d="M34 56 Q38 59 42 56" stroke="#b5836b" stroke-width="1.8" fill="none" stroke-linecap="round"/>' +
+    '<circle cx="30" cy="53" r="4" fill="#f7b1a0" opacity=".7"/><circle cx="60" cy="53" r="4" fill="#f7b1a0" opacity=".7"/>' +
+    // 수염
+    '<g stroke="#e0c49a" stroke-width="1.2" stroke-linecap="round">' +
+    '<line x1="20" y1="50" x2="28" y2="52"/><line x1="20" y1="55" x2="28" y2="55"/>' +
+    '<line x1="70" y1="50" x2="62" y2="52"/><line x1="70" y1="55" x2="62" y2="55"/></g>' +
+    // 코 + 입 (고양이 ω)
+    '<path d="M43 54 L47 54 L45 57 Z" fill="#e88a7d"/>' +
+    '<path d="M45 57 Q41.5 60.5 39 57.5 M45 57 Q48.5 60.5 51 57.5" stroke="#b5836b" stroke-width="1.6" fill="none" stroke-linecap="round"/>' +
     (EYES_SVG[e.eyes] || EYES_SVG['eyes-dot']) +
     (HAT_SVG[e.hat] || '') +
     (ACC_SVG[e.acc] || '') +
