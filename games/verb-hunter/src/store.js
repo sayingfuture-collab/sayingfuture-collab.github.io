@@ -2,7 +2,7 @@
 // 저장이 바뀌면 listeners 로 알린다 (화면 갱신을 손으로 부르다 빠뜨리는 사고 방지 — 위인전에서 배운 것).
 import { VERB_BY_LEMMA, VERBS } from './data.js';
 import { HUNTER_PARTS } from './hunter.js';
-import { SKIN_BY_ID } from './skins.js';
+import { SKIN_BY_ID, FREE_SKINS, skinPrice } from './skins.js';
 
 export function createStore(key) {
   try {
@@ -51,7 +51,7 @@ function daysBetween(fromStamp, toStamp) {
 }
 
 // 저장은 사용자가 고칠 수 있다. 아는 lemma·말이 되는 값만 남긴다 (위인전 sanitize 패턴).
-function sanitize(raw) {
+export function sanitize(raw) {
   const dex = emptyDex();
   if (raw?.dex && typeof raw.dex === 'object') {
     for (const [lemma, d] of Object.entries(raw.dex)) {
@@ -98,9 +98,17 @@ function sanitize(raw) {
     basicsDone: raw?.basicsDone === true,   // 기초 캠프 수료 여부
     // 특훈(철자 각인)을 마친 동사들 — 도감 카드에 🧠 훈장이 붙는다
     trained: Array.isArray(raw?.trained) ? raw.trained.filter((l) => typeof l === 'string') : [],
-    // 완성형 스킨: 입고 있는 것(null = 커스텀 조합) + 해금 컷씬을 이미 본 것들
+    // 완성형 스킨: 입고 있는 것(null = 커스텀 조합) + 산 것들 + 쓴 발자국
+    // 잔액을 따로 저장하지 않는다 — 잔액 = 누적 포획 - 쓴 발자국. 저장이 어긋날 여지를 없앤다.
     skin: SKIN_BY_ID.has(raw?.skin) ? raw.skin : null,
-    seenSkins: Array.isArray(raw?.seenSkins) ? raw.seenSkins.filter((x) => SKIN_BY_ID.has(x)) : [],
+    // 입고 있는 스킨은 가진 것으로 친다. 예전 규칙(도감 진행도로 자동 해금)에서 얻어 입고
+    // 있던 아이한테서 도로 뺏으면 벌처럼 느껴진다 — 이미 준 것은 그대로 둔다.
+    ownedSkins: [...new Set([
+      ...FREE_SKINS,
+      ...(SKIN_BY_ID.has(raw?.skin) ? [raw.skin] : []),
+      ...(Array.isArray(raw?.ownedSkins) ? raw.ownedSkins.filter((x) => SKIN_BY_ID.has(x)) : []),
+    ])],
+    pawsSpent: int0(raw?.pawsSpent),
   };
 }
 
@@ -266,6 +274,7 @@ export function getSave() {
     owned: ownedCount(), total: VERBS.length,
     modeBest: { ...state.modeBest },
     trained: state.trained.length, // 특훈(철자 각인) 마친 동사 수
+    paws: paws(),                  // 🐾 쓸 수 있는 발자국
   };
 }
 
@@ -304,27 +313,41 @@ export function caughtLemmas() {
   return Object.entries(state.dex).filter(([, d]) => d.stars > 0).map(([l]) => l);
 }
 
-// ── 완성형 스킨 ──────────────────────────────────────────────
+// ── 완성형 스킨 · 🐾 발자국 ────────────────────────────────
+// 발자국은 동사를 잡을 때마다 1개씩 쌓인다 (= 누적 포획 수). 스킨을 사면 줄어든다.
+// 커스텀 파츠는 여기서 안 쓴다 — 그건 도감 진행도로 열리는 무료 축이다.
+
+/** 지금 쓸 수 있는 발자국 */
+export function paws() {
+  return Math.max(0, state.catches - state.pawsSpent);
+}
+
 /** 입고 있는 스킨 id. null 이면 커스텀 조합을 쓴다 */
 export function getSkin() { return state.skin; }
 
-/** null 을 넣으면 커스텀 조합으로 되돌아간다 */
+/** null 을 넣으면 커스텀 조합으로 되돌아간다. 안 산 스킨은 못 입는다 */
 export function setSkin(id) {
-  if (id !== null && !SKIN_BY_ID.has(id)) return;
+  if (id !== null && !state.ownedSkins.includes(id)) return;
   state.skin = id;
   write();
 }
 
-export function getSeenSkins() { return [...state.seenSkins]; }
+export function getOwnedSkins() { return [...state.ownedSkins]; }
 
-export function markSkinsSeen(ids) {
-  let changed = false;
-  for (const id of ids) {
-    if (!SKIN_BY_ID.has(id) || state.seenSkins.includes(id)) continue;
-    state.seenSkins.push(id);
-    changed = true;
-  }
-  if (changed) write();
+export function hasSkin(id) { return state.ownedSkins.includes(id); }
+
+/**
+ * 스킨 구매. 잔액이 모자라거나 이미 있으면 아무 일도 안 일어난다.
+ * @returns {boolean} 실제로 샀는가 (구매 연출을 띄울지 판단하는 값)
+ */
+export function buySkin(id) {
+  if (!SKIN_BY_ID.has(id) || state.ownedSkins.includes(id)) return false;
+  const cost = skinPrice(id);
+  if (paws() < cost) return false;
+  state.pawsSpent += cost;
+  state.ownedSkins.push(id);
+  write();
+  return true;
 }
 
 export function resetAll() {

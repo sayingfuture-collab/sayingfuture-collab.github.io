@@ -328,7 +328,6 @@ a.mode-btn.daily b { color: #1565c0; }
   cursor: pointer; text-align: center;
 }
 .skincard.on { border-color: #e8630a; background: #fff4ec; }
-.skincard.locked { opacity: .55; cursor: default; }
 .skincard__thumb {
   width: 100%; aspect-ratio: 1; border-radius: 10px; background: #faf6ef;
   display: flex; align-items: center; justify-content: center; overflow: hidden;
@@ -339,7 +338,7 @@ a.mode-btn.daily b { color: #1565c0; }
 .skincard__need { font-size: 11px; color: #999; }
 
 /* 스킨 해금 컷씬 */
-.reveal__card { max-width: 320px; }
+.reveal__card { max-width: 400px; padding: 22px 16px 20px; }
 .reveal__tag {
   display: inline-block; font-size: 12px; font-weight: bold; letter-spacing: 1px;
   color: #e8630a; background: #fff4ec; border-radius: 999px; padding: 4px 12px; margin-bottom: 10px;
@@ -348,3 +347,115 @@ a.mode-btn.daily b { color: #1565c0; }
 .reveal__name { font-size: 20px; margin-bottom: 6px; }
 .reveal__line { font-size: 14px; color: #666; line-height: 1.6; margin-bottom: 14px; }
 @keyframes revealPop { from { transform: scale(.4) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* 스킨 상점 — 🐾 발자국 */
+.wallet {
+  display: flex; align-items: baseline; justify-content: center; gap: 10px;
+  background: #fff8f2; border: 1.5px solid #f0d5bd; border-radius: 12px;
+  padding: 10px 12px; margin-bottom: 12px;
+}
+.wallet b { font-size: 20px; color: #e8630a; }
+.wallet span { font-size: 12px; color: #a35b00; }
+.dress__hint { font-size: 12.5px; color: #999; margin-bottom: 10px; }
+.skincard.buyable { border-color: #f0c9a0; }
+.skincard.poor { opacity: .6; cursor: default; }
+.skincard__thumb.locked img { filter: grayscale(1) brightness(1.35) contrast(.5); opacity: .5; }
+
+/* 스킨 등급 — 색만 봐도 급이 읽히게 */
+.skincard { border-color: color-mix(in srgb, var(--grade, #ddd) 45%, #fff); }
+.skincard.on { border-color: var(--grade, #e8630a); }
+.skincard__thumb { position: relative; }
+.gradetag {
+  position: absolute; top: 4px; left: 4px; z-index: 1;
+  font-size: 10px; font-weight: bold; color: #fff; letter-spacing: .5px;
+  background: var(--grade, #999); border-radius: 999px; padding: 2px 7px;
+}
+.reveal__tag { background: color-mix(in srgb, var(--grade, #e8630a) 14%, #fff); color: var(--grade, #e8630a); }
+.reveal__video { width: 100%; border-radius: 14px; display: block; }
+
+/* 스킨 해금 컷씬 — 숲 안쪽에서 뚜벅뚜벅 걸어 나온다.
+   그림 한 장으로 '걷기'를 만드는 건 다리가 아니라 리듬이다:
+   한 걸음마다 몸이 위로 튀고(bob) 좌우로 기울고(tilt), 뒤에 발자국이 남는다.
+   바깥(walker)은 '다가오는 것'(작다→크다·흐리다→선명), 안쪽(step)은 '걷는 것'을 맡는다.
+   한 요소에 둘 다 넣으면 transform 이 서로 덮어써서 걸음이 통째로 사라진다. */
+.reveal__scene {
+  /* 가로로 눕힌 폰에서는 무대가 화면을 넘긴다 — 높이를 화면에 맞춰 접어준다 */
+  position: relative; width: 100%; height: min(240px, 42vh); margin: 0 auto 14px;
+  border-radius: 16px; overflow: hidden;
+  background:
+    radial-gradient(120% 70% at 50% 30%, rgba(255,255,255,.55), rgba(255,255,255,0) 70%),
+    linear-gradient(#e6f0e0 0%, #d3e6ca 54%, #bed6b2 54%, #aac79c 100%);
+}
+.reveal__paw {
+  position: absolute; opacity: 0; color: #6f8a66; line-height: 1;
+  transform-origin: 50% 50%;
+  animation: pawStamp 1.9s ease-out both;
+}
+@keyframes pawStamp {
+  0%   { opacity: 0; transform: scale(.5); }
+  10%  { opacity: .8; transform: scale(1); }
+  100% { opacity: .25; transform: scale(1); }
+}
+.reveal__dust {
+  position: absolute; left: 50%; bottom: 5px; width: 132px; height: 19px; margin-left: -66px;
+  border-radius: 50%; background: rgba(110,135,100,.4); opacity: 0;
+  animation: dustPuff .5s ease-out 1.68s forwards;  /* 같은 이유 — 도착 전에 먼지가 보이면 안 된다 */
+}
+@keyframes dustPuff {
+  0%   { opacity: .55; transform: scale(.35); }
+  100% { opacity: 0;   transform: scale(1.7); }
+}
+.reveal__walker {
+  position: absolute; left: 50%; bottom: 8px; width: 170px; margin-left: -85px;
+  animation: walkIn 1.75s cubic-bezier(.32,.05,.6,1) both;
+}
+@keyframes walkIn {
+  0%   { transform: translate(-48px, 48px) scale(.2); opacity: 0; filter: blur(3px); }
+  10%  { opacity: 1; }
+  100% { transform: translate(0, 0) scale(1); opacity: 1; filter: blur(0); }
+}
+/* .44s × 4 = 1.76s — 다가오는 시간과 딱 맞춰야 도착하면서 걸음이 멎는다 */
+.reveal__step {
+  transform-origin: 50% 100%;
+  /* land 는 forwards 여야 한다. both 면 지연 전에도 0% 프레임(눌린 모양)을 뒤에서 덮어써서
+     걸음(stepBob)이 통째로 안 보인다 — 뒤에 오는 애니메이션이 같은 속성을 이긴다. */
+  animation: stepBob .44s ease-in-out 4 both, land .3s ease-out 1.74s forwards;
+}
+@keyframes stepBob {
+  0%   { transform: translateY(0) rotate(0deg); }
+  20%  { transform: translateY(-9%) rotate(-2.6deg); }
+  40%  { transform: translateY(0) rotate(0deg) scale(1.02, .97); }
+  60%  { transform: translateY(-9%) rotate(2.6deg); }
+  80%  { transform: translateY(0) rotate(0deg) scale(1.02, .97); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+@keyframes land {
+  0%   { transform: scale(1.07, .93); }
+  55%  { transform: scale(.98, 1.03); }
+  100% { transform: none; }
+}
+/* 글은 고양이가 도착한 뒤에 올라온다 — 걸어오는 동안은 화면에 고양이만 있어야 한다 */
+.reveal__tag, .reveal__name, .reveal__line, .reveal .btns {
+  animation: riseIn .35s ease-out both;
+}
+.reveal__tag  { animation-delay: 1.80s; }
+.reveal__name { animation-delay: 1.88s; }
+.reveal__line { animation-delay: 1.96s; }
+.reveal .btns { animation-delay: 2.04s; }
+@keyframes riseIn { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
+.reveal__skip {
+  position: absolute; left: 0; right: 0; bottom: 5px;
+  font-size: 11px; color: #7f8c78;
+  animation: riseIn .4s ease-out .9s both;
+}
+/* 건너뛰기 / 모션 최소화 — 전부 끝난 상태로 못 박는다 */
+.reveal.done .reveal__walker, .reveal.done .reveal__step,
+.reveal.done .reveal__tag, .reveal.done .reveal__name,
+.reveal.done .reveal__line, .reveal.done .btns {
+  animation: none; opacity: 1; transform: none; filter: none;
+}
+.reveal.done .reveal__paw { animation: none; opacity: .25; transform: none; }
+.reveal.done .reveal__dust, .reveal.done .reveal__skip { display: none; }
+/* 무대는 이제 장면(또는 영상)을 통째로 담는다 — 옛 150px 틀과 팝 연출은 걷어낸다.
+   (안 걷어내면 걸어오는 장면이 150px 안에 갇히고, 그 위에 팝까지 겹쳐 이중으로 튄다) */
+.reveal__stage { width: 100%; animation: none; }

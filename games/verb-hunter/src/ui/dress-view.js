@@ -1,11 +1,12 @@
-// 꾸미기 — 두 축을 나란히 둔다.
-//  · 커스텀 조합: 직접 만든 캐릭터여야 동일시→플레이 지속이 생긴다 (CHI 2016).
-//  · 완성 스킨:   도감을 채우다 보면 통째로 열리는 옷. 조합을 잠그지 않고, 언제든 커스텀으로 돌아온다.
-// 둘 다 재화는 하나 — 도감 소유 수. 수집이 꾸미기의 값이다.
+// 꾸미기 — 두 축이 서로 다른 재화를 쓴다.
+//  · 🧩 커스텀 조합: 도감 진행도로 자동 해금. 자기표현이라 값을 안 매긴다 (CHI 2016).
+//  · ✨ 스킨 상점:   🐾 발자국으로 산다. 원래 '상품' 성격이라 팔아도 자연스럽다.
+// 스킨은 조합을 잠그지 않고, 언제든 커스텀으로 되돌아올 수 있다.
 import { HUNTER_PARTS, SLOTS, SLOT_NAME, isUnlocked, resolveEquip } from '../hunter.js';
-import { SKINS, skinUnlocked, skinImage } from '../skins.js';
-import { equipPart, ownedCount, getSkin, setSkin, getEquipped } from '../store.js';
+import { SKINS, skinImage, skinPrice, gradeOf } from '../skins.js';
+import { equipPart, ownedCount, getSkin, setSkin, getEquipped, paws, hasSkin, buySkin } from '../store.js';
 import { hunterFigure } from './hunter-figure.js';
+import { showSkinReveal } from './skin-reveal.js';
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -30,9 +31,8 @@ export function createDressView({ onBack }) {
     root.append(el('div', 'dress__wearing',
       skinId ? `입은 스킨: ${SKINS.find((s) => s.id === skinId)?.name ?? ''}` : '내가 조합한 사냥꾼'));
 
-    // 탭
     const tabs = el('div', 'dress__tabs');
-    for (const [key, label] of [['custom', '🧩 커스텀 조합'], ['skin', '✨ 완성 스킨']]) {
+    for (const [key, label] of [['custom', '🧩 커스텀 조합'], ['skin', '✨ 스킨 상점']]) {
       const b = el('button', 'tabbtn' + (tab === key ? ' on' : ''), label);
       b.onclick = () => { tab = key; render(); };
       tabs.append(b);
@@ -40,7 +40,7 @@ export function createDressView({ onBack }) {
     root.append(tabs);
 
     if (tab === 'custom') renderCustom(owned, skinId);
-    else renderSkins(owned, skinId);
+    else renderShop(skinId);
 
     const back = el('div', 'backrow');
     const btn = el('button', 'btn ghost', '홈으로');
@@ -49,8 +49,9 @@ export function createDressView({ onBack }) {
     root.append(back);
   }
 
+  // ── 커스텀 조합: 도감 진행도로 열린다. 공짜다 ──────────────
   function renderCustom(owned, skinId) {
-    // 스킨을 입은 채로 조합을 만지면 미리보기가 안 바뀐다 — 벗는 버튼을 먼저 준다.
+    root.append(el('div', 'dress__hint', `도감을 채우면 파츠가 열려요 · 지금 도감 ${owned}마리`));
     if (skinId) {
       const note = el('div', 'dress__note');
       note.append(el('span', null, '스킨을 입고 있어요. 조합을 보려면 벗어야 해요.'));
@@ -80,26 +81,48 @@ export function createDressView({ onBack }) {
     return resolveEquip(getEquipped(), ownedCount());
   }
 
-  function renderSkins(owned, skinId) {
+  // ── 스킨 상점: 🐾 발자국으로 산다 ──────────────────────────
+  function renderShop(skinId) {
+    const bal = paws();
+    const wallet = el('div', 'wallet');
+    wallet.innerHTML = `<b>🐾 ${bal}</b><span>동사를 한 마리 잡을 때마다 발자국 1개</span>`;
+    root.append(wallet);
+
     const grid = el('div', 'skin__grid');
     for (const s of SKINS) {
-      const open = skinUnlocked(s.id, owned);
-      const cardEl = el('button', 'skincard' + (skinId === s.id ? ' on' : '') + (open ? '' : ' locked'));
+      const have = hasSkin(s.id);
+      const price = skinPrice(s.id);
+      const g = gradeOf(s.id);
+      const afford = bal >= price;
+      const cardEl = el('button', 'skincard'
+        + (skinId === s.id ? ' on' : '')
+        + (have ? '' : (afford ? ' buyable' : ' poor')));
+
+      cardEl.style.setProperty('--grade', g.color);
       const thumb = el('div', 'skincard__thumb');
-      if (open) {
-        const img = document.createElement('img');
-        img.alt = s.name;
-        img.addEventListener('error', () => { thumb.classList.add('noimg'); thumb.textContent = '🏹'; });
-        img.src = skinImage(s.id);
-        thumb.append(img);
-      } else {
-        thumb.classList.add('noimg');
-        thumb.textContent = '🔒';
-      }
+      thumb.append(el('span', 'gradetag', g.name));
+      const img = document.createElement('img');
+      img.alt = s.name;
+      img.addEventListener('error', () => { thumb.classList.add('noimg'); thumb.textContent = '🐾'; });
+      img.src = skinImage(s.id);
+      thumb.append(img);
+      // 아직 안 산 스킨은 실루엣으로 — 뭘 사는지는 보이되 '가진 느낌'은 안 나게
+      if (!have) thumb.classList.add('locked');
       cardEl.append(thumb);
-      cardEl.append(el('div', 'skincard__name', open ? s.name : '???'));
-      cardEl.append(el('div', 'skincard__need', open ? (skinId === s.id ? '입는 중' : '입기') : `도감 ${s.need}마리`));
-      if (open) cardEl.onclick = () => { setSkin(s.id); render(); };
+
+      cardEl.append(el('div', 'skincard__name', s.name));
+      const foot = el('div', 'skincard__need');
+      if (have) foot.textContent = skinId === s.id ? '입는 중' : '입기';
+      else if (s.free) foot.textContent = '기본 지급';
+      else if (afford) foot.textContent = `🐾 ${price} 사기`;
+      else foot.textContent = `🐾 ${price} (${price - bal} 부족)`;
+      cardEl.append(foot);
+
+      cardEl.onclick = () => {
+        if (have) { setSkin(s.id); render(); return; }
+        if (!afford) return;
+        if (buySkin(s.id)) showSkinReveal(s, render);
+      };
       grid.append(cardEl);
     }
     root.append(grid);

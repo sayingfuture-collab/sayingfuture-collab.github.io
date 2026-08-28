@@ -9,9 +9,7 @@ import { createOrderView } from './ui/order-view.js';
 import { createBasicView } from './ui/basic-view.js';
 import { createTrainView } from './ui/train-view.js';
 import { makeReviewDeck } from './game.js';
-import { getSave, onSaveChange, getGrade, setGrade, GRADES, dueLemmas, getSeenSkins, ownedCount, markSkinsSeen } from './store.js';
-import { pendingSkinReveal, unlockedSkins } from './skins.js';
-import { showSkinReveal } from './ui/skin-reveal.js';
+import { getSave, onSaveChange, getGrade, setGrade, GRADES, dueLemmas } from './store.js';
 
 const app = document.getElementById('app');
 const foot = document.getElementById('foot');
@@ -24,21 +22,11 @@ function show(view) {
 
 function updateFoot() {
   const s = getSave();
-  foot.textContent = s.rounds > 0 ? `${s.rounds}판 완주 · 잡은 동사 ${s.catches}마리` : '';
+  foot.textContent = s.rounds > 0 ? `${s.rounds}판 완주 · 잡은 동사 ${s.catches}마리 · 🐾 ${s.paws}` : '';
 }
 
-function goHome() {
-  show(createHomeView({ onPlay: goPlay, onDex: goDex, onDress: goDress, onBadges: goBadges }));
-  // 컷씬은 한 판이라도 끝낸 뒤부터 — 시작하자마자 뜨면 '받은 것'이지 '연 것'이 아니다.
-  const owned = ownedCount();
-  const fresh = getSave().rounds > 0 ? pendingSkinReveal(owned, getSeenSkins()) : null;
-  if (fresh) {
-    // 여러 개가 한꺼번에 열렸어도 제일 센 것 하나만 보여주고 나머지는 본 것으로 —
-    // 안 그러면 컷씬이 줄줄이 뜬다.
-    markSkinsSeen(unlockedSkins(owned).map((s) => s.id));
-    showSkinReveal(fresh, goHome);
-  }
-}
+// 스킨 획득 연출은 상점(구매 시점)에서만 뜬다 — 홈은 재촉하지 않는다.
+function goHome() { show(createHomeView({ onPlay: goPlay, onDex: goDex, onDress: goDress, onBadges: goBadges })); }
 function goPlay(mode) {
   if (mode === 'basic') { show(createBasicView({ onHome: goHome })); return; }
   if (mode === 'train') { show(createTrainView({ onHome: goHome })); return; }
