@@ -83,6 +83,11 @@ export function createHomeView({ onPlay, onDex, onDress, onBadges }) {
       : '<b>🔒 문장 조립</b><span>유령 소환에서 한 번에 8칸 맞히면 열림</span>';
     if (orderOpen) orderBtn.onclick = () => onPlay('order');
 
+    // 자매 게임으로 가는 다리 — 매일 한 판짜리 «오늘의 영어»
+    const dailyBtn = el('a', 'mode-btn daily');
+    dailyBtn.href = '../daily-english/index.html';
+    dailyBtn.innerHTML = '<b>📮 오늘의 영어</b><span>매일 한 판 — 낱말·듣기·문장, 5분이면 끝!</span>';
+
     const sub = el('div', 'home__sub');
     const dexBtn = el('button', 'mode-btn');
     dexBtn.innerHTML = '<b>📖 도감</b>';
@@ -94,7 +99,7 @@ export function createHomeView({ onPlay, onDex, onDress, onBadges }) {
     badgeBtn.innerHTML = '<b>🏅 칭호</b>';
     badgeBtn.onclick = onBadges;
     sub.append(dexBtn, dressBtn, badgeBtn);
-    menu.append(subjBtn, verbBtn, fillBtn, orderBtn, sub);
+    menu.append(subjBtn, verbBtn, fillBtn, orderBtn, dailyBtn, sub);
 
     root.append(prog, bar, hunter, talk, world, menu);
   }

@@ -290,6 +290,17 @@ button { font-family: inherit; cursor: pointer; }
 .words.chips .chip { background: #fdf8ef; border-color: #e0c9a0; }
 .word.chip.used { opacity: .25; pointer-events: none; }
 
-/* 자매 게임 다리 — 링크지만 모드 버튼처럼 보이게 */
-a.mode-btn.daily { text-decoration: none; display: block; border-color: #90caf9; background: #f3f9ff; }
-a.mode-btn.daily b { color: #1565c0; }
+/* ── 오늘의 영어 전용 ─────────────────────────────── */
+.wordko { font-size: 20px; font-weight: bold; color: #333; text-align: center; margin-bottom: 16px; }
+.word.letter { min-width: 38px; padding: 10px 8px; font-size: 18px; text-transform: lowercase; }
+.playbtn {
+  display: block; margin: 0 auto 16px; padding: 12px 26px; font-size: 17px; font-weight: bold;
+  border: 2px solid #42a5f5; border-radius: 14px; background: #e8f4fd; color: #1565c0; cursor: pointer;
+}
+.playbtn:active { transform: scale(.95); }
+.grid { margin: 14px auto 10px; display: inline-block; text-align: left; }
+.grid__row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.grid__label { font-size: 14px; color: #666; min-width: 64px; }
+.grid__cells { font-size: 22px; letter-spacing: 2px; }
+.end__next { font-size: 13px; color: #999; margin-top: 14px; }
+a.btn { text-decoration: none; display: inline-block; }
