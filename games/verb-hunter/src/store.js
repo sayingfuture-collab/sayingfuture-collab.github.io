@@ -2,6 +2,7 @@
 // 저장이 바뀌면 listeners 로 알린다 (화면 갱신을 손으로 부르다 빠뜨리는 사고 방지 — 위인전에서 배운 것).
 import { VERB_BY_LEMMA, VERBS } from './data.js';
 import { HUNTER_PARTS } from './hunter.js';
+import { SKIN_BY_ID } from './skins.js';
 
 export function createStore(key) {
   try {
@@ -97,6 +98,9 @@ function sanitize(raw) {
     basicsDone: raw?.basicsDone === true,   // 기초 캠프 수료 여부
     // 특훈(철자 각인)을 마친 동사들 — 도감 카드에 🧠 훈장이 붙는다
     trained: Array.isArray(raw?.trained) ? raw.trained.filter((l) => typeof l === 'string') : [],
+    // 완성형 스킨: 입고 있는 것(null = 커스텀 조합) + 해금 컷씬을 이미 본 것들
+    skin: SKIN_BY_ID.has(raw?.skin) ? raw.skin : null,
+    seenSkins: Array.isArray(raw?.seenSkins) ? raw.seenSkins.filter((x) => SKIN_BY_ID.has(x)) : [],
   };
 }
 
@@ -298,6 +302,29 @@ export function trainedCount() { return state.trained.length; }
 /** 잡은(★1+) 동사 lemma 목록 — 특훈 덱의 재료 */
 export function caughtLemmas() {
   return Object.entries(state.dex).filter(([, d]) => d.stars > 0).map(([l]) => l);
+}
+
+// ── 완성형 스킨 ──────────────────────────────────────────────
+/** 입고 있는 스킨 id. null 이면 커스텀 조합을 쓴다 */
+export function getSkin() { return state.skin; }
+
+/** null 을 넣으면 커스텀 조합으로 되돌아간다 */
+export function setSkin(id) {
+  if (id !== null && !SKIN_BY_ID.has(id)) return;
+  state.skin = id;
+  write();
+}
+
+export function getSeenSkins() { return [...state.seenSkins]; }
+
+export function markSkinsSeen(ids) {
+  let changed = false;
+  for (const id of ids) {
+    if (!SKIN_BY_ID.has(id) || state.seenSkins.includes(id)) continue;
+    state.seenSkins.push(id);
+    changed = true;
+  }
+  if (changed) write();
 }
 
 export function resetAll() {

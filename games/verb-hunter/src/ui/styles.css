@@ -303,3 +303,48 @@ a.mode-btn.daily b { color: #1565c0; }
 .word.letter { min-width: 38px; padding: 10px 8px; font-size: 18px; }
 .dexcard.trained { border-color: #7e57c2; box-shadow: 0 0 0 2px #ede7f6 inset; }
 .dexcard .brain { font-size: 13px; margin-top: 2px; }
+
+/* 사냥꾼 그림 — 스킨(그림) 또는 커스텀 조합(SVG) */
+.figure { width: 100%; }
+.figure svg, .figure__img { width: 100%; display: block; }
+.figure__img { border-radius: 14px; }
+
+/* 꾸미기 — 탭 + 스킨 그리드 */
+.dress__wearing { font-size: 13px; color: #888; margin-bottom: 12px; }
+.dress__tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.tabbtn {
+  flex: 1; padding: 10px; font-size: 14px; font-weight: bold; cursor: pointer;
+  border: 2px solid #ddd; border-radius: 12px; background: #fff; color: #888;
+}
+.tabbtn.on { border-color: #e8630a; background: #fff4ec; color: #e8630a; }
+.dress__note {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: #fff8f2; border: 1.5px solid #f0d5bd; border-radius: 12px;
+  padding: 10px 12px; margin-bottom: 10px; font-size: 13px; color: #a35b00; text-align: left;
+}
+.skin__grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.skincard {
+  border: 2px solid #ddd; border-radius: 14px; background: #fff; padding: 8px;
+  cursor: pointer; text-align: center;
+}
+.skincard.on { border-color: #e8630a; background: #fff4ec; }
+.skincard.locked { opacity: .55; cursor: default; }
+.skincard__thumb {
+  width: 100%; aspect-ratio: 1; border-radius: 10px; background: #faf6ef;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.skincard__thumb img { width: 100%; height: 100%; object-fit: contain; }
+.skincard__thumb.noimg { font-size: 34px; }
+.skincard__name { font-size: 13px; font-weight: bold; margin-top: 6px; color: #333; }
+.skincard__need { font-size: 11px; color: #999; }
+
+/* 스킨 해금 컷씬 */
+.reveal__card { max-width: 320px; }
+.reveal__tag {
+  display: inline-block; font-size: 12px; font-weight: bold; letter-spacing: 1px;
+  color: #e8630a; background: #fff4ec; border-radius: 999px; padding: 4px 12px; margin-bottom: 10px;
+}
+.reveal__stage { width: 150px; margin: 0 auto 10px; animation: revealPop .5s cubic-bezier(.2,1.4,.5,1); }
+.reveal__name { font-size: 20px; margin-bottom: 6px; }
+.reveal__line { font-size: 14px; color: #666; line-height: 1.6; margin-bottom: 14px; }
+@keyframes revealPop { from { transform: scale(.4) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }

@@ -1,7 +1,7 @@
 // 홈 — 점수가 아니라 '완성도'가 주인공 (Completion 동기, 10대 여성 최빈 게임 동기).
 // 캐릭터가 저장을 기억해서 말을 건다 — 리더보드 없는 게임의 관계성은 캐릭터가 채운다.
-import { getSave, getEquipped, dueLemmas, basicsDone, caughtLemmas, isTrained, STARTER_LEMMAS } from '../store.js';
-import { hunterSVG, resolveEquip } from '../hunter.js';
+import { getSave, dueLemmas, basicsDone, caughtLemmas, isTrained, STARTER_LEMMAS } from '../store.js';
+import { hunterFigure } from './hunter-figure.js';
 import { VERB_BY_LEMMA } from '../data.js';
 
 function el(tag, className, text) {
@@ -36,7 +36,7 @@ export function createHomeView({ onPlay, onDex, onDress, onBadges }) {
     bar.append(fill);
 
     const hunter = el('div', 'home__hunter');
-    hunter.innerHTML = hunterSVG(resolveEquip(getEquipped(), save.owned));
+    hunter.replaceChildren(hunterFigure());
 
     const talk = el('div', 'home__talk', talkLine(save));
     const world = el('div', 'home__world', '— 문장 속에 동사들이 숨어 산다 —');
