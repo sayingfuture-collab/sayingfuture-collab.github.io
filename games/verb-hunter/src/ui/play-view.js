@@ -119,22 +119,41 @@ export function createPlayView({ mode, onHome, deck: fixedDeck }) {
     await hitStop(document.body, 70);
 
     // ② 터진다: 파편 + 음(콤보 반음계) + 흔들림(정답 전용) + 진동
+    // 주어는 정답이 덩어리라 여러 단어다. 마지막에 누른 것만 날려보내면
+    // 앞 단어들이 초록색으로 남아서 "덩어리 하나를 잡았다"가 아니라
+    // "뒤에 것만 잡았다"로 보인다 — 잡은 것 전부가 같이 날아가야 한다.
+    const words = [...card.querySelectorAll('.word')];
+    const caught = playMode === 'subj' ? words.slice(0, s.v) : [wordEl];
     const r = wordEl.getBoundingClientRect();
-    burst(r.left + r.width / 2, r.top + r.height / 2);
-    if (playMode === 'verb' || s.v >= 2) wordEl.classList.add('caught');
+    for (const w of caught) {
+      if (!w) continue;
+      const wr = w.getBoundingClientRect();
+      burst(wr.left + wr.width / 2, wr.top + wr.height / 2);
+      if (playMode === 'verb' || s.v >= 2) w.classList.add('caught');
+    }
     popSound(combo);
     shake(card, combo >= 5 ? 6 : 3);
     buzz(15);
     comboLabel.textContent = combo >= 3 ? `🔥 ${combo} 연속!` : combo >= 2 ? `${combo} 연속!` : '';
     comboLabel.className = 'play__combo' + (combo >= 3 ? ' hot' : '');
     card.classList.toggle('glow', combo >= 3);
-    if (combo >= 2) floatText(r.left + r.width / 2 - 10, r.top - 14, combo >= 3 ? '🔥' : '○');
+    // 콤보 표시는 단어 옆으로 비켜준다 — 바로 위는 뜻이 뜨는 자리다
+    if (combo >= 2) floatText(r.left + r.width - 2, r.top - 6, combo >= 3 ? '🔥' : '○');
 
     // ③ 포획 — 첫 시도 정답이면 그 문장의 동사가 도감에 잡힌다.
     //    재시도 정답은 '목격'만 — 실루엣이 걷히고 "도망갔다"로 남는다 (다음 판의 이유).
     //    주어 사냥에서는 동사를 판별한 적이 없으니 포획도 안 된다 (목격까지만) —
     //    안 그러면 앞 단어만 눌러도 동사 도감이 차서, 도감이 동사 실력의 지표가 아니게 된다.
     const lemma = verbLemma(s);
+
+    // 맞힌 동사의 뜻을 잡은 자리에 띄운다. 잡은 순간과 뜻이 같은 자리에서 붙어야
+    // "make = 만들다"가 남는다 — 도감을 따로 열어보게 하면 그 순간을 놓친다.
+    // 주어 사냥은 잡은 게 동사가 아니라 안 띄운다 (엉뚱한 뜻이 뜬다).
+    if (lemma && playMode !== 'subj') {
+      const meaning = VERB_BY_LEMMA.get(lemma)?.ko;
+      if (meaning) floatText(r.left + r.width / 2, r.top - 16, meaning, 'mean');
+    }
+
     if (lemma && playMode === 'subj') {
       registerSeen(lemma);
     } else if (lemma) {

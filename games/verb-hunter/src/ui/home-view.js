@@ -35,6 +35,11 @@ export function createHomeView({ onPlay, onDex, onDress, onBadges }) {
     fill.style.width = pct + '%';
     bar.append(fill);
 
+    // 발자국은 '얼마 남았는지'를 말하지 않는다 — 지금 가진 것만 보여준다.
+    // "스킨까지 12개!" 같은 재촉을 붙이면 사냥이 스킨을 위한 노동이 된다 (예고된 보상 회피).
+    const wallet = el('div', 'home__paws');
+    wallet.innerHTML = `<b>🐾 ${save.paws}</b><span>발자국</span>`;
+
     const hunter = el('div', 'home__hunter');
     hunter.replaceChildren(hunterFigure());
 
@@ -114,7 +119,7 @@ export function createHomeView({ onPlay, onDex, onDress, onBadges }) {
     sub.append(dexBtn, dressBtn, badgeBtn);
     menu.append(subjBtn, verbBtn, fillBtn, orderBtn, trainBtn, dailyBtn, sub);
 
-    root.append(prog, bar, hunter, talk, world, menu);
+    root.append(prog, bar, wallet, hunter, talk, world, menu);
   }
 
   render();
