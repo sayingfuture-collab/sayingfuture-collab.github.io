@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>동사 사냥꾼 — 기록 복구</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    background: #fdf8f3; color: #333; margin: 0; padding: 22px 18px 60px;
+    max-width: 460px; margin-inline: auto; line-height: 1.6;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { font-size: 13px; color: #8a7f74; margin-bottom: 18px; }
+  .box {
+    background: #fff; border: 2px solid #f0d9c0; border-radius: 14px;
+    padding: 14px 16px; margin-bottom: 14px;
+  }
+  .box h2 { font-size: 14px; margin: 0 0 8px; color: #a35b00; }
+  .row { display: flex; justify-content: space-between; font-size: 14px; padding: 3px 0; }
+  .row b { color: #e8630a; }
+  label { display: block; font-size: 13px; font-weight: bold; margin: 12px 0 4px; }
+  input, select {
+    width: 100%; box-sizing: border-box; font-size: 16px; font-family: inherit;
+    padding: 10px 12px; border: 2px solid #e8dbcd; border-radius: 10px; background: #fff;
+  }
+  .hint { font-size: 12px; color: #999; margin-top: 4px; }
+  code {
+    background: #fff2e6; color: #a35b00; padding: 1px 6px; border-radius: 5px;
+    font-size: 12.5px; word-break: break-all;
+  }
+  button {
+    width: 100%; margin-top: 18px; padding: 14px; font-size: 16px; font-weight: bold;
+    font-family: inherit; color: #fff; background: #e8630a; border: 0; border-radius: 12px;
+    cursor: pointer;
+  }
+  button:disabled { background: #d8cfc6; cursor: default; }
+  button.ghost { background: #fff; color: #a35b00; border: 2px solid #f0c9a0; }
+  .done { background: #eaf6e6; border-color: #b6ddaa; }
+  .warn { background: #fff8e6; border-color: #f0d9a0; font-size: 13px; }
+  .hide { display: none; }
+</style>
+</head>
+<body>
+
+<h1>🐾 기록 복구</h1>
+<div class="sub">동사 사냥꾼 — 사라진 판수와 발자국을 되돌립니다</div>
+
+<div class="box warn">
+  <b>별 개수(★)는 못 살려요.</b> 몇 성까지 키웠는지는 기록에 안 남습니다.
+  판수 · 누적 포획 · 🐾 발자국은 그대로 되돌아오고, 도감은 아래에서 고를 수 있어요.
+</div>
+
+<div class="box" id="now">
+  <h2>지금 이 기기에 있는 기록</h2>
+  <div id="nowBody"></div>
+</div>
+
+<div class="box">
+  <h2>되돌릴 값</h2>
+  <label for="grade">학년</label>
+  <select id="grade"></select>
+
+  <label for="rounds">완주한 판수</label>
+  <input id="rounds" type="number" inputmode="numeric" min="0" value="20">
+  <div class="hint">시트 H열(누적판수)의 최고값. 기초캠프·특훈은 여기에 안 셉니다</div>
+
+  <label for="catches">누적 포획 (= 🐾 발자국)</label>
+  <input id="catches" type="number" inputmode="numeric" min="0" value="175">
+  <div class="hint">시트 F열(누적포획)의 최고값</div>
+
+  <label style="display:flex;gap:9px;align-items:flex-start;font-weight:normal;margin-top:16px">
+    <input id="dex" type="checkbox" checked style="width:auto;margin-top:4px">
+    <span style="font-size:13.5px">
+      <b>도감도 25/25로 되돌리기</b><br>
+      <span style="color:#8a7f74;font-size:12.5px">
+        시트에 도감이 <b>25</b>까지 찍혀 있어요 — 25종 전부 잡았다는 뜻이라 어떤 동사였는지는
+        확실합니다. 다만 <b>별은 몇 개였는지 몰라서 전부 ★1로 채웁니다.</b>
+        빈 도감보다 낫다 싶으면 켜두세요.
+      </span>
+    </span>
+  </label>
+
+  <label style="display:flex;gap:9px;align-items:flex-start;font-weight:normal;margin-top:14px">
+    <input id="unlock" type="checkbox" checked style="width:auto;margin-top:4px">
+    <span style="font-size:13.5px">
+      <b>사냥터 잠금·기초캠프 수료 되돌리기</b><br>
+      <span style="color:#8a7f74;font-size:12.5px">
+        시트에 초4가 주어·동사 사냥터에서 <b>한 번에 10마리</b>를 여러 번 찍었고 기초캠프도
+        1판 있어요. 그 기록이 <b>유령 소환</b> 자물쇠(8마리)를 여는 열쇠라 같이 되돌립니다.
+        <b>문장 조립까지 열려 있었다면 여기선 안 열려요</b> — 그랬다면 말씀해 주세요.
+      </span>
+    </span>
+  </label>
+
+  <button id="go" disabled>이 값으로 복구하기</button>
+  <div class="hint" style="text-align:center">
+    누르기 전에 지금 기록을 따로 백업해 둡니다. 잘못돼도 되돌릴 수 있어요.
+  </div>
+</div>
+
+<div class="box done hide" id="result"></div>
+
+<script type="module">
+import { GRADES } from './src/store.js';
+import { VERBS } from './src/data.js';
+
+const KEY = 'verbHunter.v1';
+const BACKUP = `${KEY}.before-restore`;
+const $ = (id) => document.getElementById(id);
+
+function readSave() {
+  try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; }
+}
+
+// 지금 상태를 먼저 보여준다 — 무엇을 덮어쓰는지 모르고 누르면 안 된다
+const cur = readSave();
+const dexCount = cur?.dex ? Object.keys(cur.dex).length : 0;
+$('nowBody').innerHTML = cur
+  ? `<div class="row"><span>학년</span><b>${cur.grade ?? '—'}</b></div>
+     <div class="row"><span>판수</span><b>${cur.rounds ?? 0}판</b></div>
+     <div class="row"><span>누적 포획</span><b>${cur.catches ?? 0}마리</b></div>
+     <div class="row"><span>도감</span><b>${dexCount}마리</b></div>`
+  : '<div class="row"><span>저장이 아예 없습니다</span></div>';
+
+for (const g of GRADES) {
+  const o = document.createElement('option');
+  o.value = g; o.textContent = g;
+  if (cur?.grade === g) o.selected = true;
+  $('grade').append(o);
+}
+
+const nums = [$('rounds'), $('catches')];
+const check = () => {
+  const ok = nums.every((el) => el.value !== '' && Number(el.value) >= 0);
+  $('go').disabled = !ok;
+};
+for (const el of nums) el.addEventListener('input', check);
+
+$('go').onclick = () => {
+  const rounds = Number($('rounds').value);
+  const catches = Number($('catches').value);
+
+  // 지금 있는 것을 먼저 백업 — 복구가 새로운 사고가 되면 안 된다
+  const before = localStorage.getItem(KEY);
+  if (before) localStorage.setItem(BACKUP, before);
+
+  // 있는 저장 위에 얹는다. 파츠·스킨은 건드리지 않는다
+  const next = { ...(cur || {}), grade: $('grade').value, rounds, catches };
+  if ($('dex').checked) {
+    // 25종을 전부 잡았던 게 확인됐으니 목록은 확정이다. 별만 모르니 ★1 로 둔다 —
+    // 지어낸 숫자를 채우느니 낮게 잡는 편이 낫다. 다시 잡으면 그때부터 올라간다.
+    const dex = { ...(cur?.dex || {}) };
+    for (const v of VERBS) if (!dex[v.lemma]) dex[v.lemma] = { stars: 1, seen: true };
+    next.dex = dex;
+  }
+  if ($('unlock').checked) {
+    // 자물쇠는 modeBest 로만 열린다 (verb>=8 → 유령 소환). 시트에서 확인된 값만 넣는다 —
+    // 문장 조립(fill>=8)은 근거가 없어 손대지 않는다. 없는 기록을 지어내지는 않는다.
+    next.basicsDone = true;
+    next.modeBest = { subject: 10, verb: 10, ...(cur?.modeBest || {}) };
+  }
+  localStorage.setItem(KEY, JSON.stringify(next));
+
+  $('result').classList.remove('hide');
+  $('result').innerHTML =
+    `<h2>복구했어요 ✅</h2>
+     <div class="row"><span>판수</span><b>${rounds}판</b></div>
+     <div class="row"><span>누적 포획</span><b>${catches}마리</b></div>
+     <div class="row"><span>🐾 쓸 수 있는 발자국</span><b>${Math.max(0, catches - (next.pawsSpent || 0))}</b></div>
+     <div class="row"><span>도감</span><b>${Object.keys(next.dex || {}).length}마리</b></div>
+     <p style="font-size:13px;color:#5b7a50;margin:10px 0 0">
+       직전 기록은 <code>${BACKUP}</code> 에 남겨뒀습니다.</p>`;
+  const back = document.createElement('button');
+  back.textContent = '게임으로 가기';
+  back.onclick = () => { location.href = './'; };
+  $('result').append(back);
+  $('go').disabled = true;
+  $('result').scrollIntoView({ behavior: 'smooth' });
+};
+
+check();
+</script>
+
+</body>
+</html>
