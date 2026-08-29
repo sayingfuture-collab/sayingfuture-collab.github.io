@@ -59,13 +59,6 @@ window.NEWS = [
     href: "./games/shrubdown/index.html",
   },
   {
-    date: "2026-08-05",
-    tag: "새로 나옴",
-    title: "풍선빵 — 매일 전 세계가 같은 풍선을 붑니다",
-    desc: "터지기 전에 놓는 30초 배짱 게임. 결과를 복사해 친구와 비교하고, 무한 모드 '터질 때까지'로 기록에 도전하세요.",
-    href: "./games/balloon-bust/index.html",
-  },
-  {
     date: "2026-08-04",
     tag: "업데이트",
     title: "냥서바이버가 도트 그래픽이 됐어요",

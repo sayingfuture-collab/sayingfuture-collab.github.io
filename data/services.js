@@ -24,7 +24,6 @@
 window.SERVICES = [
   { id: "shrubdown", title: "Shrubdown (풀스윙)", emoji: "🌱", type: "game", status: "live", href: "./games/shrubdown/index.html", desc: "식물 오토배틀러", tag: "오토배틀러", thumb: "" },
   { id: "cat-survivors", title: "냥서바이버", emoji: "🐱", type: "game", status: "live", href: "./games/cat-survivors/index.html", desc: "고양이 vs 쥐떼 서바이버", tag: "서바이버", thumb: "" },
-  { id: "balloon-bust", title: "풍선빵 Balloon Bust", emoji: "🎈", type: "game", status: "live", href: "./games/balloon-bust/index.html", desc: "매일 전 세계가 같은 풍선 5개 — 터지기 전에 놓아라", tag: "데일리 배짱", thumb: "" },
   { id: "wiinjeon", title: "위인전", emoji: "⚔️", type: "game", status: "live", href: "./games/wiinjeon/index.html", desc: "힌트 세 개로 역사 속 인물을 맞히고, 모아서 싸우는 오토배틀러", tag: "수집형 오토배틀러", thumb: "" },
   { id: "sealed-bid", title: "봉인 입찰 SEALED BID", emoji: "🔏", type: "game", status: "live", href: "./games/sealed-bid/index.html", desc: "라이벌 셋과 봉인 경매로 용병단을 꾸리는 오토배틀러 — 쓴 만큼 내고, 동점은 절박한 자가 이긴다", tag: "경매 오토배틀러", thumb: "" },
   { id: "verb-hunter", title: "동사 사냥꾼", emoji: "🏹", type: "game", status: "live", href: "./games/verb-hunter/index.html", desc: "문장 속에 숨은 동사를 탭으로 잡아 도감을 채우는 영문법 사냥 게임", tag: "영어 학습", thumb: "" },
