@@ -104,7 +104,7 @@ export function sanitize(raw) {
     // 입고 있는 스킨은 가진 것으로 친다. 예전 규칙(도감 진행도로 자동 해금)에서 얻어 입고
     // 있던 아이한테서 도로 뺏으면 벌처럼 느껴진다 — 이미 준 것은 그대로 둔다.
     ownedSkins: [...new Set([
-      ...FREE_SKINS,
+      ...(FREE_SKINS || []),   // 모듈이 섞여 로드돼도 여기서 터지지 않게
       ...(SKIN_BY_ID.has(raw?.skin) ? [raw.skin] : []),
       ...(Array.isArray(raw?.ownedSkins) ? raw.ownedSkins.filter((x) => SKIN_BY_ID.has(x)) : []),
     ])],
@@ -112,14 +112,32 @@ export function sanitize(raw) {
   };
 }
 
-function read() {
+/** 못 읽은 저장을 옮겨두는 자리. 여기 있으면 손으로 되살릴 수 있다 */
+export const BROKEN_KEY = `${KEY}.broken`;
+
+function stash(raw) {
   try {
-    const raw = store.get();
+    if (typeof localStorage !== 'undefined') localStorage.setItem(BROKEN_KEY, raw);
+  } catch { /* 백업도 실패하면 어쩔 수 없다 — 원본은 아래에서 그대로 지킨다 */ }
+}
+
+// 읽기 실패를 '빈 저장'으로 바꿔 놓으면, 바로 뒤의 write() 가 그 빈 것을 원본 위에 덮어쓴다.
+// 일시적인 오류 한 번이 도감·판수의 **영구 소멸**이 되는 길이다. 그래서 실패를 기억해 두고
+// 그 판에서는 저장을 건드리지 않는다. 원본은 남고, 사본은 .broken 으로 따로 뺀다.
+let loadFailed = false;
+
+function read() {
+  const raw = store.get();
+  try {
     return sanitize(raw ? JSON.parse(raw) : null);
   } catch {
+    if (raw) { loadFailed = true; stash(raw); }
     return sanitize(null);
   }
 }
+
+/** 이번 실행에서 저장을 못 읽었는가 (못 읽었으면 원본을 덮어쓰지 않는다) */
+export function saveUnreadable() { return loadFailed; }
 
 let state = read();
 const listeners = new Set();
@@ -130,11 +148,16 @@ export function onSaveChange(fn) {
 }
 
 function write() {
-  try { store.set(JSON.stringify(state)); } catch { /* 저장 실패해도 진행 */ }
+  // 못 읽은 저장 위에는 절대 쓰지 않는다 — 되살릴 기회를 스스로 없애는 짓이다
+  if (!loadFailed) {
+    try { store.set(JSON.stringify(state)); } catch { /* 저장 실패해도 진행 */ }
+  }
   for (const fn of listeners) fn();
 }
 
-write(); // 정리 결과를 바로 남긴다
+// 예전에는 여기서 write() 를 한 번 불러 "정리 결과를 바로 남겼다". 그게 사고의 통로였다 —
+// 읽기가 한 번 실패하면 **페이지를 열기만 해도** 기록이 사라졌다. sanitize 는 읽을 때마다
+// 도니 미리 남길 이유가 없다. 저장은 실제로 뭔가 바뀔 때만 한다.
 
 // ── 도감 ─────────────────────────────────────────────────────
 
