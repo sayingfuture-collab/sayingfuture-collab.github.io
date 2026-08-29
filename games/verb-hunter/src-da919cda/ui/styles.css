@@ -1,0 +1,477 @@
+/* 동사 사냥꾼 — 공통 스타일. 폰 우선, 큰 탭 타겟. */
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body {
+  font-family: 'Malgun Gothic', -apple-system, sans-serif;
+  background: #f6f4ef; color: #222;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 16px 14px; user-select: none; overflow-x: hidden;
+}
+#app { width: 100%; max-width: 480px; display: flex; flex-direction: column; min-height: 100%; }
+
+button { font-family: inherit; cursor: pointer; }
+.btn {
+  font-size: 17px; padding: 12px 30px; border-radius: 999px;
+  border: none; background: #222; color: #fff;
+}
+.btn.ghost { background: transparent; color: #666; border: 1.5px solid #bbb; font-size: 14px; padding: 10px 18px; }
+
+/* ── 히트스톱: 이 클래스가 붙은 동안 모든 움직임이 멈춘다 ── */
+.freeze, .freeze * { animation-play-state: paused !important; transition: none !important; }
+
+/* ── 홈 ── */
+.home { text-align: center; padding-top: 8px; }
+.home__progress { font-size: 14px; color: #555; margin-bottom: 4px; }
+.home__progress b { color: #e8630a; }
+.home__bar { height: 8px; background: #e5e1d8; border-radius: 999px; overflow: hidden; margin: 0 30px 14px; }
+.home__bar i { display: block; height: 100%; background: linear-gradient(90deg, #f4b942, #e8630a); border-radius: 999px; transition: width .6s; }
+.home__hunter { width: 130px; margin: 0 auto; }
+.home__hunter svg { width: 100%; }
+.home__talk {
+  display: inline-block; font-size: 13.5px; color: #555; background: #fff;
+  border-radius: 14px; padding: 8px 14px; margin: 8px 0 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.home__world { font-size: 12px; color: #999; margin-bottom: 16px; }
+.home__menu { display: flex; flex-direction: column; gap: 10px; padding: 0 20px; }
+.mode-btn {
+  font-size: 18px; padding: 15px 10px; border-radius: 16px;
+  border: 2px solid #ddd; background: #fff; text-align: center;
+}
+.mode-btn b { display: block; font-size: 19px; margin-bottom: 2px; }
+.mode-btn span { font-size: 12.5px; color: #777; }
+.mode-btn.primary { border-color: #e8630a; background: #fff4ec; }
+.home__sub { display: flex; gap: 10px; margin-top: 4px; }
+.home__sub .mode-btn { flex: 1; font-size: 15px; padding: 11px 6px; }
+
+/* ── 플레이 ── */
+.play__top { display: flex; justify-content: space-between; align-items: baseline; min-height: 26px; }
+.play__round { font-size: 14px; color: #888; }
+.play__combo { font-size: 16px; font-weight: bold; color: #e8630a; transition: transform .15s; }
+.play__combo.hot { color: #d32f2f; transform: scale(1.15); }
+.play__card {
+  background: #fff; border-radius: 18px; box-shadow: 0 3px 14px rgba(0,0,0,.08);
+  padding: 24px 16px 20px; text-align: center; margin-top: 10px;
+  transition: box-shadow .3s;
+}
+.play__card.glow { box-shadow: 0 3px 22px rgba(232,99,10,.35); }
+.play__quest { font-size: 14px; color: #555; margin-bottom: 16px; }
+.words { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.word {
+  position: relative;
+  font-size: 22px; padding: 10px 14px; border-radius: 12px;
+  border: 2px solid #ddd; background: #fafafa;
+  transition: transform .08s; animation: slidein .25s backwards;
+}
+.word:nth-child(1){animation-delay:0s} .word:nth-child(2){animation-delay:.06s}
+.word:nth-child(3){animation-delay:.12s} .word:nth-child(4){animation-delay:.18s}
+.word:nth-child(5){animation-delay:.24s}
+@keyframes slidein { from { transform: translateY(14px); opacity: 0; } }
+.word.pressed { transform: scale(.92); }               /* 터치다운 즉시 — 판정보다 먼저 */
+.word.hit { background: #d9f2d9; border-color: #4caf50; animation: pop .35s; }
+.word.done { pointer-events: none; }
+.word.caught { opacity: 0; transition: opacity .15s; } /* 파편으로 흩어진 뒤 */
+@keyframes pop { 40% { transform: scale(1.3) rotate(-4deg); } }
+
+/* 오답 = 도망. 흔들림·빨간색 금지 — 옆으로 폴짝 뛰며 약 올린다 */
+.word.dodge { animation: dodge .4s; border-color: #ccc; }
+@keyframes dodge {
+  30% { transform: translateX(10px) rotate(6deg); }
+  60% { transform: translateX(-6px) rotate(-4deg); }
+}
+
+/* 말풍선 — 잘못 잡힌 단어의 말대꾸 */
+.bubble {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: #333; color: #fff; font-size: 12.5px; white-space: nowrap;
+  padding: 5px 10px; border-radius: 10px; z-index: 6;
+  animation: bubblein .25s;
+}
+.bubble::after {
+  content: ''; position: absolute; top: 100%; left: 50%; margin-left: -5px;
+  border: 5px solid transparent; border-top-color: #333;
+}
+@keyframes bubblein { from { transform: translateX(-50%) translateY(6px); opacity: 0; } }
+
+.kzone { margin-top: 12px; min-height: 26px; }
+.kbtn { font-size: 12.5px; color: #888; background: none; border: 1px dashed #ccc; border-radius: 999px; padding: 4px 12px; }
+.ktext { font-size: 14px; color: #1565c0; padding: 3px 0; }
+.hintline { min-height: 42px; font-size: 14px; color: #a35b00; margin-top: 14px; line-height: 1.5; }
+.hintline.good { color: #2e7d32; font-weight: bold; }
+.hintline.part { color: #1565c0; font-weight: bold; }
+
+/* 카드 흔들림(정답 전용) — 세기는 --shake-px 로 */
+.shaking { animation: cardshake .25s; }
+@keyframes cardshake {
+  25% { transform: translateX(calc(var(--shake-px, 3px) * -1)); }
+  75% { transform: translateX(var(--shake-px, 3px)); }
+}
+
+/* ── juice 공용 ── */
+.jc-particle {
+  position: fixed; z-index: 9; pointer-events: none; font-size: 13px;
+  animation: jc-fly .7s forwards cubic-bezier(.1,.6,.4,1);
+}
+@keyframes jc-fly { to { transform: translate(var(--dx), var(--dy)) scale(.2) rotate(180deg); opacity: 0; } }
+.jc-float {
+  position: fixed; z-index: 9; pointer-events: none;
+  font-size: 20px; font-weight: bold; color: #e8630a;
+  animation: jc-rise .9s forwards;
+}
+.jc-float.big { font-size: 26px; }
+.jc-float.catch { color: #7c4ae8; }
+@keyframes jc-rise { to { transform: translateY(-70px) scale(1.25); opacity: 0; } }
+.jc-confetti { position: fixed; top: -30px; font-size: 22px; pointer-events: none; z-index: 9; animation: jc-fall linear forwards; }
+@keyframes jc-fall { to { transform: translateY(105vh) rotate(540deg); } }
+
+/* ── 완주 화면 ── */
+.end { text-align: center; padding: 24px 8px; }
+.end .big { font-size: 42px; margin-bottom: 6px; }
+.end h2 { font-size: 20px; margin-bottom: 8px; }
+.end .keep {
+  display: inline-block; text-align: left; font-size: 14px; color: #444;
+  background: #f7f5ef; border-left: 4px solid #e8630a; border-radius: 6px;
+  padding: 8px 14px; margin: 6px 0; line-height: 1.8;
+}
+.end .msg { margin-top: 10px; font-size: 14.5px; color: #222; }
+.badge-title { font-size: 14px; font-weight: bold; margin-top: 14px; color: #e8630a; }
+.badge-card {
+  margin: 10px auto 0; width: 250px; padding: 13px 12px; border-radius: 14px;
+  background: #fff; border: 3px solid; animation: reveal .5s backwards; position: relative;
+}
+@keyframes reveal { from { transform: scale(.3) rotate(8deg); opacity: 0; } 60% { transform: scale(1.08); } }
+.badge-card .stars { font-size: 12px; letter-spacing: .2em; margin-bottom: 2px; }
+.badge-card .bname { font-size: 18px; font-weight: bold; }
+.badge-card .bdesc { font-size: 12px; color: #777; margin-top: 4px; line-height: 1.5; }
+.badge-card.r1 { border-color: #9e9e9e; } .badge-card.r1 .stars { color: #9e9e9e; }
+.badge-card.r2 { border-color: #42a5f5; } .badge-card.r2 .stars { color: #42a5f5; }
+.badge-card.r3 { border-color: #ab47bc; } .badge-card.r3 .stars { color: #ab47bc; }
+.badge-card.r4 { border-color: #ffb300; box-shadow: 0 0 18px rgba(255,179,0,.55); }
+.badge-card.r4 .stars { color: #ffb300; }
+.end .next-goal { font-size: 13px; color: #888; margin-top: 12px; }
+.end .btns { margin-top: 16px; display: flex; gap: 8px; justify-content: center; }
+
+/* ── 도감 ── */
+.dex { padding-bottom: 24px; }
+.dex h2 { font-size: 18px; text-align: center; margin: 8px 0 2px; }
+.dex .dex__count { text-align: center; font-size: 13px; color: #888; margin-bottom: 12px; }
+.dex h3 { font-size: 14px; color: #555; margin: 14px 4px 8px; }
+.dex__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.dexcard {
+  background: #fff; border: 2px solid #e5e1d8; border-radius: 12px;
+  padding: 8px 4px 6px; text-align: center; min-height: 84px;
+}
+.dexcard .emo { font-size: 26px; line-height: 1.2; }
+.dexcard .nm { font-size: 12.5px; font-weight: bold; margin-top: 2px; }
+.dexcard .ko { font-size: 10.5px; color: #888; }
+.dexcard .st { font-size: 10px; color: #f4b942; letter-spacing: .1em; }
+.dexcard.seen { border-style: dashed; }
+.dexcard.seen .emo { filter: grayscale(1); opacity: .55; }
+.dexcard.seen .ko { color: #b09090; }
+.dexcard.unseen { background: #efece4; color: #b8b2a4; border-style: dashed; }
+.dexcard.unseen .emo { filter: grayscale(1) contrast(0); opacity: .5; }
+
+/* ── 꾸미기 ── */
+.dress { text-align: center; padding-bottom: 24px; }
+.dress h2 { font-size: 18px; margin: 8px 0; }
+.dress__preview { width: 140px; margin: 0 auto 10px; }
+.dress__preview svg { width: 100%; }
+.dress h3 { font-size: 14px; color: #555; margin: 12px 4px 6px; text-align: left; }
+.dress__row { display: flex; gap: 8px; flex-wrap: wrap; }
+.partbtn {
+  flex: 1; min-width: 72px; background: #fff; border: 2px solid #ddd; border-radius: 12px;
+  padding: 8px 4px; font-size: 12.5px;
+}
+.partbtn.on { border-color: #e8630a; background: #fff4ec; font-weight: bold; }
+.partbtn.locked { color: #b8b2a4; background: #efece4; }
+.partbtn .need { display: block; font-size: 10.5px; color: #b8985a; }
+
+.backrow { margin-top: 16px; text-align: center; }
+.foot { margin-top: auto; padding-top: 14px; font-size: 11.5px; color: #aaa; text-align: center; }
+
+/* ── 사냥꾼 면허 발급(학년 등록) — 처음 한 번만 뜨는 게이트 ── */
+.gate {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(30, 25, 18, .55);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.gate__card {
+  background: #fff; border-radius: 20px; padding: 28px 22px 24px;
+  width: 100%; max-width: 340px; text-align: center;
+  box-shadow: 0 8px 30px rgba(0,0,0,.25);
+  animation: gate-in .35s cubic-bezier(.2, 1.4, .4, 1);
+}
+@keyframes gate-in { from { transform: scale(.85); opacity: 0; } }
+.gate__emoji { font-size: 40px; margin-bottom: 6px; }
+.gate__card h2 { font-size: 20px; margin-bottom: 4px; }
+.gate__card p { font-size: 14px; color: #666; margin-bottom: 16px; }
+.gate__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.gate__btn {
+  font-size: 15px; padding: 12px 4px; border-radius: 12px;
+  border: 2px solid #ddd; background: #fff;
+}
+.gate__btn:active { border-color: #e8630a; background: #fff4ec; }
+
+/* ── 칭호 방 — 얻은 건 색깔 카드, 못 얻은 건 잠금/??? ── */
+.bdgview { text-align: center; padding-top: 8px; }
+.bdg__list { margin-top: 4px; }
+.bdg__list .badge-card { animation: none; text-align: center; }
+.badge-card.locked {
+  border-color: #ddd; background: #f4f1ea; box-shadow: none;
+}
+.badge-card.locked .stars { color: #c9c3b6; }
+.badge-card.locked .bname { color: #8a8574; font-weight: normal; font-size: 16px; }
+.badge-card.locked .bdesc { color: #a9a394; }
+
+/* ── v0.6 학습 엔진 ── */
+/* 정답 공개(두 번 틀림): 벌색이 아니라 발견색 — 파랑 계열로 부드럽게 */
+.word.reveal { border-color: #42a5f5; background: #e8f4fd; color: #1565c0; font-weight: bold; }
+.hintline.explain { color: #1565c0; font-weight: bold; }
+
+/* 규칙 카드 */
+.gate__card.rule .rule__line { font-size: 14.5px; color: #444; margin-bottom: 8px; }
+.gate__card.rule .rule__ex {
+  font-size: 17px; background: #fff4ec; border: 2px dashed #e8630a;
+  border-radius: 12px; padding: 10px; margin: 12px 0 16px;
+}
+.gate__card.rule .rule__ex b { color: #e8630a; }
+
+/* 오늘의 사냥터 배너 */
+.mode-btn.review { border-color: #7e57c2; background: #f3eefc; }
+.mode-btn.review b { color: #5e35b1; }
+
+/* 잠긴 사냥터 */
+.mode-btn.locked { background: #efece4; border-color: #ddd8cc; color: #a9a394; cursor: default; }
+.mode-btn.locked span { color: #b8b2a4; }
+
+/* 유령 소환: 빈칸과 선택지 */
+.word.blank { border-style: dashed; border-color: #7e57c2; color: #7e57c2; min-width: 64px; }
+.choices { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+.choice {
+  font-size: 18px; padding: 12px 20px; border-radius: 14px;
+  border: 2px solid #ddd; background: #fff; min-width: 76px;
+  position: relative; /* 말풍선(.bubble)이 이 버튼 기준으로 뜨게 — 없으면 엉뚱한 데 나타난다 */
+}
+.choice:active { border-color: #7e57c2; background: #f3eefc; }
+.choice.dim { opacity: .35; }
+
+/* ── 0단계 기초 캠프 ── */
+/* 성분마다 고정 색 — 설명·연습·종합에서 같은 색이 반복돼야 색이 곧 이름이 된다 */
+.p-s { color: #1976d2; }  .p-bg-s { background: #e3f2fd !important; border-color: #1976d2 !important; color: #1976d2 !important; }
+.p-v { color: #e8630a; }  .p-bg-v { background: #fff4ec !important; border-color: #e8630a !important; color: #e8630a !important; }
+.p-o { color: #2e7d32; }  .p-bg-o { background: #e8f5e9 !important; border-color: #2e7d32 !important; color: #2e7d32 !important; }
+
+.mode-btn.basic { border-color: #1976d2; }
+.mode-btn.basic b { color: #1976d2; }
+
+.basic__bar { height: 6px; background: #e5e1d8; border-radius: 999px; overflow: hidden; margin: 8px 0 0; }
+.basic__bar i { display: block; height: 100%; background: linear-gradient(90deg, #42a5f5, #1976d2); transition: width .5s; }
+
+.lesson { text-align: center; padding: 4px 2px; }
+.lesson__emoji { font-size: 40px; }
+.lesson__title { font-size: 21px; margin: 4px 0 18px; }
+.lesson__row { display: flex; align-items: center; gap: 10px; justify-content: center; margin-top: 12px; }
+.lesson__flag {
+  font-size: 11px; background: #efece4; color: #777;
+  border-radius: 999px; padding: 3px 9px; flex-shrink: 0;
+}
+.lesson__flag.en { background: #e3f2fd; color: #1976d2; }
+.lesson__sent { font-size: 19px; }
+.lesson__note { font-size: 13px; color: #666; margin-top: 5px; }
+.lesson__rule {
+  font-size: 14.5px; background: #fffbf2; border: 2px dashed #e0c9a0;
+  border-radius: 12px; padding: 12px 10px; margin: 18px 0 16px; line-height: 1.6;
+}
+
+/* 문장 조립: 슬롯과 조각 */
+.words.slots { min-height: 46px; margin-bottom: 14px; }
+.word.slot { border-style: dashed; color: #c9c3b6; min-width: 46px; }
+.word.slot.hit { border-style: solid; color: inherit; }
+.words.chips .chip { background: #fdf8ef; border-color: #e0c9a0; }
+.word.chip.used { opacity: .25; pointer-events: none; }
+
+/* 자매 게임 다리 — 링크지만 모드 버튼처럼 보이게 */
+a.mode-btn.daily { text-decoration: none; display: block; border-color: #90caf9; background: #f3f9ff; }
+a.mode-btn.daily b { color: #1565c0; }
+
+/* 동사 특훈 — 철자 각인 */
+.mode-btn.train { border-color: #b39ddb; background: #f7f3ff; }
+.mode-btn.train b { color: #5e35b1; }
+.trainface { text-align: center; margin-bottom: 16px; }
+.trainface__emo { font-size: 46px; line-height: 1; }
+.trainface__ko { font-size: 21px; font-weight: bold; color: #333; margin-top: 6px; }
+.word.letter { min-width: 38px; padding: 10px 8px; font-size: 18px; }
+.dexcard.trained { border-color: #7e57c2; box-shadow: 0 0 0 2px #ede7f6 inset; }
+.dexcard .brain { font-size: 13px; margin-top: 2px; }
+
+/* 사냥꾼 그림 — 스킨(그림) 또는 커스텀 조합(SVG) */
+.figure { width: 100%; }
+.figure svg, .figure__img { width: 100%; display: block; }
+.figure__img { border-radius: 14px; }
+
+/* 꾸미기 — 탭 + 스킨 그리드 */
+.dress__wearing { font-size: 13px; color: #888; margin-bottom: 12px; }
+.dress__tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.tabbtn {
+  flex: 1; padding: 10px; font-size: 14px; font-weight: bold; cursor: pointer;
+  border: 2px solid #ddd; border-radius: 12px; background: #fff; color: #888;
+}
+.tabbtn.on { border-color: #e8630a; background: #fff4ec; color: #e8630a; }
+.dress__note {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: #fff8f2; border: 1.5px solid #f0d5bd; border-radius: 12px;
+  padding: 10px 12px; margin-bottom: 10px; font-size: 13px; color: #a35b00; text-align: left;
+}
+.skin__grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.skincard {
+  border: 2px solid #ddd; border-radius: 14px; background: #fff; padding: 8px;
+  cursor: pointer; text-align: center;
+}
+.skincard.on { border-color: #e8630a; background: #fff4ec; }
+.skincard__thumb {
+  width: 100%; aspect-ratio: 1; border-radius: 10px; background: #faf6ef;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.skincard__thumb img { width: 100%; height: 100%; object-fit: contain; }
+.skincard__thumb.noimg { font-size: 34px; }
+.skincard__name { font-size: 13px; font-weight: bold; margin-top: 6px; color: #333; }
+.skincard__need { font-size: 11px; color: #999; }
+
+/* 스킨 해금 컷씬 */
+.reveal__card { max-width: 400px; padding: 22px 16px 20px; }
+.reveal__tag {
+  display: inline-block; font-size: 12px; font-weight: bold; letter-spacing: 1px;
+  color: #e8630a; background: #fff4ec; border-radius: 999px; padding: 4px 12px; margin-bottom: 10px;
+}
+.reveal__stage { width: 150px; margin: 0 auto 10px; animation: revealPop .5s cubic-bezier(.2,1.4,.5,1); }
+.reveal__name { font-size: 20px; margin-bottom: 6px; }
+.reveal__line { font-size: 14px; color: #666; line-height: 1.6; margin-bottom: 14px; }
+@keyframes revealPop { from { transform: scale(.4) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* 스킨 상점 — 🐾 발자국 */
+.wallet {
+  display: flex; align-items: baseline; justify-content: center; gap: 10px;
+  background: #fff8f2; border: 1.5px solid #f0d5bd; border-radius: 12px;
+  padding: 10px 12px; margin-bottom: 12px;
+}
+.wallet b { font-size: 20px; color: #e8630a; }
+.wallet span { font-size: 12px; color: #a35b00; }
+.dress__hint { font-size: 12.5px; color: #999; margin-bottom: 10px; }
+.skincard.buyable { border-color: #f0c9a0; }
+.skincard.poor { opacity: .6; cursor: default; }
+.skincard__thumb.locked img { filter: grayscale(1) brightness(1.35) contrast(.5); opacity: .5; }
+
+/* 스킨 등급 — 색만 봐도 급이 읽히게 */
+.skincard { border-color: color-mix(in srgb, var(--grade, #ddd) 45%, #fff); }
+.skincard.on { border-color: var(--grade, #e8630a); }
+.skincard__thumb { position: relative; }
+.gradetag {
+  position: absolute; top: 4px; left: 4px; z-index: 1;
+  font-size: 10px; font-weight: bold; color: #fff; letter-spacing: .5px;
+  background: var(--grade, #999); border-radius: 999px; padding: 2px 7px;
+}
+.reveal__tag { background: color-mix(in srgb, var(--grade, #e8630a) 14%, #fff); color: var(--grade, #e8630a); }
+.reveal__video { width: 100%; border-radius: 14px; display: block; }
+
+/* 스킨 해금 컷씬 — 숲 안쪽에서 뚜벅뚜벅 걸어 나온다.
+   그림 한 장으로 '걷기'를 만드는 건 다리가 아니라 리듬이다:
+   한 걸음마다 몸이 위로 튀고(bob) 좌우로 기울고(tilt), 뒤에 발자국이 남는다.
+   바깥(walker)은 '다가오는 것'(작다→크다·흐리다→선명), 안쪽(step)은 '걷는 것'을 맡는다.
+   한 요소에 둘 다 넣으면 transform 이 서로 덮어써서 걸음이 통째로 사라진다. */
+.reveal__scene {
+  /* 가로로 눕힌 폰에서는 무대가 화면을 넘긴다 — 높이를 화면에 맞춰 접어준다 */
+  position: relative; width: 100%; height: min(240px, 42vh); margin: 0 auto 14px;
+  border-radius: 16px; overflow: hidden;
+  background:
+    radial-gradient(120% 70% at 50% 30%, rgba(255,255,255,.55), rgba(255,255,255,0) 70%),
+    linear-gradient(#e6f0e0 0%, #d3e6ca 54%, #bed6b2 54%, #aac79c 100%);
+}
+.reveal__paw {
+  position: absolute; opacity: 0; color: #6f8a66; line-height: 1;
+  transform-origin: 50% 50%;
+  animation: pawStamp 1.9s ease-out both;
+}
+@keyframes pawStamp {
+  0%   { opacity: 0; transform: scale(.5); }
+  10%  { opacity: .8; transform: scale(1); }
+  100% { opacity: .25; transform: scale(1); }
+}
+.reveal__dust {
+  position: absolute; left: 50%; bottom: 5px; width: 132px; height: 19px; margin-left: -66px;
+  border-radius: 50%; background: rgba(110,135,100,.4); opacity: 0;
+  animation: dustPuff .5s ease-out 1.68s forwards;  /* 같은 이유 — 도착 전에 먼지가 보이면 안 된다 */
+}
+@keyframes dustPuff {
+  0%   { opacity: .55; transform: scale(.35); }
+  100% { opacity: 0;   transform: scale(1.7); }
+}
+.reveal__walker {
+  position: absolute; left: 50%; bottom: 8px; width: 170px; margin-left: -85px;
+  animation: walkIn 1.75s cubic-bezier(.32,.05,.6,1) both;
+}
+@keyframes walkIn {
+  0%   { transform: translate(-48px, 48px) scale(.2); opacity: 0; filter: blur(3px); }
+  10%  { opacity: 1; }
+  100% { transform: translate(0, 0) scale(1); opacity: 1; filter: blur(0); }
+}
+/* .44s × 4 = 1.76s — 다가오는 시간과 딱 맞춰야 도착하면서 걸음이 멎는다 */
+.reveal__step {
+  transform-origin: 50% 100%;
+  /* land 는 forwards 여야 한다. both 면 지연 전에도 0% 프레임(눌린 모양)을 뒤에서 덮어써서
+     걸음(stepBob)이 통째로 안 보인다 — 뒤에 오는 애니메이션이 같은 속성을 이긴다. */
+  animation: stepBob .44s ease-in-out 4 both, land .3s ease-out 1.74s forwards;
+}
+@keyframes stepBob {
+  0%   { transform: translateY(0) rotate(0deg); }
+  20%  { transform: translateY(-9%) rotate(-2.6deg); }
+  40%  { transform: translateY(0) rotate(0deg) scale(1.02, .97); }
+  60%  { transform: translateY(-9%) rotate(2.6deg); }
+  80%  { transform: translateY(0) rotate(0deg) scale(1.02, .97); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+@keyframes land {
+  0%   { transform: scale(1.07, .93); }
+  55%  { transform: scale(.98, 1.03); }
+  100% { transform: none; }
+}
+/* 글은 고양이가 도착한 뒤에 올라온다 — 걸어오는 동안은 화면에 고양이만 있어야 한다 */
+.reveal__tag, .reveal__name, .reveal__line, .reveal .btns {
+  animation: riseIn .35s ease-out both;
+}
+.reveal__tag  { animation-delay: 1.80s; }
+.reveal__name { animation-delay: 1.88s; }
+.reveal__line { animation-delay: 1.96s; }
+.reveal .btns { animation-delay: 2.04s; }
+@keyframes riseIn { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
+.reveal__skip {
+  position: absolute; left: 0; right: 0; bottom: 5px;
+  font-size: 11px; color: #7f8c78;
+  animation: riseIn .4s ease-out .9s both;
+}
+/* 건너뛰기 / 모션 최소화 — 전부 끝난 상태로 못 박는다 */
+.reveal.done .reveal__walker, .reveal.done .reveal__step,
+.reveal.done .reveal__tag, .reveal.done .reveal__name,
+.reveal.done .reveal__line, .reveal.done .btns {
+  animation: none; opacity: 1; transform: none; filter: none;
+}
+.reveal.done .reveal__paw { animation: none; opacity: .25; transform: none; }
+.reveal.done .reveal__dust, .reveal.done .reveal__skip { display: none; }
+/* 무대는 이제 장면(또는 영상)을 통째로 담는다 — 옛 150px 틀과 팝 연출은 걷어낸다.
+   (안 걷어내면 걸어오는 장면이 150px 안에 갇히고, 그 위에 팝까지 겹쳐 이중으로 튄다) */
+.reveal__stage { width: 100%; animation: none; }
+
+/* 홈의 발자국 지갑 — 사실만 보여준다. 목표치나 "N개 남음"은 붙이지 않는다 */
+.home__paws {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  background: #fff8f2; border: 1.5px solid #f0d5bd; border-radius: 999px;
+  padding: 4px 14px; margin-bottom: 14px;
+}
+.home__paws b { font-size: 17px; color: #e8630a; }
+.home__paws span { font-size: 11.5px; color: #a35b00; }
+
+/* 맞힌 동사의 뜻 — 잡은 자리 바로 위에서 떠오른다 */
+.jc-float.mean {
+  font-size: 17px; font-weight: bold; color: #2e7d32;
+  background: #eaf6e6; border: 1.5px solid #b6ddaa; border-radius: 999px;
+  padding: 2px 12px; white-space: nowrap; transform: translateX(-50%);
+}
