@@ -83,9 +83,45 @@ export function rainbowDone(clears) {
   return RAINBOW.every((t) => has.has(t.id));
 }
 
-/** 지금 들어갈 수 있는 탑인가. 황금 탑만 잠겨 있다 */
+const INDEX = new Map(TOWERS.map((t, i) => [t.id, i]));
+
+/**
+ * 어디까지 열려 있는가. 이 번호까지가 열린 탑이다.
+ *
+ * **색 순서대로 하나씩 열린다**(2026-08-23). 여덟 개를 한꺼번에 늘어놓으면
+ * 「어디부터 갈까」를 먼저 고르게 되는데, 탑마다 답이 정반대라(전사 탑과 포격 탑)
+ * **순서가 곧 배우는 순서**다. 빨강에서 소모전을, 주황에서 관통을 배우고 올라간다.
+ *
+ * ⚠️ **「앞 탑을 깼는가」가 아니라 「여기까지 와봤는가」로 잰다.**
+ * 2026-08-22까지는 여덟 개가 처음부터 다 열려 있었다. 그때 빨강을 건너뛰고
+ * 노랑을 깬 저장이 있을 수 있는데, 앞 탑만 보면 **이미 깬 탑에서 막힌다.**
+ * 제일 멀리 깬 자리를 기준으로 잡으면 그런 저장도 그대로 이어진다.
+ */
+export function frontier(clears) {
+  let far = -1;
+  for (const id of clears ?? []) {
+    const i = INDEX.get(id);
+    if (i !== undefined && i > far) far = i;
+  }
+  return far + 1;
+}
+
+/** 지금 들어갈 수 있는 탑인가 */
 export function isOpen(tower, clears) {
-  return tower.id !== 'gold' || rainbowDone(clears);
+  const i = INDEX.get(tower?.id);
+  return i !== undefined && i <= frontier(clears);
+}
+
+/** 이 탑을 열려면 무엇을 깨야 하나. 이미 열려 있으면 null */
+export function needsFor(tower, clears) {
+  if (isOpen(tower, clears)) return null;
+  const i = INDEX.get(tower?.id);
+  return i === undefined ? null : TOWERS[i - 1];
+}
+
+/** 지금 가야 할 탑. 다 깼으면 null */
+export function nextTower(clears) {
+  return TOWERS[frontier(clears)] ?? null;
 }
 
 /**

@@ -41,6 +41,14 @@
 }
 .towers__cell[data-open="false"] { opacity: .55; }
 
+/* 지금 갈 탑. **여덟 개가 늘어서 있어도 갈 곳은 늘 하나다** —
+   색 순서대로 열리니 「다음」을 한눈에 짚어줘야 고르는 일이 안 생긴다. */
+.towers__cell[data-next="true"] {
+  border-color: var(--tower);
+  background: #1b2029;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tower) 22%, transparent);
+}
+
 .towers__mark { font-size: 24px; line-height: 1; }
 
 .towers__name {

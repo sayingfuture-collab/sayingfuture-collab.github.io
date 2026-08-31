@@ -9,6 +9,7 @@ import { CHARACTERS } from '../data/characters.js';
 import { createRatesView } from './rates-view.js';
 import { takeTitleNews } from '../titles/check.js';
 import { titleName } from '../titles/catalog.js';
+import { createDuelView } from './duel-view.js';
 
 // 첫 화면에 띄울 예시 인물.
 // 반응 테스트에서 14명 중 무엇을 모으는 게임인지 맞힌 사람이 0명이었다 —
@@ -124,7 +125,11 @@ export function createGachaScreen({ pull, onDone }) {
   one.type = 'button';
   const ten = el('button', 'gacha__btn gacha__btn--sub', '열 장 뽑기');
   ten.type = 'button';
-  buttons.append(one, ten);
+  // 둘이 뽑기. 코어가 「내기하자 할 거리」로 서면서 붙은 첫 지점이다.
+  // 이름은 "대결"이 아니다 — 도전 탭의 전투와 헷갈린다.
+  const duo = el('button', 'gacha__btn gacha__btn--sub', '둘이 뽑기');
+  duo.type = 'button';
+  buttons.append(one, ten, duo);
 
   const shortage = el('div', 'gacha__shortage', '골드가 모자랍니다. 도전 탭에서 층을 오르면 법니다.');
   shortage.hidden = true;
@@ -143,6 +148,7 @@ export function createGachaScreen({ pull, onDone }) {
     // 잠금을 풀 때도 낼 수 없으면 잠긴 채로 둔다
     one.disabled = on || !canAfford(1);
     ten.disabled = on || !canAfford(10);
+    duo.disabled = on || !canAfford(20);
   }
 
   // 카드를 누르면 남은 연출을 건너뛴다. 아는 인물이면 힌트를 다 볼 이유가 없다.
@@ -176,8 +182,10 @@ export function createGachaScreen({ pull, onDone }) {
     const t = getTickets();
     one.textContent = t >= 1 ? '한 장 뽑기 (권 1)' : `한 장 뽑기 (${PULL_COST}골드)`;
     ten.textContent = t >= 10 ? '열 장 뽑기 (권 10)' : `열 장 뽑기 (${PULL_COST * 10}골드)`;
+    duo.textContent = t >= 20 ? '둘이 뽑기 (권 20)' : `둘이 뽑기 (${PULL_COST * 20}골드)`;
     one.disabled = busy || !canAfford(1);
     ten.disabled = busy || !canAfford(10);
+    duo.disabled = busy || !canAfford(20);
     shortage.hidden = canAfford(1);
   }
 
@@ -211,6 +219,27 @@ export function createGachaScreen({ pull, onDone }) {
     refresh();
     onDone();
     lock(false);
+  };
+
+  duo.onclick = () => {
+    lock(true);
+    current = null;
+    stage.dataset.skippable = 'false';
+    const view = createDuelView({
+      pull,
+      canRematch: () => canAfford(20),
+      // 10장 들어올 때마다. 칭호 줄은 격자 아래에 붙는다(view가 격자를 올린 뒤 부른다).
+      onPulled: () => {
+        const got = titleNews();
+        if (got) view.el.append(got);
+        refresh();
+        onDone();
+      },
+      // 끝/그만. 잠금을 풀면 refresh가 낼 수 있는 버튼만 연다.
+      onExit: () => { lock(false); refresh(); },
+    });
+    stage.replaceChildren(view.el);
+    view.start();
   };
 
   refresh();

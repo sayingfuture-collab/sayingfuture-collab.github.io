@@ -5,7 +5,9 @@ import { checkTitles, takeTitleNews } from './titles/check.js';
 import { pendingGift } from './gifts.js';
 import { getGiftsTaken, getStats, getBestFloor, getTitles } from './storage.js';
 import { showGiftScroll } from './ui/gift-scroll.js';
-// 개발자용 치트. 지우려면 이 줄과 아래 installCheat 한 줄만 지우면 된다.
+// 개발자용 치트.
+// ⚠️ **이 줄만 지워도 치트가 안 없어진다** — ui/screen-titles.js 도 cheat.js 를 따로 부른다.
+// 배포본에서는 deploy-nyejun.js 가 cheat.js 를 빈 스텁으로 갈아 끼운다(파일은 남긴다).
 import { installCheat } from './cheat.js';
 import { createGachaScreen } from './ui/screen-gacha.js';
 import { createCollection } from './ui/collection.js';
@@ -56,20 +58,39 @@ if (location.protocol !== 'file:') {
   // 도감 탭으로 넘어가서 정답을 미리 볼 수 있다.
   const gacha = createGachaScreen({ pull, onDone: () => book.refresh() });
 
-  const battle = createBattleScreen();
+  const battle = createBattleScreen({ mode: 'climb' });
   const titles = createTitlesScreen();
-  // 탑을 고르면 전투 화면으로 넘긴다. **편성 화면을 두 벌 두지 않으려는 것이다.**
-  // 전투 중이면 setTower 가 false 를 돌려주고, 그때는 탭도 안 옮긴다 —
-  // 판이 도는 중에 넘기면 화면만 바뀌고 도전은 옛 탑 그대로라 거짓말이 된다.
-  const towers = createTowersScreen({
-    onPick: (tower) => { if (battle.setTower(tower)) showTab('screen-battle'); },
+
+  // ── 탑은 탑 탭 안에서 다 끝난다 (2026-08-23) ─────────────
+  //
+  // 예전에는 탑을 고르면 **도전 탭으로 튕겨 나갔다.** 편성 화면을 두 벌 만들지 않으려던
+  // 것인데, 그 바람에 목적이 다른 두 갈래(등반=기록, 탑=판단)가 한 화면에 얹혔다.
+  // 지금은 도전 화면을 두 번 만들어 쓴다 — 만드는 함수는 하나라 고칠 자리는 그대로 하나다.
+  //
+  // 탑 탭은 **목록 ↔ 전투** 둘 중 하나만 보인다.
+  const towerBattle = createBattleScreen({
+    mode: 'tower',
+    onExit: () => showTowerView('list'),
   });
+  // ⚠️ 전투 중이면 setTower 가 false 를 돌려준다. 그때는 화면도 안 바꾼다 —
+  //    판이 도는 중에 넘기면 화면만 바뀌고 도전은 옛 탑 그대로라 거짓말이 된다.
+  const towers = createTowersScreen({
+    onPick: (tower) => { if (towerBattle.setTower(tower)) showTowerView('run'); },
+  });
+
+  function showTowerView(which) {
+    towers.el.hidden = which !== 'list';
+    towerBattle.el.hidden = which !== 'run';
+    if (which === 'list') towers.refresh();
+    else towerBattle.refresh();
+  }
 
   document.getElementById('screen-gacha').append(gacha.el);
   document.getElementById('screen-battle').append(battle.el);
   document.getElementById('screen-book').append(book.el);
-  document.getElementById('screen-towers').append(towers.el);
+  document.getElementById('screen-towers').append(towers.el, towerBattle.el);
   document.getElementById('screen-titles').append(titles.el);
+  showTowerView('list');
 
   // 탭 전환. 연출 중에도 막지 않는다 — 돌아오면 카드는 그 자리에 있다.
   const tabs = [
@@ -116,7 +137,8 @@ if (location.protocol !== 'file:') {
       x.screen.hidden = !on;
     }
     if (screenId === 'screen-battle') battle.refresh();
-    if (screenId === 'screen-towers') towers.refresh();
+    // 탑 탭은 목록과 전투 두 벌을 품고 있다. 어느 쪽이 보이든 맞게 그려야 한다.
+    if (screenId === 'screen-towers') { towers.refresh(); towerBattle.refresh(); }
     if (screenId === 'screen-titles') titles.refresh();
   }
 

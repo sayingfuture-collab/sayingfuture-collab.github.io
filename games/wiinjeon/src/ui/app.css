@@ -12,6 +12,24 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ── 화면 층위 ──
+   z-index 가 파일 다섯 군데에 흩어져 있어서, 새 덮개를 넣는 사람이 어디에 끼워야
+   할지 알 방법이 없었다. 여기 한 표로 적어둔다.
+
+     9999  치트 알림            cheat.js
+     9998  선물 두루마리        gift-scroll.css
+       20  확률 보기            rates-view.css
+       15  층 보상              reward-view.css
+       10  인물 고르기          screen-battle.css
+       10  도감 상세            collection.css
+        5  광폭화 붉은 섬광     fight-view.css
+   ─────────────────────────────────────────────
+     전장 안(무대)은 **봉해져 있다** — stage.css 의 `isolation: isolate`.
+     유닛 22~99 · 달려나간 유닛 170 · 시전자 180 · 배너 190 · 이펙트 200 은
+     전부 무대 안에서만 논다. 위 표와 겹쳐도 안 부딪힌다.
+
+   ⚠️ 새 덮개를 만들면 **이 표에 줄을 추가한다.** 안 적으면 다음 사람이 또 헤맨다. */
+
 #app {
   width: 100%;
   max-width: 420px;

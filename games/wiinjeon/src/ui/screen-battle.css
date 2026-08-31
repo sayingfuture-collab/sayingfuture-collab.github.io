@@ -339,3 +339,20 @@
   font-weight: 700;
   color: #d29922;
 }
+
+/* 패인 — 「전멸」 아래에 왜 졌는지 한 줄.
+   ⚠️ 이 자리가 통째로 비어 있었다. 「왜 지는지 모르겠다」는 신고의 직접 원인이다. */
+.result-panel__why {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #c9d1d9;
+  background: #161b22;
+  border-left: 3px solid #f85149;
+  border-radius: 0 8px 8px 0;
+  padding: 10px 12px;
+  margin: 4px 0 2px;
+  word-break: keep-all;
+  text-align: left;
+}
+/* 화력 차이는 고칠 곳이 편성이라 덜 급한 색으로 */
+.result-panel__why[data-why="power"] { border-left-color: #8b949e; }

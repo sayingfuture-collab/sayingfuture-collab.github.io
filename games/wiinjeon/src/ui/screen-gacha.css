@@ -126,10 +126,12 @@
 
 .gacha__buttons { flex: none; display: flex; gap: 8px; }
 
+/* 버튼 셋(한 장·열 장·둘이)이 375px 폭에서 한 줄에 들어가려면 13px이어야 한다.
+   15px이면 「한 장 뽑기 (권 1)」부터 두 줄로 접혀 버튼이 68px로 자란다(실측). */
 .gacha__btn {
   flex: 1;
   font: inherit;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 800;
   padding: 14px 0;
   border: none;
@@ -142,7 +144,6 @@
   background: #21262d;
   color: #e6edf3;
   border: 1px solid #30363d;
-  font-size: 14px;
 }
 .gacha__btn:disabled {
   background: #21262d;

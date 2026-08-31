@@ -1,0 +1,51 @@
+/* 둘이 뽑기. 차례 → 격자 → 차례 → 격자 → 결과. 격자 칸은 result-grid.css 그대로. */
+
+.duel { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+
+.duel__turn, .duel__grid, .duel__result {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.duel__who { font-size: 20px; font-weight: 800; color: #e6edf3; }
+
+.duel__btn {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  padding: 14px 28px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f0c04a, #d9a02c);
+  color: #2a1e05;
+  cursor: pointer;
+}
+.duel__btn--sub { background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
+.duel__btn:disabled { background: #21262d; color: #484f58; border-color: #21262d; cursor: default; }
+
+/* 차례 화면의 뽑기 버튼은 크게 — 폰을 넘겨받은 사람이 뭘 누를지 한눈에 */
+.duel__turn .duel__btn { font-size: 18px; padding: 18px 56px; }
+
+.duel__hint, .duel__short, .duel__done { font-size: 12px; color: #8b949e; text-align: center; }
+.duel__short { color: #d29145; }
+
+.duel__quit {
+  font: inherit;
+  font-size: 11px;
+  background: none;
+  border: none;
+  color: #484f58;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.duel__count { font-size: 13px; color: #c9d1d9; }
+
+.duel__verdict { font-size: 26px; font-weight: 800; color: #ffd75e; }
+.duel__lines { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #8b949e; text-align: center; }
+.duel__line--win { color: #e6edf3; font-weight: 800; }
+.duel__stake { font-size: 13px; color: #c9d1d9; }
+.duel__row { display: flex; gap: 8px; }

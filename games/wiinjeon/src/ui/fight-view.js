@@ -6,6 +6,9 @@
 
 import { createUnitView } from './unit-view.js';
 import { describeEvent } from './battle-log.js';
+import { createStage, spotOf, skyOf } from './stage.js';
+import { sideTotals, RAGE_AFTER } from '../battle/engine.js';
+import { grammarOf, gradeOf, planAttack } from './choreo.js';
 
 // 이벤트 하나가 차지하는 시간(ms). 배속은 여기에 나눠서 걸린다.
 // 4대4면 한 턴에 최대 8번 행동이라, 여기를 100ms 올리면 한 턴이 0.8초 길어진다.
@@ -17,7 +20,20 @@ const BEAT = {
   revive: 620,  // 판을 뒤집는 순간이라 좀 길게 둔다
   rage: 650,
   die: 0,       // 공격에 딸린 결과라 따로 시간을 안 준다
+
+  // ⚠️ **여기 없는 종류는 시간을 아예 안 잡는다.**
+  // `beat()` 가 `undefined / speed` = NaN 을 돌려주고 `wait > 0` 이 거짓이 되기 때문이다.
+  // 아래 넷이 실제로 빠져 있었다 — 그래서 세종의 훈민정음이 터져도 로그 한 줄이
+  // 깜빡 지나가고 끝났다. 이 게임에서 「뽑은 보람」이 나와야 할 자리가 통째로 비었던 것.
+  // tests/beat-coverage.test.js 가 battle-log.js 와 대조해 다시 빠지는 걸 막는다.
+  skill: 700,   // 기술 이름을 읽을 시간
+  aoeHit: 620,
+  aoeHeal: 560,
+  weaken: 520,
 };
+
+/** 범위기가 여럿을 때릴 때 한 명씩 어긋내는 간격(ms). 동시에 맞으면 한 대로 보인다 */
+const STAGGER = 40;
 
 // 때린 뒤 맞는 쪽이 반응하기까지. 달려드는 동작이 닿는 순간에 맞춰야 한 대로 보인다.
 const IMPACT = 130;
@@ -70,28 +86,28 @@ export function createFightView() {
   const root = el('div', 'fight');
 
   const floorLabel = el('div', 'fight__floor');
-  const field = el('div', 'fight__field');
+  /**
+   * 우리와 적이 지금 얼마나 남았는가.
+   *
+   * ⚠️ **없어서 실제로 신고가 들어왔다** — 「내가 SR·SR·SSR·SR인데 SSR·SR·R·R한테
+   * 왜 지는지 모르겠다」. 등급은 세기의 1.78배만 설명하고 역할이 2.54배를 설명한다.
+   * 즉 **등급만 보면 절대 못 맞힌다.** 숫자를 보여주면 그 자리에서 풀린다.
+   */
+  const scale = el('div', 'fight__scale');
+  // 아군은 왼쪽, 적은 오른쪽. 자리는 stage.js가 좌표로 정한다.
+  const stage = createStage();
+  // 고유기 이름. 늘 붙어 있고 data-cast 가 켜질 때만 보인다 —
+  // 그때그때 만들어 붙이면 배속이 빠를 때 지우기 전에 다음 게 겹친다.
+  const banner = el('div', 'fight__banner');
   const log = el('div', 'fight__log');
 
-  // 아군은 왼쪽, 적은 오른쪽. 앞줄끼리 가운데에서 마주 본다.
-  const cols = {
-    partyBack: el('div', 'fight__col'),
-    partyFront: el('div', 'fight__col'),
-    enemyFront: el('div', 'fight__col'),
-    enemyBack: el('div', 'fight__col'),
-  };
-  const partyTeam = el('div', 'fight__team');
-  partyTeam.dataset.side = 'party';
-  partyTeam.append(cols.partyBack, cols.partyFront);
-  const enemyTeam = el('div', 'fight__team');
-  enemyTeam.dataset.side = 'enemy';
-  enemyTeam.append(cols.enemyFront, cols.enemyBack);
-  field.append(partyTeam, el('div', 'fight__vs', 'VS'), enemyTeam);
-
-  root.append(floorLabel, field, log);
+  root.append(floorLabel, scale, stage.el, banner, log);
 
   let views = new Map();
   let names = new Map();
+  let tint = null;        // 탑 색. 등반에서는 비어 있다
+  let spots = new Map();  // uid → 무대 위 자리(%). 어디로 달려갈지 여기서 나온다
+  let chars = new Map();  // uid → 인물. 역할을 봐야 어떻게 싸울지 정해진다
   let speed = 1;
   let generation = 0; // 판이 바뀌면 올린다. 재생 중이던 이벤트를 버리는 표식
 
@@ -100,25 +116,72 @@ export function createFightView() {
     generation += 1;
     views = new Map();
     names = new Map();
-    for (const c of Object.values(cols)) c.replaceChildren();
+    spots = new Map();
+    chars = new Map();
+    stage.clear();
+    stage.clearFx();
 
-    const place = (unit, side) => {
-      const view = createUnitView(unit, side);
-      views.set(unit.uid, view);
-      names.set(unit.uid, unit.character.name);
-      cols[`${side}${unit.front ? 'Front' : 'Back'}`].append(view.el);
-    };
-    for (const u of run.party) place(u, 'party');
-    for (const u of run.enemies) place(u, 'enemy');
+    // **줄별로 먼저 모은다.** 자리가 그 줄의 인원수에 따라 벌어지므로,
+    // 한 명씩 세우면서는 어디에 둘지 알 수가 없다.
+    const rows = { partyBack: [], partyFront: [], enemyFront: [], enemyBack: [] };
+    const put = (unit, side) => rows[`${side}${unit.front ? 'Front' : 'Back'}`].push({ unit, side });
+    for (const u of run.party) put(u, 'party');
+    for (const u of run.enemies) put(u, 'enemy');
 
-    // 진형이 비면 칸이 접혀서 마주 보는 줄이 어긋난다. 빈 칸도 자리를 지킨다.
-    for (const [key, node] of Object.entries(cols)) {
-      node.dataset.empty = String(node.children.length === 0);
-      node.dataset.role = key;
+    // 빈 줄은 그냥 비어 있으면 된다 — 좌표라서 칸이 접힐 일이 없다.
+    // (예전 flex 칸에서는 빈 줄에 자리지기를 넣어야 마주 보는 줄이 안 어긋났다.)
+    for (const list of Object.values(rows)) {
+      list.forEach(({ unit, side }, i) => {
+        const view = createUnitView(unit, side);
+        const spot = spotOf(side, unit.front, i, list.length);
+        views.set(unit.uid, view);
+        names.set(unit.uid, unit.character.name);
+        spots.set(unit.uid, spot);
+        chars.set(unit.uid, unit.character);
+        stage.place(view.el, spot);
+      });
     }
 
-    floorLabel.textContent = `${run.floor}층`;
+    showHead(run);
+    // 탑에서는 그 탑 색, 등반에서는 층에 따라 무지개 순서로 바뀐다
+    stage.setSky(tint ?? skyOf(run.floor));
   }
+
+  const num = (v) => Math.round(v).toLocaleString();
+
+  /**
+   * 층·턴·양쪽 수치를 다시 그린다.
+   *
+   * 턴을 보여주는 이유: 광폭화가 **12턴에 터지는데 턴 수가 어디에도 없었다.**
+   * 붉은 섬광이 한 번 스치고 마니, 그 뒤로 피해가 왜 계속 커지는지 알 수가 없다.
+   */
+  function showHead(run) {
+    const delay = run.rageDelay ?? 0;
+    const turn = run.turn ?? 0;
+    const raging = turn > RAGE_AFTER + delay;
+    floorLabel.textContent = `${run.floor}층`;
+    floorLabel.dataset.rage = String(raging);
+    if (turn > 0) {
+      floorLabel.append(el('span', 'fight__turn',
+        raging ? `${turn}턴 ⚡광폭화` : `${turn}턴`));
+    }
+
+    const us = sideTotals(run.party, run.aura ?? 0);
+    const them = sideTotals(run.enemies, run.enemyAura ?? 0);
+    scale.replaceChildren();
+    for (const [label, t] of [['아군', us], ['적', them]]) {
+      const row = el('div', 'fight__scaleRow');
+      row.append(
+        el('span', 'fight__scaleWho', label),
+        el('span', 'fight__scaleHp', `체력 ${num(t.hp)}`),
+        el('span', 'fight__scaleAtk', `공격 ${num(t.atk)}`)
+      );
+      scale.append(row);
+    }
+  }
+
+  /** 탑 색을 지정한다. 비우면 층에서 뽑아 쓴다 */
+  function setTint(color) { tint = color ?? null; }
 
   // 연출 길이도 배속을 따라가야 한다. 안 그러면 ×4에서 다음 이벤트가
   // 이전 동작이 끝나기 전에 들어와 동작이 서로 잘린다.
@@ -129,23 +192,125 @@ export function createFightView() {
 
   const beat = (t) => BEAT[t] / speed;
 
+  /**
+   * 이 이벤트의 **마지막 타격이 닿는 시각**(ms).
+   *
+   * 쓰러짐(`die`)은 공격 뒤에 따로 오는 이벤트라, 때리는 동작이 닿기 전에 처리하면
+   * 맞는 장면 없이 먼저 쓰러진다. 범위기는 여럿을 어긋내 때리므로 그만큼 더 늦다 —
+   * 고정값(IMPACT)으로 두면 **마지막에 맞은 사람이 쓰러진 뒤에 맞는다.**
+   */
+  let impactEnd = IMPACT;
+
+  /**
+   * 역할대로 때린다. **여기가 「전사는 달려가고 포격은 쏜다」가 갈리는 자리다.**
+   *
+   * 계획은 choreo.js 가 순수 함수로 세우고(그래야 노드에서 검사할 수 있다)
+   * 여기서는 그 계획을 화면에 옮기기만 한다.
+   *
+   * @returns {number} 이 공격이 실제로 닿는 시각(ms). 쓰러짐이 이 값을 쓴다
+   */
+  function strike(fromUid, toUid) {
+    const actor = views.get(fromUid);
+    const a = spots.get(fromUid);
+    const b = spots.get(toUid);
+    actor?.lunge();
+    if (!a || !b) return IMPACT;
+
+    const plan = planAttack({
+      grammar: grammarOf(chars.get(fromUid)),
+      grade: gradeOf(speed),
+      from: a, to: b, beat: BEAT.attack,
+    });
+
+    if (plan.move) {
+      const { w, h } = stage.size();
+      actor?.moveBy((plan.move.x / 100) * w, (plan.move.y / 100) * h, plan.travelMs / speed);
+      // 닿자마자 바로 돌아서면 때린 게 안 보인다. 한 박자 머물렀다 돌아온다
+      setTimeout(() => actor?.home(plan.backMs / speed), (plan.impactMs + 90) / speed);
+    }
+
+    if (plan.fx === 'slash') {
+      setTimeout(() => stage.burst('slash', b, 240 / speed), plan.impactMs / speed);
+    } else if (plan.fx === 'shell') {
+      // 포탄만 포물선이다. 나머지는 곧게 간다
+      stage.fly('shell', a, b, plan.impactMs / speed, 20);
+    } else if (plan.fx === 'beam') {
+      stage.burst('beam', b, 320 / speed);
+    } else if (plan.fx) {
+      stage.fly(plan.fx, a, b, plan.impactMs / speed, 0);
+    }
+
+    // 히트스톱 — 명중 순간 화면을 세운다. 「때렸다」를 만드는 건 이것 하나다
+    if (plan.hitstop) {
+      setTimeout(() => mark('stop', plan.hitstop), plan.impactMs / speed);
+    }
+    // 흔들리는 방향이 때린 방향과 맞아야 힘이 읽힌다
+    if (plan.shake) {
+      root.style.setProperty('--tapdir', b.x >= a.x ? '1' : '-1');
+      setTimeout(() => mark('tap', 180), plan.impactMs / speed);
+    }
+    return plan.impactMs || IMPACT;
+  }
+
+  /** 한 번짜리 표식을 붙였다 뗀다. 연출이 겹쳐도 마지막 것만 남는다 */
+  const mark = (attr, ms) => {
+    root.dataset[attr] = 'on';
+    setTimeout(() => { if (root.dataset[attr] === 'on') delete root.dataset[attr]; }, ms / speed);
+  };
+
   /** 이벤트 하나를 화면에 반영한다. 시간은 안 쓴다 */
   function apply(e) {
     const from = views.get(e.from);
+    impactEnd = IMPACT;
     switch (e.t) {
       case 'attack': {
-        from?.lunge();
+        impactEnd = strike(e.from, e.to);
         setTimeout(() => {
           if (views.get(e.to) === undefined) return;
           views.get(e.to).hit(e);
-        }, IMPACT / speed);
+        }, impactEnd / speed);
+        break;
+      }
+      // 고유기가 터지는 순간. 화면을 어둡게 깔고 이름을 띄운다 —
+      // **이 배너가 「뽑은 보람」을 눈으로 보여주는 유일한 자리다.**
+      case 'skill': {
+        from?.cast();
+        banner.textContent = `《${e.name}》`;
+        mark('cast', BEAT.skill);
+        break;
+      }
+      case 'aoeHit': {
+        const hits = e.hits ?? [];
+        from?.cast();
+        hits.forEach((h, i) => setTimeout(() => {
+          views.get(h.to)?.hit(h);
+        }, (IMPACT + i * STAGGER) / speed));
+        impactEnd = IMPACT + Math.max(0, hits.length - 1) * STAGGER;
+        mark('shake', 420);
+        break;
+      }
+      case 'aoeHeal': {
+        from?.cast();
+        (e.heals ?? []).forEach((h, i) => setTimeout(() => {
+          views.get(h.to)?.heal(h);
+        }, (i * STAGGER) / speed));
+        break;
+      }
+      case 'weaken': {
+        from?.cast();
+        for (const uid of e.targets ?? []) views.get(uid)?.weaken(e.pct);
         break;
       }
       case 'heal': views.get(e.to)?.heal(e); break;
       case 'revive': from?.lunge(); views.get(e.to)?.revive(e); break;
       case 'shield': for (const uid of e.targets ?? []) views.get(uid)?.shield(e.amount); break;
       case 'buff': from?.buff(e.pct); break;
-      case 'die': setTimeout(() => views.get(e.who)?.die(), IMPACT / speed); break;
+      // 앞 이벤트가 정한 시각을 쓴다. 범위기 뒤에 오면 그만큼 늦게 쓰러진다
+      case 'die': {
+        const at = impactEnd;
+        setTimeout(() => views.get(e.who)?.die(), at / speed);
+        break;
+      }
       case 'rage':
         root.dataset.rage = 'on';
         setTimeout(() => root.removeAttribute('data-rage'), 700 / speed);
@@ -181,12 +346,13 @@ export function createFightView() {
   /** 재생이 놓친 게 있어도 턴 끝에는 엔진과 맞춘다 */
   function sync(run) {
     for (const u of [...run.party, ...run.enemies]) views.get(u.uid)?.sync(u);
+    showHead(run);
   }
 
   /** 재생 중인 것을 버린다 */
-  function abort() { generation += 1; }
+  function abort() { generation += 1; stage.clearFx(); }
 
   function setLog(text) { log.textContent = text; }
 
-  return { el: root, setup, play, sync, setSpeed, abort, setLog };
+  return { el: root, setup, play, sync, setSpeed, abort, setLog, setTint };
 }

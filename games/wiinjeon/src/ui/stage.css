@@ -1,0 +1,124 @@
+/* 전장 무대 — stage.js와 짝.
+   자리는 전부 절대좌표다. 유닛은 **발끝**을 기준으로 선다(translate -50% -100%).
+   가운데가 아니라 발끝인 이유는, 원근으로 크기가 달라져도 바닥에 닿는 자리가 안 흔들려야 해서다.
+
+   ⚠️ 시간이 들어가는 값은 전부 `/ var(--speed)` 여야 한다.
+      tests/screen-wiring.test.js 가 검사한다. */
+
+.stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  /* ⚠️ **무대를 봉한다.** 안 봉하면 유닛의 z-index(22~99)와 이펙트(200)가
+     뿌리까지 새어 나가 화면 덮개들과 직접 겨룬다 — 층 보상 화면이 15라서
+     **보상을 고르는 동안 유닛이 그 위로 뚫고 나왔다**(2026-08-26 실제 신고).
+     여기 한 줄이면 무대 안의 z 는 전부 무대 안에서만 논다.
+     덮개 쪽 숫자를 올리는 방식으로 고치면 무대에 z 를 하나 더 넣을 때마다
+     덮개를 또 올려야 한다 — 그건 고친 게 아니다. */
+  isolation: isolate;
+  border-radius: 12px;
+  /* 하늘. 층이 오르면 --sky 가 바뀐다(stage.js skyOf).
+     탑 색을 그대로 쓰되 **짙게 섞는다** — 원색 그대로면 유닛이 배경에 묻힌다. */
+  --sky: #58a6ff;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--sky) 19%, #0d1117) 0%,
+    color-mix(in srgb, var(--sky) 11%, #0d1117) 34%,
+    color-mix(in srgb, var(--sky) 4%, #0d1117) 62%,
+    #0d1117 100%);
+}
+
+/* 바닥 — 지평선 한 줄과 그 아래 옅은 면.
+   이거 하나로 유닛이 「허공에 뜬 카드」가 아니라 「땅에 선 것」이 된다. */
+.stage__ground {
+  position: absolute;
+  left: 0; right: 0; top: 20%; bottom: 0;
+  background: linear-gradient(180deg, #0d111700 0%, #0d1117aa 70%, #0d1117 100%);
+  /* 지평선은 **아주 얇게**. 굵으면 하늘과 땅이 아니라 벽으로 보인다 */
+  border-top: 1px solid color-mix(in srgb, var(--sky) 40%, #30363d);
+  pointer-events: none;
+}
+
+.stage__units { position: absolute; inset: 0; }
+
+/* 이펙트는 늘 유닛 위다. 참격이 누구 뒤에 가려지면 때린 게 안 보인다 */
+.stage__fx { position: absolute; inset: 0; pointer-events: none; z-index: 200; }
+
+/* ── 이펙트 ──
+   역할마다 다른 것이 날아간다(choreo.js). 그림 파일을 안 쓴다 —
+   무료 도트 이펙트 팩을 가져오면 붓질이 달라서 우리 그림 옆에서 튄다.
+   대신 **모서리를 하나도 안 굴리고** 각지게 그려서 도트와 결을 맞춘다.
+
+   자리(left/top)는 JS 가 넣는다. 여기서는 모양과 제자리 움직임만 맡는다. */
+
+.fx {
+  position: absolute;
+  transform: translate(-50%, -50%) rotate(var(--deg, 0deg));
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* 참격 — 벤 자리에 남는 빗금. 전사가 달려가 닿는 순간 터진다 */
+.fx--slash {
+  width: 58px; height: 7px;
+  background: linear-gradient(90deg, #ffffff00 0%, #ffffff 38%, #ffd75e 72%, #ffffff00 100%);
+  transform: translate(-50%, -50%) rotate(-38deg);
+  animation: fx-slash calc(.24s / var(--speed)) steps(5, end) forwards;
+}
+@keyframes fx-slash {
+  0%   { opacity: 0; width: 10px; }
+  20%  { opacity: 1; width: 58px; }
+  100% { opacity: 0; width: 70px; }
+}
+
+/* 포탄 — 포격이 포물선으로 쏜다. 날아가는 동안 구른다 */
+.fx--shell {
+  width: 10px; height: 10px;
+  background: #e6edf3;
+  box-shadow: 0 0 0 2px #30363d, 0 0 10px 2px #ffd75e66;
+  animation: fx-spin calc(.5s / var(--speed)) linear infinite;
+}
+@keyframes fx-spin {
+  0%   { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* 기물 — 장인이 곧게 날린다. 나아가는 쪽을 보고 눕는다 */
+.fx--bolt {
+  width: 20px; height: 5px;
+  background: linear-gradient(90deg, #58a6ff00, #58a6ff 60%, #e6edf3);
+}
+
+/* 충격파 — 지휘가 밀어 보낸다. 테두리만 남은 네모가 커진다 */
+.fx--wave {
+  width: 26px; height: 26px;
+  border: 3px solid #ffd75e;
+  animation: fx-wave calc(.34s / var(--speed)) steps(4, end) infinite;
+}
+@keyframes fx-wave {
+  0%   { opacity: 1; width: 14px; height: 14px; }
+  100% { opacity: .35; width: 44px; height: 44px; }
+}
+
+/* 빛기둥 — 치유가 대상 위로 내린다. 위에서 아래로 떨어진다 */
+.fx--beam {
+  width: 26px; height: 120px;
+  background: linear-gradient(180deg, #3fb95000, #3fb95088 40%, #3fb950cc);
+  transform: translate(-50%, -78%);
+  animation: fx-beam calc(.32s / var(--speed)) ease-out forwards;
+}
+@keyframes fx-beam {
+  0%   { opacity: 0; transform: translate(-50%, -110%) scaleY(.5); }
+  30%  { opacity: 1; transform: translate(-50%, -78%) scaleY(1); }
+  100% { opacity: 0; transform: translate(-50%, -78%) scaleY(1); }
+}
+
+/* 히트스톱 — 명중 순간 화면을 세운다.
+   **「때렸다」를 만드는 건 이것 하나다.** 60~90ms면 충분하고, 더 길면 끊겨 보인다. */
+.fight[data-stop="on"] .stage * { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fx { animation: none; }
+  .fight[data-stop="on"] .stage * { animation-play-state: running; }
+}

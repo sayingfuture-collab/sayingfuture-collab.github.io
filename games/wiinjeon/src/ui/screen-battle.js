@@ -14,6 +14,7 @@ import { takeTitleNews } from '../titles/check.js';
 import { titleName } from '../titles/catalog.js';
 import { runReward } from '../economy.js';
 import { statsOf, rowMult, ROLE_SKILL, LEVEL_CAP } from '../battle/stats.js';
+import { defeatReason } from '../battle/engine.js';
 import { skillInfo } from '../battle/skills.js';
 import { createRun, startFloor } from '../battle/engine.js';
 import { TOWER_FLOORS, makeTowerFloor, GOLD_TOWER } from '../towers/catalog.js';
@@ -36,7 +37,20 @@ function el(tag, className, text) {
   return node;
 }
 
-export function createBattleScreen() {
+/**
+ * 도전 화면 한 벌.
+ *
+ * **같은 화면을 두 벌 만들어 쓴다**(2026-08-23) — 도전 탭에 등반용, 탑 탭에 탑용.
+ * 편성 화면을 복사하지 않으려고 예전에는 한 벌을 돌려썼는데, 그러면 탑을 고를 때마다
+ * 도전 탭으로 튕겨 나가서 두 갈래가 한 화면에 뒤엉켰다. 만드는 함수가 하나이므로
+ * 화면이 갈라져도 고칠 자리는 여전히 여기 하나뿐이다.
+ *
+ * @param {{mode?: 'climb'|'tower', onExit?: () => void}} [options]
+ *   mode 'tower' 면 위에 탑 띠가 붙고 `setTower` 로 어느 탑인지 정한다.
+ *   onExit 은 그 띠의 「목록으로」가 부른다.
+ */
+export function createBattleScreen({ mode = 'climb', onExit = null } = {}) {
+  const inTowerMode = mode === 'tower';
   const root = el('div', 'battle');
 
   const best = el('div', 'battle__best');
@@ -46,7 +60,8 @@ export function createBattleScreen() {
   const banner = el('div', 'battle__tower');
   const body = el('div', 'battle__body');
   const buttons = el('div', 'battle__buttons');
-  root.append(best, banner, body, buttons);
+  // 등반 화면에는 탑 띠 자리를 아예 안 만든다 — 빈 칸만 남아서 위가 뜬다.
+  root.append(best, ...(inTowerMode ? [banner] : []), body, buttons);
 
   /** @type {Array<{id: string, front: boolean}>} */
   let party = [];
@@ -301,6 +316,8 @@ export function createBattleScreen() {
     makeFloor = tower ? makeTowerFloor(tower) : startFloor;
     makeFloor(run);
     showFight();
+    // 탑 안에서는 하늘을 그 탑 색으로 물들인다. 등반은 층에 따라 알아서 바뀐다
+    fight.setTint(tower?.color);
     fight.setup(run);
     fight.setLog('1층 시작');
     loop();
@@ -368,6 +385,18 @@ export function createBattleScreen() {
     const floor = el('div', 'result-panel__floor');
     floor.append(el('b', null, String(reached)), inTower ? ` / ${TOWER_FLOORS}층` : '층');
     panel.append(floor);
+
+    // ⚠️ **왜 졌는지 한 글자도 없었다.** 「전멸」과 층수만 보여주고 끝냈다 —
+    // 실제로 「왜 지는지 모르겠다」는 신고가 들어왔다. 짐작이 아니라 그 판에서
+    // 받은 피해를 갈라서 말한다(engine.js defeatReason).
+    if (!done) {
+      const why = defeatReason(run);
+      if (why) {
+        const line = el('div', 'result-panel__why', why.text);
+        line.dataset.why = why.key;
+        panel.append(line);
+      }
+    }
 
     if (inTower) {
       panel.append(el('div', done ? 'result-panel__best' : 'result-panel__prev',
@@ -447,27 +476,34 @@ export function createBattleScreen() {
   }
 
   /**
-   * 어느 탑에 도전할지 정한다. null 이면 등반(끝없이 오르는 판)으로 돌아간다.
+   * 어느 탑에 도전할지 정한다.
    *
    * ⚠️ **전투 중에는 안 바꾼다.** 판이 도는 중에 바꾸면 층 세우는 방법과 끝나는 조건이
    * 판 중간에 갈리고, 결과 화면이 엉뚱한 탑 이름을 단다.
+   *
+   * ⚠️ **막는 기준은 `run` 이 아니라 `playing` 이다.** `run` 은 showForm() 에서만 비워지는데,
+   * 판이 스스로 끝나면(endRun) 결과 화면만 갈아 끼우고 run 은 그대로 남는다.
+   * 그래서 예전에는 **빨강 탑을 깨고 나면 주황 탑을 눌러도 아무 일도 안 일어났다**
+   * (2026-08-23 제보·재현). 「편성 바꾸기」를 먼저 눌러야만 풀리는 상태였다.
+   * `playing` 은 실제로 판이 도는 동안만 참이라 이 구멍이 없다.
    */
   function setTower(next) {
-    if (run) return false;
+    if (!inTowerMode || playing) return false;
     tower = next ?? null;
     showForm();
     return true;
   }
 
   function renderBanner() {
+    if (!inTowerMode) return;
     banner.replaceChildren();
     if (!tower) return;
     banner.style.setProperty('--tower', tower.color);
     const name = el('div', 'battle__towerName', `${tower.mark} ${tower.name} · ${TOWER_FLOORS}층`);
     const hint = el('div', 'battle__towerHint', tower.hint);
-    const off = el('button', 'battle__towerOff', '등반으로');
+    const off = el('button', 'battle__towerOff', '목록으로');
     off.type = 'button';
-    off.onclick = () => setTower(null);
+    off.onclick = () => { if (!playing) onExit?.(); };
     banner.append(name, hint, off);
     // 황금 탑은 하루 한 번만 값을 한다. **들어가기 전에 알려준다** —
     // 다 깨고 나서 알면 그 15층이 통째로 헛수고가 된다.

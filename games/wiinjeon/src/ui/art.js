@@ -160,6 +160,19 @@ export const UNIT_ASSETS = new Set([
 export const hasArt = (id) => UNIT_ASSETS.has(id);
 
 /**
+ * 사람을 그린 인물인가.
+ *
+ * SSR·SR 42명만 사람이고 R·N 92명은 사물이다(항아리·눈송이·국자).
+ * 왜 사물인지는 docs/카드-일러-지침_2-R사물.md 에 있다 — 요약하면
+ * **32칸에서는 얼굴이 안 보이고, 이 게임은 이름 맞히기라 그림이 힌트 몫을 해야 한다.**
+ *
+ * 전장에서 둘은 **움직이는 법이 다르다.** 사람은 걷고 내지르고, 사물은 떠서
+ * 회전하고 튕긴다. 사물에 다리를 달 수는 없으니 문법을 따로 준 것이다.
+ */
+export const isPersonArt = (character) =>
+  character?.tier === 'SSR' || character?.tier === 'SR';
+
+/**
  * 인물 그림을 담은 요소를 만든다.
  *
  * @param {object} character characters.js의 인물
@@ -184,5 +197,56 @@ export function artNode(character, className) {
   // 파일이 없거나 깨졌으면 이모지로 떨어진다. 화면이 비는 것보다 낫다.
   img.onerror = () => { box.replaceChildren(character.e); };
   box.append(img);
+  return box;
+}
+
+/**
+ * 전장용 그림. 초상과 **다른 파일**을 쓴다.
+ *
+ * `assets/battle/<id>.png` 는 32 × 144 짜리 띠다 — 자세 셋(idle·wind·strike)을
+ * 세로로 붙여 놨다. img 를 셋 두고 src 를 갈아 끼우면 처음 한 번은 캐시가 없어
+ * 빈 채로 지나가므로, **한 장을 배경으로 깔고 위치만 민다.**
+ * 어느 자세를 보일지는 CSS 가 `--frame` 으로 정한다(fight-view.css).
+ *
+ * 초상(artNode)과 갈라 둔 이유는 카드·도감·편성칩 여섯 자리가 초상을 쓰기 때문이다.
+ * 한 함수로 합치면 전장을 고칠 때마다 카드가 같이 흔들린다.
+ */
+export function battleArtNode(character, className) {
+  const box = document.createElement('div');
+  if (className) box.className = className;
+  box.dataset.kind = isPersonArt(character) ? 'person' : 'thing';
+
+  if (!UNIT_ASSETS.has(character.id)) {
+    box.textContent = character.e;
+    box.dataset.kind = 'emoji';
+    return box;
+  }
+
+  const battle = `./assets/battle/${character.id}.png`;
+  box.style.backgroundImage = `url("${battle}")`;
+  box.setAttribute('role', 'img');
+  box.setAttribute('aria-label', character.name);
+
+  // ⚠️ **background-image 는 실패해도 아무 말이 없다.** 파일이 없으면 그 인물만
+  // 투명한 상자가 되어 조용히 사라진다 — 초상(artNode)은 onerror 로 이모지에
+  // 떨어지는데 여기는 떨어질 자리가 아예 없었다.
+  // 그래서 따로 재본다. 전투 그림이 없으면 **초상**으로, 그것도 없으면 이모지로.
+  // 전신은 아니지만 빈 자리보다 낫고, 무엇보다 **빠진 걸 눈으로 알 수 있다.**
+  const probe = new Image();
+  probe.onerror = () => {
+    const portrait = `./assets/units/${character.id}.png`;
+    const back = new Image();
+    back.onload = () => {
+      box.style.backgroundImage = `url("${portrait}")`;
+      box.dataset.kind = 'portrait';
+    };
+    back.onerror = () => {
+      box.style.backgroundImage = '';
+      box.dataset.kind = 'emoji';
+      box.textContent = character.e;
+    };
+    back.src = portrait;
+  };
+  probe.src = battle;
   return box;
 }

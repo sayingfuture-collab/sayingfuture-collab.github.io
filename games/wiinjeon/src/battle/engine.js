@@ -191,6 +191,8 @@ export function createRun(partyEntries) {
     rewards: [],
     rageDelay: 0,
     startShield: 0,
+    // 「왜 졌는지」를 말해주기 위한 근거. 판 내내 쌓인다 — 아래 defeatReason 이 읽는다.
+    tally: { taken: 0, dealt: 0, rage: 0, exposed: 0, pierce: 0, leak: 0 },
     result: 'ongoing',
   };
 }
@@ -270,13 +272,21 @@ const FRONT_SLOTS = 4;
 // 앞줄 빈자리 하나당 뒤로 새는 확률. stats.js와 같은 이유로 훑기용 손잡이를 둔다.
 const LEAK_PER_MISSING = Number(globalThis.process?.env?.LEAK_PER_MISSING ?? 0.15);
 
+/**
+ * @returns {{pool: Array, leaked: boolean}} leaked 는 **앞줄이 얇아 뒤로 샌 것**.
+ *
+ * ⚠️ 샜는지를 같이 돌려주는 이유: 앞줄이 하나면 확률이 (4-1)×0.15 = **45%** 다.
+ * 판을 가르는 주사위인데 예전에는 화면에 아무 표시가 없어서, 뒷줄이 왜 맞았는지
+ * 플레이어가 알 방법이 없었다. 「왜 지는지 모르겠다」는 신고의 한 갈래다.
+ */
 function reachable(list, rng) {
   const living = alive(list);
   const front = living.filter((u) => u.front);
-  if (!front.length) return living; // 앞줄이 없거나 다 쓰러졌다 — 뒷줄이 그대로 노출된다
+  if (!front.length) return { pool: living, leaked: false }; // 앞줄이 없다 — 뒷줄이 그대로 노출된다
   const back = living.filter((u) => !u.front);
-  if (!back.length) return front;   // 뒷줄이 없다
-  return rng() < (FRONT_SLOTS - front.length) * LEAK_PER_MISSING ? back : front;
+  if (!back.length) return { pool: front, leaked: false };   // 뒷줄이 없다
+  const leaked = rng() < (FRONT_SLOTS - front.length) * LEAK_PER_MISSING;
+  return { pool: leaked ? back : front, leaked };
 }
 
 /**
@@ -339,7 +349,7 @@ function chooseTarget(actor, foes, rng) {
     };
   }
 
-  let pool = reachable(foes, rng);
+  const { pool, leaked } = reachable(foes, rng);
   if (!pool.length) return null;
 
   // 도발 — 앞줄이 표적일 때만 걸린다. 뒤로 샌 공격은 전사가 못 막는다.
@@ -347,7 +357,11 @@ function chooseTarget(actor, foes, rng) {
   if (guards.length) {
     return { target: guards[Math.floor(rng() * guards.length)], via: 'guard', mult: 1 };
   }
-  return { target: pool[Math.floor(rng() * pool.length)], via: null, mult: 1 };
+  return {
+    target: pool[Math.floor(rng() * pool.length)],
+    via: leaked ? 'leak' : null,
+    mult: 1,
+  };
 }
 
 /** 때린다 */
@@ -359,12 +373,16 @@ function attack(actor, allies, foes, power, rng, events) {
   // 때린 사건을 먼저, 그 결과인 쓰러짐을 뒤에 넣는다.
   // 순서가 뒤집히면 로그가 어색하고, 나중에 그래픽을 얹었을 때
   // 죽는 연출이 공격 연출보다 먼저 재생된다.
-  const { actual, died } = applyDamage(target, Math.round(power * mult), isExposed(foes));
+  const exposed = isExposed(foes);
+  const { actual, died } = applyDamage(target, Math.round(power * mult), exposed);
   const e = {
     t: 'attack', from: actor.uid, to: target.uid,
     dmg: actual, hp: target.hp, shield: target.shield,
   };
   if (via) e.via = via;
+  // 앞줄이 하나도 없어서 30% 더 맞았다. **via 와 따로 싣는다** —
+  // 무방비는 때리는 방식이 아니라 맞는 쪽 사정이라 관통·도발과 같이 걸릴 수 있다.
+  if (exposed) e.exposed = true;
   events.push(e);
   if (died) {
     events.push({ t: 'die', who: target.uid });
@@ -583,6 +601,84 @@ function act(actor, allies, foes, buff, rage, rng, events, ctx) {
   return 0;
 }
 
+/**
+ * 이번 턴의 이벤트에서 근거를 쌓는다.
+ *
+ * **여기서 훑는 이유**: 어느 쪽이 아군인지 아는 건 runTurn 뿐이다. attack() 까지
+ * 내려가서 모으려면 「너는 아군이냐」를 인자로 줄줄이 달아야 하는데,
+ * 그 인자는 싸움 규칙과 아무 상관이 없다.
+ */
+function addUp(state, events) {
+  const mine = new Set(state.party.map((u) => u.uid));
+  const t = state.tally;
+  if (!t) return;
+  const raging = state.turn > RAGE_AFTER + (state.rageDelay ?? 0);
+  const hit = (uid, dmg, e) => {
+    if (!mine.has(uid)) { t.dealt += dmg; return; }
+    t.taken += dmg;
+    if (raging) t.rage += dmg;
+    if (e?.exposed) t.exposed += dmg;
+    if (e?.via === 'pierce' || e?.via === 'massed') t.pierce += dmg;
+    if (e?.via === 'leak') t.leak += dmg;
+  };
+  for (const e of events) {
+    if (e.t === 'attack') hit(e.to, e.dmg, e);
+    else if (e.t === 'aoeHit') for (const h of e.hits ?? []) hit(h.to, h.dmg, null);
+  }
+}
+
+/**
+ * 한쪽이 지금 얼마나 남았는가. 화면이 「우리 대 적」을 보여주는 데 쓴다.
+ *
+ * ⚠️ **지어낸 「전력」 한 숫자를 안 만든다.** 체력과 공격은 서로 못 바꾸는 값이라
+ * 하나로 뭉치려면 배수를 손으로 정해야 하고, 그 배수는 근거가 없다.
+ * 두 숫자를 그대로 보여주면 플레이어가 직접 견준다.
+ */
+export function sideTotals(units, aura = 0) {
+  let hp = 0, maxHp = 0, atk = 0, alive = 0;
+  for (const u of units) {
+    maxHp += u.maxHp;
+    if (u.hp <= 0) continue;
+    hp += u.hp;
+    atk += effAtk(u, aura);
+    alive += 1;
+  }
+  return { hp, maxHp, atk, alive };
+}
+
+/**
+ * 왜 졌는가. 근거가 실제로 가리키는 쪽을 하나 고른다.
+ *
+ * 「전멸」과 층수만 보여주던 자리에 이유를 붙인다 — **「왜 지는지 모르겠다」가
+ * 실제로 들어온 신고다.** 짐작이 아니라 그 판에서 받은 피해를 갈라 말한다.
+ *
+ * @returns {{key: string, text: string}|null} 근거가 없으면 null
+ */
+export function defeatReason(state) {
+  const t = state.tally;
+  if (!t || t.taken <= 0) return null;
+  const share = (v) => Math.round((v / t.taken) * 100);
+
+  if (share(t.rage) >= 35) {
+    return { key: 'rage',
+      text: `${RAGE_AFTER}턴을 넘겨 광폭화에 무너졌습니다 — 받은 피해의 ${share(t.rage)}%가 그 뒤에 났습니다. 더 빨리 끝낼 화력이 필요합니다.` };
+  }
+  if (share(t.exposed) >= 30) {
+    return { key: 'exposed',
+      text: `앞줄이 비어 그대로 맞았습니다 — 받은 피해의 ${share(t.exposed)}%를 무방비로 맞았습니다. 앞줄에 한 명은 세우세요.` };
+  }
+  if (share(t.pierce) >= 30) {
+    return { key: 'pierce',
+      text: `적 포격이 앞줄을 넘어 뒷줄을 노렸습니다 — 받은 피해의 ${share(t.pierce)}%가 관통입니다. 앞줄을 두껍게 하면 관통이 막힙니다.` };
+  }
+  if (share(t.leak) >= 30) {
+    return { key: 'leak',
+      text: `앞줄이 얇아 공격이 뒤로 샜습니다 — 받은 피해의 ${share(t.leak)}%입니다. 앞줄이 한 명이면 절반 가까이 새어 나갑니다.` };
+  }
+  return { key: 'power',
+    text: `화력이 모자랐습니다 — 준 피해 ${t.dealt.toLocaleString()} 대 받은 피해 ${t.taken.toLocaleString()}.` };
+}
+
 /** 한 턴 — 아군 전원 → 적 전원. 한쪽이 전멸하면 즉시 멈춘다. */
 export function runTurn(state, rng = Math.random) {
   const events = [];
@@ -602,14 +698,15 @@ export function runTurn(state, rng = Math.random) {
   for (const u of state.party) {
     if (u.hp === 0) continue;
     state.buff = cap(state.buff + act(u, state.party, state.enemies, state.buff, rage, rng, events, mine));
-    if (!alive(state.enemies).length) { state.result = 'floorCleared'; return events; }
+    if (!alive(state.enemies).length) { state.result = 'floorCleared'; addUp(state, events); return events; }
   }
 
   for (const u of state.enemies) {
     if (u.hp === 0) continue;
     state.enemyBuff = cap(state.enemyBuff + act(u, state.enemies, state.party, state.enemyBuff, rage, rng, events, theirs));
-    if (!alive(state.party).length) { state.result = 'wiped'; return events; }
+    if (!alive(state.party).length) { state.result = 'wiped'; addUp(state, events); return events; }
   }
 
+  addUp(state, events);
   return events;
 }

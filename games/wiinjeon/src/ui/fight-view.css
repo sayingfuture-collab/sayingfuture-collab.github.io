@@ -1,5 +1,5 @@
-/* 전장 — 옆에서 보는 시점. fight-view.js와 짝.
-   아군이 왼쪽, 적이 오른쪽. 각 팀은 뒷줄·앞줄 두 칸으로 서고 앞줄끼리 가운데에서 마주 본다.
+/* 전장 — 옆에서 보는 시점. fight-view.js와 짝. 무대 자체는 stage.css에 있다.
+   아군이 왼쪽, 적이 오른쪽. 자리는 stage.js가 좌표로 정한다.
    --speed는 배속. 연출 길이가 배속을 따라가야 ×4에서 동작이 밀리지 않는다. */
 
 .fight {
@@ -16,39 +16,6 @@
   font-size: 14px;
   font-weight: 800;
   color: #e6edf3;
-}
-
-.fight__field {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
-}
-
-.fight__team { flex: 1; min-width: 0; display: flex; gap: 4px; }
-
-.fight__col {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-/* 빈 줄도 자리를 지켜야 마주 보는 줄이 안 어긋난다 */
-.fight__col[data-empty="true"]::before {
-  content: '';
-  display: block;
-  height: 2px;
-}
-
-.fight__vs {
-  flex: none;
-  align-self: center;
-  font-size: 10px;
-  color: #30363d;
-  writing-mode: vertical-rl;
-  letter-spacing: .1em;
 }
 
 .fight__log {
@@ -77,54 +44,100 @@
   100% { opacity: 0; }
 }
 
-/* ── 유닛 ── */
+/* ── 유닛 ──
+   껍데기(.unit)와 알맹이(.unit__body)가 나뉘어 있다. 껍데기는 무대 위 **자리**를
+   맡고, 알맹이는 보이는 칸이다. 연출은 전부 알맹이에 건다 —
+   한 요소에 자리와 연출을 같이 걸면 나중 transform 이 앞을 덮어써서 유닛이 자리를 잃는다. */
 
 .unit {
   --tier: #8b949e;
-  --dir: 1; /* 달려드는 방향 */
-  position: relative;
-  padding: 5px 3px 6px;
-  border-radius: 9px;
-  border: 1px solid var(--tier);
-  background: #161b22;
+  --dir: 1;      /* 달려드는 방향 */
+  --scale: 1;    /* 원근. stage.js가 넣는다 */
+  --z: 0;        /* 겹칠 때 누가 앞인가. stage.js가 넣는다 */
+  position: absolute;
+  z-index: var(--z);
+  width: 76px;
+  /* 발끝이 기준이다. 크기가 달라져도 땅에 닿는 자리가 안 흔들린다.
+     --dx/--dy 는 달려나갈 때 JS 가 넣는다 — 자리(left/top)는 그대로 두고 여기만 민다. */
+  transform:
+    translate(calc(-50% + var(--dx, 0px)), calc(-100% + var(--dy, 0px)))
+    scale(var(--scale));
+  transform-origin: 50% 100%;
+  /* ⚠️ 시간이 `--speed` 가 아니라 `--move-ms` 다. 달려가는 거리가 매번 달라서
+     길이도 매번 달라지는데, 그 값은 **JS 가 이미 배속으로 나눠서** 넣는다
+     (choreo.js planAttack). 여기서 또 나누면 두 번 나뉜다. */
+  transition: transform var(--move-ms, 0ms) ease-out;
+}
+/* 달려나간 유닛은 남들 앞으로 온다. 안 그러면 적 뒤로 파고들어 가려진다 */
+.unit[data-move="on"] { z-index: 170; }
+.unit[data-side="enemy"] { --dir: -1; }
+
+.unit__body {
+  /* ⚠️ **테두리도 배경도 없다.** 스프라이트가 투명해진 뒤로는 네모를 두르면
+     무대가 아니라 표로 보인다. 등급색은 이름표 밑줄로만 남긴다. */
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 3px;
   text-align: center;
 }
-.unit[data-side="enemy"] { --dir: -1; }
 
 .unit[data-tier="N"]   { --tier: #8b949e66; }
 .unit[data-tier="R"]   { --tier: #58a6ff88; }
 .unit[data-tier="SR"]  { --tier: #bc8cffaa; }
 .unit[data-tier="SSR"] { --tier: #ffd75ecc; }
 
-/* 유닛 그림 크기.
-   실측으로 정한 한계 — 칸 폭이 79px(패딩 빼면 73)이라 **가로가 먼저 막힌다.**
-   세로는 널널하다: 48px일 때 한 칸에 4명을 세워도 170px가 남는다(전장 556 중 385 사용).
-   그래서 4/0 배치를 없앨 필요가 없다.
+/* 발밑 그림자. 유닛이 떠오르면(연출) 같이 작아져야 하는데, 지금은 고정이다 —
+   4단계에서 --lift 를 받아 줄어들게 한다. */
+.unit__shadow {
+  position: absolute;
+  left: 50%;
+  bottom: -3px;
+  width: 46px;
+  height: 8px;
+  margin-left: -23px;
+  border-radius: 50%;
+  background: #00000066;
+  filter: blur(2px);
+  pointer-events: none;
+}
 
-     44px  좌우 15px 남음
-     48px  좌우 11px      ← 지금
-     64px  좌우  7px      권장 최대
-     72px  좌우  3px      넘치기 직전
-     73px~ 테두리 밖으로 흘러나온다
+/* 유닛 그림 — 32 × 48 스프라이트를 2배로 보인다(64 × 96).
+   ⚠️ **정수배로만 키운다.** 48px 같은 1.5배는 픽셀이 뭉개져서 도트로 그린 뜻이 없어진다.
 
-   여기 한 줄과 아래 img 한 줄만 같이 고치면 된다. */
-/* 그림과 이모지가 섞여 있어도 줄이 안 삐뚤도록 높이를 못 박는다.
-   이모지는 글자라 font-size보다 작게 그려져서, 안 잡아두면 그림 유닛만 8px 높아진다. */
+   파일은 32 × 144 짜리 띠고 자세 셋이 세로로 붙어 있다. 2배면 64 × 288 이 되고
+   한 자세가 96px 이라 --frame 에 96을 곱해 민다. */
 .unit__art {
-  font-size: 48px; line-height: 1;
-  height: 64px; display: flex; align-items: center; justify-content: center;
+  width: 64px;
+  height: 96px;
+  --frame: 0;
+  background-repeat: no-repeat;
+  background-size: 64px 288px;
+  background-position: 0 calc(var(--frame) * -96px);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  /* 적은 좌우를 뒤집는다. 그림을 두 벌 굽는 것보다 낫다.
+     쓰러짐(--fall)과 한 줄에 같이 둔 이유는, 따로 쓰면 나중 것이 앞을 덮어써서
+     쓰러진 적이 갑자기 정면을 보기 때문이다. */
+  transform: scaleX(var(--flip, 1)) rotate(var(--fall, 0deg));
   /* ⚠️ **배속을 따라가야 한다.** ×8이면 한 대가 42ms인데 여기가 300ms면
      동작이 예닐곱 대씩 밀려서 누가 누구를 때렸는지 안 보인다. */
   transition: transform calc(.3s / var(--speed)) ease;
 }
-.unit__art img { width: 64px; height: 64px; display: block; }
+.unit[data-side="enemy"] { --flip: -1; }
+
+/* 에셋이 없어 이모지로 떨어진 자리. 배경 그림이 없으니 글자로 그린다 */
+.unit__art[data-kind="emoji"] {
+  font-size: 48px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
 
 .unit__name {
   font-size: 9px;
+  /* 카드를 없앤 뒤로 등급이 보일 자리가 여기뿐이다 */
+  border-bottom: 1px solid var(--tier);
+  padding-bottom: 1px;
+  text-shadow: 0 1px 2px #0d1117;
   color: #c9d1d9;
   line-height: 1.2;
   word-break: keep-all;
@@ -146,18 +159,23 @@
 .unit__bar i { background: #3fb950; }
 .unit__bar u { background: #58a6ffaa; } /* 방어막은 체력 위에 겹쳐 그린다 */
 
-/* 쓰러짐 — 이모지가 옆으로 넘어간다 */
-.unit[data-dead="true"] { opacity: .3; }
-.unit[data-dead="true"] .unit__art { transform: rotate(72deg); }
+/* 쓰러짐 — 그림이 옆으로 넘어간다 */
+.unit[data-dead="true"] { opacity: .3; --fall: 72deg; }
+.unit[data-dead="true"] .unit__shadow { opacity: .3; }
 
-/* ── 떠오르는 숫자 ── */
+/* ── 떠오르는 숫자 ──
+   껍데기에 붙는다. 알맹이가 흔들릴 때 같이 흔들리면 읽을 수가 없다.
 
-.unit__floats { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+   ⚠️ **이름표 아래에서 뜬다.** 상자 맨 위(top: 0)에서 띄웠더니 이름과 정확히 겹쳐
+   둘 다 안 읽혔다(실제 화면에서 「블레즈파스칼」 위에 「46」이 얹혀 있었다).
+   이름·막대가 그림 위로 올라간 뒤로 맨 위는 이미 임자가 있는 자리다. */
+
+.unit__floats { position: absolute; inset: 0; pointer-events: none; overflow: visible; z-index: 1; }
 
 .unit__float {
   position: absolute;
   left: 50%;
-  top: 0;
+  top: 42%;
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
@@ -174,58 +192,260 @@
   100% { opacity: 0; transform: translate(calc(-50% + var(--drift, 0px)), -26px) scale(1); }
 }
 
-/* ── 동작 ── */
+/* ── 동작 ──
+   전부 .unit__body 에 건다. .unit 은 자리를 들고 있어서 건드리면 안 된다. */
 
-.unit[data-anim="lunge"] { animation: unit-lunge calc(.34s / var(--speed)) ease-out; }
+.unit[data-anim="lunge"] .unit__body { animation: unit-lunge calc(.34s / var(--speed)) ease-out; }
 @keyframes unit-lunge {
   0%   { transform: translateX(0); }
   35%  { transform: translateX(calc(var(--dir) * 15px)) scale(1.07); }
   100% { transform: translateX(0); }
 }
 
-.unit[data-anim="hit"] { animation: unit-hit calc(.3s / var(--speed)) ease-out; }
+.unit[data-anim="hit"] .unit__body { animation: unit-hit calc(.3s / var(--speed)) ease-out; }
 @keyframes unit-hit {
-  0%   { transform: translateX(0); background: #161b22; }
-  15%  { transform: translateX(calc(var(--dir) * 5px)); background: #4a1d20; }
-  40%  { transform: translateX(calc(var(--dir) * -4px)); }
+  0%   { transform: translateX(0); filter: none; }
+  15%  { transform: translateX(calc(var(--dir) * 5px)); filter: brightness(2.4) saturate(.2); }
+  40%  { transform: translateX(calc(var(--dir) * -4px)); filter: none; }
   70%  { transform: translateX(calc(var(--dir) * 2px)); }
-  100% { transform: translateX(0); background: #161b22; }
+  100% { transform: translateX(0); filter: none; }
 }
 
-.unit[data-anim="heal"] { animation: unit-heal calc(.4s / var(--speed)) ease-out; }
+.unit[data-anim="heal"] .unit__body { animation: unit-heal calc(.4s / var(--speed)) ease-out; }
+/* ⚠️ **box-shadow 를 쓰면 안 된다.** 카드 테두리를 없앤 뒤로 상자는 안 보이는데
+   box-shadow 는 그 상자 모양대로 빛나서, 시전자 둘레에 네모난 후광이 떴다(실제 화면).
+   drop-shadow 는 **그림의 실루엣을 따라** 빛난다. */
 @keyframes unit-heal {
-  0%   { box-shadow: 0 0 0 0 #3fb95000; }
-  40%  { box-shadow: 0 0 14px 2px #3fb95088; }
-  100% { box-shadow: 0 0 0 0 #3fb95000; }
+  0%   { filter: drop-shadow(0 0 0 #3fb95000); }
+  40%  { filter: drop-shadow(0 0 7px #3fb950); }
+  100% { filter: drop-shadow(0 0 0 #3fb95000); }
 }
 
-.unit[data-anim="shield"] { animation: unit-shield calc(.42s / var(--speed)) ease-out; }
+.unit[data-anim="shield"] .unit__body { animation: unit-shield calc(.42s / var(--speed)) ease-out; }
 @keyframes unit-shield {
-  0%   { box-shadow: 0 0 0 0 #58a6ff00; }
-  40%  { box-shadow: 0 0 0 3px #58a6ff88; }
-  100% { box-shadow: 0 0 0 0 #58a6ff00; }
+  0%   { filter: drop-shadow(0 0 0 #58a6ff00); }
+  40%  { filter: drop-shadow(0 0 5px #58a6ff) drop-shadow(0 0 2px #58a6ff); }
+  100% { filter: drop-shadow(0 0 0 #58a6ff00); }
 }
 
-.unit[data-anim="buff"] { animation: unit-buff calc(.36s / var(--speed)) ease-out; }
+.unit[data-anim="buff"] .unit__body { animation: unit-buff calc(.36s / var(--speed)) ease-out; }
 @keyframes unit-buff {
   0%   { transform: translateY(0); }
   40%  { transform: translateY(-5px); }
   100% { transform: translateY(0); }
 }
 
+/* 소생 — 쓰러진 데서 돌아온다 */
+.unit[data-anim="revive"] .unit__body { animation: unit-revive calc(.6s / var(--speed)) ease-out; }
+@keyframes unit-revive {
+  0%   { filter: drop-shadow(0 0 0 #ffd75e00); transform: scale(.9); }
+  45%  { filter: drop-shadow(0 0 11px #ffd75e); transform: scale(1.08); }
+  100% { filter: drop-shadow(0 0 0 #ffd75e00); transform: scale(1); }
+}
+.unit__float[data-kind="revive"] { color: #ffd75e; font-size: 11px; }
+
 /* 모션을 줄이도록 설정한 기기에서는 결과만 바뀌게 둔다 */
 @media (prefers-reduced-motion: reduce) {
-  .unit[data-anim] { animation: none; }
+  .unit[data-anim] .unit__body { animation: none; }
   .unit__float { animation: float-still calc(.9s / var(--speed)) linear forwards; }
   @keyframes float-still { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
   .fight[data-rage="on"]::after { animation: none; }
 }
 
-/* 소생 — 쓰러진 데서 돌아온다 */
-.unit[data-anim="revive"] { animation: unit-revive calc(.6s / var(--speed)) ease-out; }
-@keyframes unit-revive {
-  0%   { box-shadow: 0 0 0 0 #ffd75e00; transform: scale(.9); }
-  45%  { box-shadow: 0 0 22px 5px #ffd75ecc; transform: scale(1.08); }
-  100% { box-shadow: 0 0 0 0 #ffd75e00; transform: scale(1); }
+/* ── 고유기 · 범위기 ──
+   여기가 통째로 비어 있었다. 이벤트는 진작 나오고 있었는데(engine.js) 화면에서
+   받는 갈래가 없어서, 세종의 훈민정음이 터져도 로그 한 줄이 깜빡 지나가고 끝났다. */
+
+/* 기술 이름. 늘 붙어 있고 켜질 때만 보인다 */
+.fight__banner {
+  position: absolute;
+  left: 0; right: 0;
+  top: 34%;
+  z-index: 190;
+  text-align: center;
+  font-size: 19px;
+  font-weight: 800;
+  color: #ffd75e;
+  text-shadow: 0 2px 10px #000, 0 0 18px #ffd75e66;
+  letter-spacing: .04em;
+  pointer-events: none;
+  opacity: 0;
 }
-.unit__float[data-kind="revive"] { color: #ffd75e; font-size: 11px; }
+/* .fight 가 기준이 되어야 배너가 전장 한가운데에 뜬다 */
+.fight { position: relative; }
+
+.fight[data-cast="on"] .fight__banner {
+  animation: banner-in calc(.7s / var(--speed)) ease-out forwards;
+}
+@keyframes banner-in {
+  0%   { opacity: 0; transform: scale(.82); }
+  18%  { opacity: 1; transform: scale(1.06); }
+  30%  { transform: scale(1); }
+  78%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+/* 화면을 깔아 눕힌다. 시전자만 이 위로 올라온다 */
+.fight[data-cast="on"] .stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 150;
+  pointer-events: none;
+  background: #05070a;
+  animation: cast-dim calc(.7s / var(--speed)) ease-out forwards;
+}
+@keyframes cast-dim {
+  0% { opacity: 0; }
+  18%, 74% { opacity: .5; }
+  100% { opacity: 0; }
+}
+.fight[data-cast="on"] .unit[data-anim="cast"] { z-index: 180; }
+
+/* 시전 — 때리는 게 아니라서 앞으로 안 나가고 **커진다** */
+.unit[data-anim="cast"] .unit__body { animation: unit-cast calc(.7s / var(--speed)) ease-out; }
+@keyframes unit-cast {
+  0%   { transform: scale(1); filter: drop-shadow(0 0 0 #ffd75e00); }
+  20%  { transform: scale(1.22); filter: drop-shadow(0 0 13px #ffd75e) drop-shadow(0 0 4px #ffd75e); }
+  70%  { transform: scale(1.16); filter: drop-shadow(0 0 9px #ffd75e); }
+  100% { transform: scale(1); filter: drop-shadow(0 0 0 #ffd75e00); }
+}
+
+/* 범위 타격 — 무대가 통째로 흔들린다.
+   방향이 있어야 힘이 읽힌다: 한 번 세게 밀렸다가 잦아든다. */
+.fight[data-shake="on"] .stage { animation: stage-shake calc(.42s / var(--speed)) ease-out; }
+@keyframes stage-shake {
+  0%   { transform: translate(0, 0); }
+  12%  { transform: translate(-6px, 3px); }
+  28%  { transform: translate(5px, -3px); }
+  46%  { transform: translate(-4px, 2px); }
+  64%  { transform: translate(3px, -1px); }
+  82%  { transform: translate(-1px, 1px); }
+  100% { transform: translate(0, 0); }
+}
+
+/* 약화 — 색이 빠지고 어두워진다 */
+.unit[data-anim="weaken"] .unit__body { animation: unit-weaken calc(.52s / var(--speed)) ease-out; }
+@keyframes unit-weaken {
+  0%   { filter: none; }
+  30%  { filter: grayscale(.85) brightness(.6); }
+  100% { filter: none; }
+}
+.unit__float[data-kind="weaken"] { color: #bc8cff; font-size: 11px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fight[data-shake="on"] .stage { animation: none; }
+  .fight[data-cast="on"] .stage::before { animation: none; opacity: .5; }
+  .fight[data-cast="on"] .fight__banner { animation: none; opacity: 1; }
+}
+
+/* ── 자세 갈아 끼우기 ──
+   스프라이트 띠(32 × 144)에서 어느 자세를 보일지 background-position 으로 정한다.
+
+   ⚠️ **steps(1, end) 가 핵심이다.** 없으면 브라우저가 두 자세 사이를 부드럽게
+   이어 그려서, 스프라이트가 위아래로 미끄러지는 게 그대로 보인다.
+
+   붙잡는 시간을 다르게 준다 — 조사에서 나온 「프레임 수보다 타이밍」 그대로다.
+     0~34%   치켜듦(wind)   달려가는 동안이다. **달리면서 이미 내지르고 있으면 안 된다**
+     34~85%  내지름(strike) ×1에서 173ms. **여기가 임팩트 프레임이라 오래 붙잡는다**
+             34%는 우연이 아니라 choreo.js 의 travelMs(beat × 0.34)와 맞춘 값이다
+     85~100% 제자리(idle) */
+
+.unit[data-anim="lunge"] .unit__art[data-kind="person"],
+.unit[data-anim="cast"]  .unit__art[data-kind="person"] {
+  animation: art-strike calc(.34s / var(--speed)) steps(1, end);
+}
+.unit[data-anim="cast"] .unit__art[data-kind="person"] {
+  animation-duration: calc(.7s / var(--speed));
+}
+@keyframes art-strike {
+  0%   { background-position: 0 -96px; }
+  34%  { background-position: 0 -192px; }
+  85%  { background-position: 0 -192px; }
+  100% { background-position: 0 0; }
+}
+
+/* 사물은 자세가 없다 — 항아리에 팔을 달 수는 없으니까.
+   **회전과 튕김이 사물의 문법이다.** 스파르타 방패가 굴러서 부딪히고
+   눈송이가 흩날려 간다. 그림을 한 장도 안 그리고 사람과 다르게 움직인다.
+   ⚠️ 뒤집기(--flip)를 keyframe 안에서도 유지해야 적 사물이 안 뒤집힌다. */
+.unit[data-anim="lunge"] .unit__art[data-kind="thing"] {
+  animation: thing-roll calc(.34s / var(--speed)) ease-out;
+}
+@keyframes thing-roll {
+  0%   { transform: scaleX(var(--flip, 1)) rotate(0deg); }
+  40%  { transform: scaleX(var(--flip, 1)) rotate(-26deg) scale(1.14); }
+  70%  { transform: scaleX(var(--flip, 1)) rotate(12deg) scale(1.06); }
+  100% { transform: scaleX(var(--flip, 1)) rotate(0deg); }
+}
+.unit[data-anim="cast"] .unit__art[data-kind="thing"] {
+  animation: thing-spin calc(.7s / var(--speed)) ease-out;
+}
+@keyframes thing-spin {
+  0%   { transform: scaleX(var(--flip, 1)) rotate(0deg) scale(1); }
+  30%  { transform: scaleX(var(--flip, 1)) rotate(180deg) scale(1.2); }
+  100% { transform: scaleX(var(--flip, 1)) rotate(360deg) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .unit[data-anim] .unit__art { animation: none; }
+}
+
+/* ── 손맛 ──
+   때린 티가 나야 한다. 셋 다 아주 짧다 — 길면 연출이 아니라 지연으로 느껴진다. */
+
+/* 평타에도 무대가 살짝 흔들린다. 범위기(data-shake)보다 훨씬 작다 —
+   매 대마다 크게 흔들면 화면이 멀미난다. */
+.fight[data-tap="on"] .stage { animation: stage-tap calc(.18s / var(--speed)) ease-out; }
+@keyframes stage-tap {
+  0%   { transform: translate(0, 0); }
+  35%  { transform: translate(calc(var(--tapdir, 1) * 3px), 1px); }
+  100% { transform: translate(0, 0); }
+}
+
+/* 맞은 유닛이 한 번 눌린다.
+   조사에서 본 Celeste 사례 — 1픽셀 눌림은 의식되지 않지만 빼면 어색해진다. */
+.unit[data-anim="hit"] .unit__art { animation: art-squash calc(.3s / var(--speed)) ease-out; }
+@keyframes art-squash {
+  0%   { transform: scaleX(var(--flip, 1)) rotate(var(--fall, 0deg)) scaleY(1); }
+  18%  { transform: scaleX(var(--flip, 1)) rotate(var(--fall, 0deg)) scale(1.06, .93); }
+  55%  { transform: scaleX(var(--flip, 1)) rotate(var(--fall, 0deg)) scale(.98, 1.03); }
+  100% { transform: scaleX(var(--flip, 1)) rotate(var(--fall, 0deg)) scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fight[data-tap="on"] .stage { animation: none; }
+}
+
+/* 전투 그림이 없어 초상으로 떨어진 자리.
+   초상은 32 × 32 라 띠(32 × 144)와 크기가 다르다 — 안 맞춰주면 잘려 나온다.
+   **떨어진 티가 나야 한다.** 전신이 아니라는 걸 보고 알아야 그림을 다시 굽는다. */
+.unit__art[data-kind="portrait"] {
+  background-size: 64px 64px;
+  background-position: center bottom;
+  opacity: .9;
+}
+
+/* ── 저울 ──
+   우리와 적이 지금 얼마나 남았는가. **「등급이 높은데 왜 지지?」에 답하는 자리다.**
+   등급은 세기의 1.78배만 설명하고 역할이 2.54배를 설명하므로, 등급만 보면 못 맞힌다. */
+
+.fight__scale {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: #8b949e;
+}
+.fight__scaleRow { display: flex; gap: 8px; align-items: baseline; }
+.fight__scaleWho { width: 26px; flex: none; color: #6e7681; }
+.fight__scaleRow:first-child .fight__scaleWho { color: #58a6ff; }
+.fight__scaleRow:last-child  .fight__scaleWho { color: #f85149; }
+.fight__scaleHp { color: #3fb950; }
+.fight__scaleAtk { color: #e3b341; }
+
+/* 턴 수 — 광폭화가 12턴에 터지는데 턴이 어디에도 안 보였다 */
+.fight__turn { margin-left: 8px; font-size: 11px; font-weight: 600; color: #6e7681; }
+.fight__floor[data-rage="true"] .fight__turn { color: #f85149; }

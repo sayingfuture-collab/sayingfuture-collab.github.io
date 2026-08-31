@@ -12,7 +12,13 @@ export const VIA_LABEL = {
   // 「한 명은 앞에 세운다」를 스스로 알아챈다.
   // 앞줄이 두꺼워 관통이 막혔다. **왜 뒷줄이 안 맞았는지** 보여야 앞줄의 값이 읽힌다
   blocked: '가로막힘',
+  // 앞줄이 얇아 공격이 뒤로 샌 것. 앞줄이 하나면 확률이 **45%** 인데
+  // 예전에는 화면에 아무 표시가 없어서, 뒷줄이 왜 맞았는지 알 방법이 없었다.
+  leak: '뒤로 샘',
 };
+
+/** 앞줄이 하나도 없어 30% 더 맞았다. via 와 겹칠 수 있어 따로 붙인다 */
+const EXPOSED_LABEL = '무방비';
 
 /**
  * @param {object} e 엔진이 뱉은 이벤트
@@ -27,7 +33,10 @@ export function describeEvent(e, nameOf) {
   switch (e.t) {
     case 'skill': return `✦ ${n(e.from)} — 《${e.name}》`;
     case 'attack': {
-      const tag = e.via ? ` [${VIA_LABEL[e.via] ?? e.via}]` : '';
+      const marks = [];
+      if (e.via) marks.push(VIA_LABEL[e.via] ?? e.via);
+      if (e.exposed) marks.push(EXPOSED_LABEL);
+      const tag = marks.length ? ` [${marks.join('·')}]` : '';
       return `${by}${n(e.from)} → ${n(e.to)}${tag}  ${e.dmg}`;
     }
     case 'aoeHit': {
