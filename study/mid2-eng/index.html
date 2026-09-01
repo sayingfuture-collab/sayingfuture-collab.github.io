@@ -104,7 +104,37 @@
   .wrongli{background:#fff; border:1px solid var(--line); border-radius:10px; padding:9px 12px;
     margin-top:6px; font-size:15px;}
   .wrongli b{font-family:Georgia,serif;}
-  @media (max-width:400px){ .flash .base{font-size:30px;} .qbase{font-size:26px;} }
+
+  /* ── 본문 빈칸 ───────────────────────────────────── */
+  .sent{font-family:Georgia,"Times New Roman",serif; font-size:19.5px; line-height:1.95;
+    margin:6px 0 4px;}
+  .sentko{color:var(--sub); font-size:14.5px; line-height:1.55; margin-top:6px;}
+  .bk{display:inline-block; min-width:66px; text-align:center;
+    border-bottom:2px solid var(--line); color:transparent;}
+  .bk.on{border-bottom-color:var(--blue); color:var(--blue); font-weight:800;}
+  .bk.sol{border-bottom-color:var(--green); color:var(--green); font-weight:800;}
+  /* 조각(글자·낱말) 맞추기 */
+  .tray{min-height:52px; border:1.5px dashed var(--line); border-radius:12px; padding:8px;
+    margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+    justify-content:center;}
+  .tray:empty::after{content:"아래에서 눌러 순서대로 놓아 보세요"; color:var(--sub); font-size:13.5px;}
+  .pool{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; justify-content:center;}
+  .chip{border:1.5px solid var(--line); background:var(--card); border-radius:9px;
+    padding:8px 12px; font-size:19px; font-family:Georgia,serif; cursor:pointer; line-height:1.1;}
+  .chip.used{opacity:.28; pointer-events:none;}
+  .chip.inTray{border-color:var(--blue); background:var(--blue-l); color:var(--blue);}
+  .lvtag{display:inline-block; background:var(--amber-l); color:var(--amber); font-size:12px;
+    font-weight:700; border-radius:6px; padding:2px 8px; margin-left:6px;}
+  .nb{white-space:nowrap; margin-left:6px;}   /* 「남은 5개」가 반으로 쪼개지지 않게 */
+  .unitpick{display:flex; gap:8px; margin-bottom:10px;}
+  .unitpick button{flex:1; border:1px solid var(--line); background:var(--card); color:var(--sub);
+    border-radius:10px; padding:8px; font-size:14px; font-weight:700; cursor:pointer;
+    font-family:inherit;}
+  .unitpick button.on{background:var(--ink); border-color:var(--ink); color:#fff;}
+  @media (max-width:400px){
+    .flash .base{font-size:30px;} .qbase{font-size:26px;}
+    .sent{font-size:18px;} .chip{font-size:17px; padding:7px 10px;}
+  }
 </style>
 <script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "66d74d758a3b4b68ae33d7a072440b61"}'></script>
 </head>
@@ -117,7 +147,7 @@
 
   <div class="tabs">
     <button class="on" data-mode="verb">동사<br>3단 변화</button>
-    <button data-mode="soon" disabled>본문<br>빈칸</button>
+    <button data-mode="pass">본문<br>빈칸</button>
     <button data-mode="soon" disabled>단어<br>시험</button>
     <button data-mode="soon" disabled>동사+<br>전치사</button>
   </div>
@@ -183,11 +213,74 @@ const PER = 5;                                  // 한 세트 5개 — 한 번�
 const SETS = Math.ceil(VERBS.length / PER);
 const KEY = "somin-eng-v1";
 
+/* ── 본문 빈칸 자료 ─────────────────────────────────────
+   출처: 자습서 「내신 완벽 대비 추가 워크시트 · 본문 꼼꼼 학습」
+         Unit 5 = p.214~215 · Unit 6 = p.256~257
+   빈칸도 정답도 자습서 그대로다. 내가 지어낸 문장은 하나도 없다.
+   en 의 {} 가 빈칸 자리 · a = 정답(빈칸 순서) · w = 빈칸별 오답 2개 · ko = 자습서 우리말 뜻
+   ⚠ 이 블록은 gate.py 가 통째로 꺼내 검사한다. 아래 두 주석 표시를 지우지 말 것. */
+/* PASSAGE-DATA-START */
+const PASSAGE = [
+{"u":5,"n":1,"en":"Hi, my name is Yujin, and I'm writing a blog to introduce {}, Chuncheon.","a":["my hometown"],"w":[["my hometwon","mine hometown"]],"ko":"안녕하세요, 제 이름은 유진이고, 저는 제 고향인 춘천을 소개하기 위해서 블로그를 쓰고 있어요."},
+{"u":5,"n":2,"en":"{} you ever {} Chuncheon?","a":["Have","visited"],"w":[["Has","Did"],["visit","visitted"]],"ko":"당신은 춘천을 방문해 본 적이 있나요?"},
+{"u":5,"n":3,"en":"It's famous for its beautiful {}.","a":["mountains and lakes"],"w":[["mountain and lakes","mountains and lake"]],"ko":"그것은 아름다운 산과 호수로 유명해요."},
+{"u":5,"n":4,"en":"There are so many {} and so many things to see.","a":["things to do"],"w":[["things to doing","thing to do"]],"ko":"할 것이 정말 많고, 볼 것도 정말 많답니다."},
+{"u":5,"n":5,"en":"Nowadays, the {} of foreign tourists who visit Chuncheon is growing.","a":["number"],"w":[["numbers","nummber"]],"ko":"요즘에는 춘천을 방문하는 외국인 관광객들의 수가 늘고 있어요."},
+{"u":5,"n":6,"en":"I want to {} the history of Chuncheon and tips for {} from around the world.","a":["share","visitors"],"w":[["shear","sharing"],["visiters","visitor"]],"ko":"저는 춘천의 역사와 전 세계 방문객들을 위한 조언을 공유하고 싶어요."},
+{"u":5,"n":7,"en":"Today's {} is the Memorial Hall for Ethiopian Soldiers in the Korean War.","a":["focus"],"w":[["focas","focuse"]],"ko":"오늘 중점적으로 소개할 곳은 에티오피아군의 한국전 참전 기념관이에요."},
+{"u":5,"n":8,"en":"On the {} of the hall, visitors can see the names and pictures of the brave soldiers.","a":["first floor"],"w":[["first flour","one floor"]],"ko":"기념관 1층에서 방문객들은 용감한 군인들의 이름과 사진을 볼 수 있어요."},
+{"u":5,"n":9,"en":"On the second floor, Ethiopian {} items are displayed.","a":["cultural"],"w":[["culture","culturel"]],"ko":"2층에는 에티오피아의 문화 유물들이 전시되어 있어요."},
+{"u":5,"n":10,"en":"If you want to know about the special history {} Korea and Ethiopia, please {} on the link below.","a":["between","click"],"w":[["among","betwen"],["clicking","clicks"]],"ko":"한국과 에티오피아 사이의 특별한 역사에 대해 알고 싶으면, 아래 링크를 클릭해 주세요."},
+{"u":5,"n":11,"en":"Ethiopia and Korea are far apart on the map, but they have had {} for many years.","a":["strong ties"],"w":[["strong tie","strongly ties"]],"ko":"에티오피아와 한국은 지도상으로는 멀리 떨어져 있지만, 오랜 세월 동안 강한 유대 관계를 맺어 왔다."},
+{"u":5,"n":12,"en":"Ethiopia was the only African country to {} during the Korean War.","a":["send soldiers"],"w":[["sent soldiers","send soldier"]],"ko":"에티오피아는 한국 전쟁 중 군인들을 보낸 유일한 아프리카 국가였다."},
+{"u":5,"n":13,"en":"Ethiopian soldiers fought {} in Chuncheon and never lost.","a":["many battles"],"w":[["many battle","much battles"]],"ko":"에티오피아 군인들은 춘천에서 많은 전쟁을 치렀고 결코 진 적이 없었다."},
+{"u":5,"n":14,"en":"During the war, some Korean children {} their parents.","a":["lost"],"w":[["losed","loosed"]],"ko":"전쟁 중, 일부 한국 어린이들이 부모를 잃었다."},
+{"u":5,"n":15,"en":"Ethiopian soldiers used their own money {} them.","a":["to help"],"w":[["to helping","for help"]],"ko":"에티오피아 군인들은 그들을 돕기 위해 자신들의 돈을 썼다."},
+{"u":5,"n":16,"en":"In the 2000s, Chuncheon became the {} of Addis Ababa, the capital city of Ethiopia.","a":["sister city"],"w":[["sister town","sisters city"]],"ko":"2000년대에 춘천은 에티오피아의 수도인 아디스아바바의 자매 도시가 되었다."},
+{"u":5,"n":17,"en":"Each city built a {} hall to {} the Ethiopian soldiers who fought in the Korean War.","a":["memorial","honor"],"w":[["memory","memorail"],["honoring","honored"]],"ko":"각 도시는 한국 전쟁에서 싸운 에티오피아 군인들을 기리기 위해 기념관을 세웠다."},
+{"u":5,"n":18,"en":"The Memorial Hall in Chuncheon {} in 2006.","a":["was built"],"w":[["was build","were built"]],"ko":"춘천에 있는 기념관은 2006년도에 지어졌다."},
+{"u":5,"n":19,"en":"It {} a traditional Ethiopian house.","a":["looks like"],"w":[["looks as","look like"]],"ko":"그것은 에티오피아의 전통 가옥처럼 생겼다."},
+{"u":5,"n":20,"en":"It has three round {}.","a":["roofs"],"w":[["rooves","roof"]],"ko":"세 개의 둥근 지붕이 있다."},
+{"u":5,"n":21,"en":"Here, you can feel the strong {} between the two countries.","a":["friendship"],"w":[["friendly","freindship"]],"ko":"이곳에서 여러분은 두 나라 사이의 굳건한 우정을 느낄 수 있다."},
+{"u":5,"n":22,"en":"In the next story, I will {} Soyanggang Skywalk and share some {} tips for traveling there.","a":["introduce","useful"],"w":[["introduces","introducing"],["usefull","using"]],"ko":"다음 이야기에서는, 소양강 스카이워크를 소개하고 그곳을 여행하는 데 유용한 정보를 공유할게요."},
+{"u":5,"n":23,"en":"You don't want to {} it!","a":["miss"],"w":[["missing","mis"]],"ko":"놓치면 안 돼요!"},
+{"u":6,"n":1,"en":"When did you last try {}?","a":["something new"],"w":[["new something","something news"]],"ko":"너는 언제 마지막으로 새로운 것을 시도했니?"},
+{"u":6,"n":2,"en":"I have always wanted to learn {}.","a":["skateboarding"],"w":[["skatebording","skateboard"]],"ko":"나는 항상 스케이트보드 타기를 배우고 싶어 했어."},
+{"u":6,"n":3,"en":"I took the {} toward becoming a cool skater boy.","a":["first step"],"w":[["first steps","one step"]],"ko":"나는 멋진 스케이터 소년 되기를 향하여 첫걸음을 내디뎠어."},
+{"u":6,"n":4,"en":"I {} a one-day skateboarding class.","a":["joined"],"w":[["joinned","joining"]],"ko":"일일 스케이트보드 타기 수업에 참여했거든."},
+{"u":6,"n":5,"en":"When I got to the skatepark, I {} skateboarding in a big bowl.","a":["saw a guy"],"w":[["saw a guy to","seen a guy"]],"ko":"스케이트파크에 도착했을 때, 나는 한 남자가 큰 볼에서 스케이트보드를 타고 있는 것을 보았어."},
+{"u":6,"n":6,"en":"He jumped into the air and {} the board. He landed cleanly.","a":["flipped"],"w":[["fliped","flipping"]],"ko":"그는 공중으로 뛰어올라 보드를 휙 뒤집었어. 그는 깔끔하게 착지했지."},
+{"u":6,"n":7,"en":"He {} a surfer on a big wave.","a":["reminded me of"],"w":[["reminded me for","reminded me about"]],"ko":"그는 큰 파도를 타는 서퍼를 떠올리게 했어."},
+{"u":6,"n":8,"en":"I learned from a blog that skateboarding {} surfers in California.","a":["began with"],"w":[["began from","begun with"]],"ko":"나는 한 블로그에서 스케이트보드 타기가 캘리포니아의 서퍼들로부터 시작되었다는 것을 알게 되었어."},
+{"u":6,"n":9,"en":"They wanted to surf {}, too, so they put wheels on wooden boards.","a":["on land"],"w":[["in land","on a land"]],"ko":"그들은 땅에서도 서핑을 하고 싶어서 나무판자에 바퀴를 달았어."},
+{"u":6,"n":10,"en":"When there was {} rain in California, skateboarders used {} swimming pools as their skateparks.","a":["little","empty"],"w":[["few","a little"],["emty","emptied"]],"ko":"캘리포니아에 비가 거의 오지 않았을 때, 스케이트보드 타는 사람들은 빈 수영장을 그들의 스케이트파크로 이용했어."},
+{"u":6,"n":11,"en":"Before the lesson, Eric and I did a warm-up {}.","a":["exercise"],"w":[["excercise","exercising"]],"ko":"수업 전에, Eric과 나는 준비 운동을 했어."},
+{"u":6,"n":12,"en":"Eric told me, \"{} is the most important thing, Ian!\"","a":["Safety"],"w":[["Safe","Safely"]],"ko":"Eric은 나에게 \"안전이 가장 중요한 거야, Ian!\"이라고 말했어."},
+{"u":6,"n":13,"en":"Then, he made me {} a helmet and pads to stay safe during the class.","a":["wear"],"w":[["to wear","wearing"]],"ko":"그런 다음 그는 수업 중에 안전하게 있기 위해 나에게 헬멧과 보호대를 착용하게 했어."},
+{"u":6,"n":14,"en":"The lesson finally began. Eric taught me the most {}, the \"push-off.\"","a":["basic skill"],"w":[["basic skills","basically skill"]],"ko":"수업이 마침내 시작되었어. Eric은 나에게 가장 기초적인 기술인 '푸시 오프'를 가르쳐 주었어."},
+{"u":6,"n":15,"en":"To push off on the skateboard, I put one foot on the board and pushed against the ground with {} foot.","a":["the other"],"w":[["another","other"]],"ko":"스케이트보드 위에서 푸시 오프를 하기 위해서, 나는 한 발을 보드에 올리고 다른 발로 땅을 밀었어."},
+{"u":6,"n":16,"en":"Tada! I moved {}! This skill looked simple, but I {} many times.","a":["forward","fell down"],"w":[["foward","forwards"],["felt down","fell out"]],"ko":"짜잔! 나는 앞으로 나아갔어! 이 기술은 간단해 보였지만, 나는 여러 번 넘어졌어."},
+{"u":6,"n":17,"en":"With {}, I was able to keep my {} and ride.","a":["practice","balance"],"w":[["practicing","practices"],["ballance","balanced"]],"ko":"연습을 통해 나는 균형을 잡고 탈 수 있었어."},
+{"u":6,"n":18,"en":"I heard Eric {} me.","a":["cheering for"],"w":[["to cheer for","cheering to"]],"ko":"나는 Eric이 나를 응원하는 소리를 들었어."},
+{"u":6,"n":19,"en":"After the lesson, I realized skateboarding is {} just a cool-looking sport.","a":["more than"],"w":[["more then","much than"]],"ko":"수업 후에, 나는 스케이트보드 타기가 단지 멋져 보이는 스포츠 그 이상이라는 것을 깨달았어."},
+{"u":6,"n":20,"en":"It makes me {}.","a":["feel free"],"w":[["to feel free","feeling free"]],"ko":"그것은 나에게 자유를 느끼게 해 줘."},
+{"u":6,"n":21,"en":"I am glad that I started my skateboarding {} today.","a":["journey"],"w":[["jorney","journal"]],"ko":"내가 오늘 스케이트보드 타기 여정을 시작해서 기뻐."},
+{"u":6,"n":22,"en":"My shoes and jeans {}, but I felt great.","a":["got dirty"],"w":[["get dirty","got dirtily"]],"ko":"내 신발과 청바지는 더러워졌지만 나는 기분이 아주 좋았어."},
+{"u":6,"n":23,"en":"It {} I {} really hard.","a":["shows","practiced"],"w":[["show","showing"],["practicing","practices"]],"ko":"그것은 내가 정말 열심히 연습했다는 것을 보여 주는 것이니까."},
+{"u":6,"n":24,"en":"I hope to skate better and {} someday.","a":["more freely"],"w":[["more freer","most freely"]],"ko":"나는 언젠가는 더 잘, 그리고 더 자유롭게 스케이트보드를 탈 수 있으면 좋겠어."},
+{"u":6,"n":25,"en":"Do you want to {} skateboarding, too?","a":["try"],"w":[["trying","tries"]],"ko":"너도 스케이트보드 타기를 해 보고 싶니?"},
+{"u":6,"n":26,"en":"Just visit the {} skatepark!","a":["nearest"],"w":[["nearer","most near"]],"ko":"일단 가장 가까운 스케이트파크를 방문해 봐!"}
+];
+/* PASSAGE-DATA-END */
+
+const PPER = 5;                                 // 빈칸도 한 세트 5개
+
 /* ── 저장 ─────────────────────────────────────────────── */
 function load(){ try{ return JSON.parse(localStorage.getItem(KEY)) || {}; }catch(e){ return {}; } }
 function save(o){ try{ localStorage.setItem(KEY, JSON.stringify(o)); }catch(e){} }
 let ST = load();
 if(!ST.verb) ST.verb = {};                       // {세트번호: {done:true, best:점수}}
+if(!ST.pass) ST.pass = {};                       // {"5-0": {done:true, best:점수}}
 
 /* ── 소리 ─────────────────────────────────────────────── */
 function speak(text){
@@ -402,11 +495,305 @@ function screenDone(setNo, score, total, round){
   $("#back").onclick = screenSets;
 }
 
+/* ══ 본문 빈칸 ═══════════════════════════════════════════
+   한 문항 = 한 빈칸. 문장에 빈칸이 둘이면 두 문항이 된다.
+   1단 직접 쓰기 → 틀리면 2단 순서 맞추기 → 또 틀리면 3단 3지선다.
+   **점수는 1단에서 맞힌 것만** 센다. 계단을 내려가 맞힌 걸 만점으로 세면 거짓말이 된다. */
+
+/* 빈칸 단위로 펼치기 — [{i:문항번호, b:빈칸번호}, ...] */
+const PBLANKS = [];
+PASSAGE.forEach((it, i) => it.a.forEach((_, b) => PBLANKS.push({i:i, b:b})));
+
+/* 단원별 세트 목록 */
+function passSets(u){
+  const list = PBLANKS.filter(x => PASSAGE[x.i].u === u);
+  const out = [];
+  for(let k=0; k<Math.ceil(list.length/PPER); k++)
+    out.push({ u:u, k:k, key:u+"-"+k, items:list.slice(k*PPER, (k+1)*PPER) });
+  return out;
+}
+
+/* 정답을 모두 채운 완성 문장 — 🔊 가 읽어 준다 */
+function passFull(it){ let k=-1; return it.en.replace(/\{\}/g, () => it.a[++k]); }
+
+/* 화면에 보일 문장. active 빈칸만 파랗게, 나머지는 빈 줄로 둔다(답이 새지 않게).
+   solved 에 담긴 빈칸은 초록으로 채워 보여 준다. */
+function passSentence(it, active, solved){
+  let k = -1;
+  return it.en.replace(/\{\}/g, () => {
+    k++;
+    if(solved && solved[k]) return '<span class="bk sol">' + esc(it.a[k]) + '</span>';
+    if(k === active)        return '<span class="bk on">?</span>';
+    return '<span class="bk">____</span>';
+  });
+}
+
+/* 채점 — 대소문자·앞뒤 공백·마침표는 무시한다 */
+const norm = s => String(s).trim().toLowerCase().replace(/[.,!?"']/g,"").replace(/\s+/g," ");
+
+/* 순서 맞추기 조각 — 두 낱말 이상이면 낱말로, 한 낱말이면 글자로 쪼갠다 */
+function pieces(ans){
+  const w = ans.split(" ");
+  return w.length > 1 ? w : ans.split("");
+}
+
+/* ── 빈칸 화면 1 · 세트 고르기 ────────────────────────── */
+function screenPassSets(unit){
+  const u = unit || 5;
+  const sets = passSets(u);
+  const all = passSets(5).concat(passSets(6));
+  const doneCount = all.filter(s => (ST.pass[s.key]||{}).done).length;
+  let html = `
+   <div class="card">
+     <h2>본문 빈칸</h2>
+     <p class="muted">자습서 「본문 꼼꼼 학습」 빈칸을 그대로 옮겼어요.
+     여기 나오는 말이 <b>시험에 그대로</b> 나와요.</p>
+     <div class="bar"><i style="width:${Math.round(doneCount/all.length*100)}%"></i></div>
+     <p class="muted">${doneCount} / ${all.length} 세트 완료</p>
+   </div>
+   <div class="card">
+     <div class="unitpick">
+       <button class="${u===5?'on':''}" data-u="5">5단원 · 춘천</button>
+       <button class="${u===6?'on':''}" data-u="6">6단원 · 스케이트보드</button>
+     </div>
+     <p class="muted">한 세트는 빈칸 5개예요. 안 써져도 괜찮아요 —
+     틀리면 <b>글자·낱말을 섞어서</b> 다시 물어보고, 그래도 어려우면 <b>셋 중에 고르기</b>로 바뀌어요.</p>
+     <div class="sets">`;
+  sets.forEach(s => {
+    const st = ST.pass[s.key] || {};
+    html += `<button class="setbtn ${st.done?'done':''}" data-key="${s.key}">
+      <b>${s.k+1}세트</b><small>${st.done ? '완료 '+(st.best||0)+'/'+s.items.length
+                                          : '빈칸 '+s.items.length+'개'}</small></button>`;
+  });
+  html += `</div></div>
+   <div class="card">
+     <div class="tip"><b>이 빈칸들, 거의 다 「덩어리」예요</b><br>
+       reminded me of · fell down · cheering for · got dirty · looks like · strong ties …<br>
+       단어 하나씩 외우면 안 되고 <b>통째로</b> 외워야 하는 것들이에요.
+       채우다 보면 저절로 외워져요.
+     </div>
+   </div>`;
+  app.innerHTML = html;
+  app.querySelectorAll(".unitpick button").forEach(b =>
+    b.onclick = () => screenPassSets(+b.dataset.u));
+  app.querySelectorAll(".setbtn").forEach(b =>
+    b.onclick = () => screenPassQ(b.dataset.key));
+}
+
+/* 세트 키로 세트 찾기 */
+function findPassSet(key){
+  return passSets(5).concat(passSets(6)).find(s => s.key === key);
+}
+
+/* ── 빈칸 화면 2 · 문제 ───────────────────────────────── */
+function screenPassQ(key, queue, wrong, score, total, round){
+  const set = findPassSet(key);
+  if(!queue){
+    queue = shuffle(set.items).map(x => Object.assign({}, x, {lv:1}));
+    wrong = []; score = 0; total = queue.length; round = 1;
+  }
+  if(queue.length === 0){
+    if(wrong.length && round < 3)
+      return screenPassQ(key, shuffle(wrong).map(x => Object.assign({}, x, {lv:1})),
+                         [], score, total, round+1);
+    if(wrong.length) return screenPassStuck(key, wrong, score, total);
+    return screenPassDone(key, score, total);
+  }
+
+  const cur = queue[0];
+  const it  = PASSAGE[cur.i];
+  const ans = it.a[cur.b];
+  // 2단 이름은 조각이 낱말인지 글자인지에 따라 다르게 — 화면에 보이는 것과 말이 맞아야 한다
+  const lvName = cur.lv === 1 ? "직접 쓰기"
+               : cur.lv === 2 ? (ans.indexOf(" ") >= 0 ? "낱말 맞추기" : "글자 맞추기")
+               : "셋 중에 고르기";
+
+  const head = `
+     <p class="muted">${it.u}단원 ${set.k+1}세트 ·
+        ${round===1 ? "빈칸 채우기" : "틀린 것 다시 "+(round-1)+"번째"}
+        <span class="lvtag">${lvName}</span> <span class="nb">남은 ${queue.length}개</span></p>
+     <div class="bar"><i style="width:${Math.round((total-queue.length)/total*100)}%"></i></div>
+     <div class="sent">${passSentence(it, cur.b)}</div>
+     <div class="sentko">${esc(it.ko)}</div>
+     <div class="center" style="margin-top:12px">
+       <button class="spk" id="spk">🔊</button>
+       <div class="muted" style="font-size:12.5px; margin-top:3px">문장 듣기 · 답이 들려요</div>
+     </div>`;
+
+  let body = "";
+  if(cur.lv === 1){
+    body = `<div class="typewrap"><input id="ta" type="text" autocomplete="off"
+              autocapitalize="off" autocorrect="off" spellcheck="false"
+              placeholder="여기에 써 보세요"></div>
+            <button class="btn pri" id="chk">확인</button>`;
+  }else if(cur.lv === 2){
+    const ps = pieces(ans);
+    body = `<div class="tray" id="tray"></div>
+            <div class="pool" id="pool">${shuffle(ps.map((p,i)=>[p,i]))
+              .map(([p,i]) => `<button class="chip" data-i="${i}" data-p="${esc(p)}">${esc(p)}</button>`)
+              .join("")}</div>
+            <button class="btn gh" id="undo">← 하나 지우기</button>`;
+  }else{
+    const opts = shuffle([ans].concat(it.w[cur.b]));
+    body = `<div class="opts">${opts.map(o =>
+              `<button class="opt" data-v="${esc(o)}">${esc(o)}</button>`).join("")}</div>`;
+  }
+
+  app.innerHTML = `<div class="card">${head}${body}<div id="fb"></div>
+     <button class="btn gh" id="back">← 그만하고 세트 고르기</button></div>`;
+
+  $("#spk").onclick = () => speak(passFull(it));
+  $("#back").onclick = () => screenPassSets(it.u);
+
+  /* 한 빈칸은 「틀린 것 다시」에 한 번만 넣는다.
+     1단·2단·3단에서 각각 넣으면 같은 문제가 한 바퀴에 세 번 나온다. */
+  function mark(){
+    if(!wrong.some(w => w.i === cur.i && w.b === cur.b))
+      wrong.push({i:cur.i, b:cur.b});
+  }
+
+  /* 판정 — ok면 넘어가고, 아니면 한 단 내려간다 */
+  function judge(ok){
+    if(ok){
+      if(cur.lv === 1 && round === 1) score++;      // 점수는 1단·첫 바퀴만
+      if(cur.lv !== 1) mark();                      // 도움받아 맞힌 건 다시 만난다
+      const solved = {}; solved[cur.b] = 1;
+      $("#fb").innerHTML = `<div class="fb ok">${cur.lv===1 ? "정확해요! 👏" : "맞았어요! 이제 외워졌어요."}
+        <br><span style="font-size:15px">${passSentence(it, -1, solved)}</span></div>`;
+    }else{
+      if(cur.lv < 3){
+        mark();
+        $("#fb").innerHTML = `<div class="fb no">아쉬워요. ${cur.lv===1
+            ? (ans.indexOf(" ") >= 0 ? "낱말을" : "글자를") + " 섞어서 다시 물어볼게요."
+            : "이번엔 셋 중에서 골라 보세요."}</div>`;
+        const nx = document.createElement("button");
+        nx.className = "btn pri"; nx.textContent = "다시 해 보기 ▶";
+        nx.onclick = () => {
+          const q = queue.slice();
+          q[0] = Object.assign({}, cur, {lv: cur.lv + 1});
+          screenPassQ(key, q, wrong, score, total, round);
+        };
+        $("#fb").appendChild(nx);
+        return;                                     // 다음으로 넘기지 않는다
+      }
+      mark();
+      const solved = {}; solved[cur.b] = 1;
+      $("#fb").innerHTML = `<div class="fb no">정답은 <b>${esc(ans)}</b>
+        <br><span style="font-size:15px">${passSentence(it, -1, solved)}</span></div>`;
+    }
+    speak(passFull(it));
+    const nx = document.createElement("button");
+    nx.className = "btn pri"; nx.textContent = "다음 ▶";
+    nx.onclick = () => screenPassQ(key, queue.slice(1), wrong, score, total, round);
+    $("#fb").appendChild(nx);
+  }
+
+  if(cur.lv === 1){
+    const inp = $("#ta");
+    const go = () => { if(!inp.value.trim()) return;
+                       inp.disabled = true; $("#chk").disabled = true;
+                       judge(norm(inp.value) === norm(ans)); };
+    $("#chk").onclick = go;
+    inp.onkeydown = e => { if(e.key === "Enter") go(); };
+    inp.focus();
+  }else if(cur.lv === 2){
+    const ps = pieces(ans), joiner = ans.indexOf(" ") >= 0 ? " " : "";
+    const picked = [];
+    const tray = $("#tray");
+    const draw = () => {
+      tray.innerHTML = picked.map(p => `<span class="chip inTray">${esc(p)}</span>`).join("");
+      if(picked.length === ps.length){
+        app.querySelectorAll("#pool .chip").forEach(c => c.classList.add("used"));
+        judge(picked.join(joiner) === ans);
+      }
+    };
+    app.querySelectorAll("#pool .chip").forEach(c => c.onclick = () => {
+      c.classList.add("used"); picked.push(c.dataset.p); draw();
+    });
+    $("#undo").onclick = () => {
+      if(!picked.length) return;
+      picked.pop();
+      const used = app.querySelectorAll("#pool .chip.used");
+      if(used.length) used[used.length-1].classList.remove("used");
+      draw();
+    };
+  }else{
+    app.querySelectorAll(".opt").forEach(btn => btn.onclick = () => {
+      const ok = btn.dataset.v === ans;
+      app.querySelectorAll(".opt").forEach(x => {
+        x.onclick = null;
+        if(x.dataset.v === ans) x.classList.add("ok");
+        else if(x === btn) x.classList.add("no");
+      });
+      judge(ok);
+    });
+  }
+}
+
+/* ── 빈칸 화면 3 · 아직 안 외워진 것 ──────────────────── */
+function screenPassStuck(key, wrong, score, total){
+  const set = findPassSet(key);
+  const uniq = [];
+  wrong.forEach(w => { if(!uniq.some(x => x.i===w.i && x.b===w.b)) uniq.push(w); });
+  app.innerHTML = `
+   <div class="card">
+     <div class="result">
+       <div class="big" style="color:var(--amber)">${score} / ${total}</div>
+       <p class="muted">여기까지 잘했어요. <b>아래 ${uniq.length}개만</b> 아직 손에 안 붙었어요.<br>
+       한 번에 다 외우는 사람은 없어요.</p>
+     </div>
+     <div class="tip"><b>다시 볼 표현</b><br>
+       ${uniq.map(w => `<b>${esc(PASSAGE[w.i].a[w.b])}</b>
+         &nbsp;<span style="color:var(--sub)">${esc(PASSAGE[w.i].ko)}</span>`).join("<br>")}
+     </div>
+     <button class="btn pri" id="retry">이 세트 다시 ▶</button>
+     <button class="btn gh" id="back">← 세트 고르기</button>
+   </div>`;
+  $("#retry").onclick = () => screenPassQ(key);
+  $("#back").onclick = () => screenPassSets(set.u);
+}
+
+/* ── 빈칸 화면 4 · 결과 ───────────────────────────────── */
+function screenPassDone(key, score, total){
+  ST.pass[key] = { done:true, best: Math.max(score, (ST.pass[key]||{}).best||0) };
+  save(ST);
+  const set = findPassSet(key);
+  const sets = passSets(set.u);
+  const perfect = score === total;
+  app.innerHTML = `
+   <div class="card">
+     <div class="result">
+       <div class="big">${score} / ${total}</div>
+       <p class="muted">${set.u}단원 ${set.k+1}세트 끝! <b>처음에 바로 쓴 개수</b>예요.<br>
+       ${perfect ? "한 번에 전부 썼어요 👏"
+                 : "나머지 " + (total-score) + "개도 <b>결국 다 맞혔어요</b> 👍"}</p>
+     </div>
+     <div class="tip"><b>이 세트에서 나온 표현</b><br>
+       ${set.items.map(x => `<b>${esc(PASSAGE[x.i].a[x.b])}</b>
+         &nbsp;<span style="color:var(--sub)">${esc(PASSAGE[x.i].ko)}</span>`).join("<br>")}
+     </div>
+     <div class="row">
+       <button class="btn sub" id="again">한 번 더</button>
+       <button class="btn pri" id="next">다음 세트 ▶</button>
+     </div>
+     <button class="btn gh" id="back">← 세트 고르기</button>
+   </div>`;
+  $("#again").onclick = () => screenPassQ(key);
+  $("#next").onclick  = () => set.k+1 < sets.length
+      ? screenPassQ(sets[set.k+1].key) : screenPassSets(set.u);
+  $("#back").onclick  = () => screenPassSets(set.u);
+}
+
 /* ── 시작 ─────────────────────────────────────────────── */
+function go(mode){
+  document.querySelectorAll(".tabs button")
+    .forEach(b => b.classList.toggle("on", b.dataset.mode === mode));
+  if(mode === "verb") screenSets(); else screenPassSets();
+}
 document.querySelectorAll(".tabs button").forEach(b => {
-  if(b.dataset.mode === "verb") b.onclick = screenSets;
+  if(b.dataset.mode && b.dataset.mode !== "soon") b.onclick = () => go(b.dataset.mode);
 });
-screenSets();
+go("verb");
 </script>
 </body>
 </html>
