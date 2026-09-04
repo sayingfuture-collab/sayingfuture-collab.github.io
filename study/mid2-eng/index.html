@@ -135,6 +135,25 @@
     font-family:inherit; padding-top:5px;}
   .dl.act{background:var(--blue-l); border-radius:9px; padding:6px 8px; margin:2px -8px;}
   .dl.act b{color:var(--blue);}
+  /* 본문 읽기 */
+  .rl{padding:10px 0; border-top:1px solid var(--line);}
+  .rl:first-of-type{border-top:none; padding-top:2px;}
+  /* 번호는 내어쓰기 — 줄이 넘어가도 글이 번호 아래로 안 들어가게 */
+  .ren{font-family:Georgia,"Times New Roman",serif; font-size:18px; line-height:1.72;
+    padding-left:26px; text-indent:-26px;}
+  .rno{display:inline-block; width:26px; text-indent:0; color:#b6bfc9; font-size:12.5px;
+    font-weight:800; font-family:-apple-system,sans-serif; vertical-align:1px;}
+  .rko{color:var(--sub); font-size:14.5px; line-height:1.5; margin-top:3px; padding-left:24px;}
+  .rtag{display:inline-block; margin:5px 0 0 24px; background:var(--blue-l); color:var(--blue);
+    font-size:11.5px; font-weight:700; border-radius:6px; padding:2px 8px; line-height:1.5;}
+  .rtag.warn{background:var(--amber-l); color:var(--amber);}
+  .mini{border:none; background:transparent; color:var(--blue); cursor:pointer;
+    font-size:14px; padding:0 3px; vertical-align:2px;}
+  .hideko .rko{color:transparent; background:#eef1f5; border-radius:6px; cursor:pointer;}
+  .hideko .rko.show{color:var(--sub); background:transparent;}
+  .sharebox{width:100%; min-height:150px; border:1px solid var(--line); border-radius:10px;
+    padding:10px; font-size:13.5px; font-family:inherit; line-height:1.5; margin-top:6px;}
+
   /* 자주 틀린 것 */
   .missli{border-top:1px solid var(--line); padding:9px 0;}
   .missli:first-child{border-top:none; padding-top:0;}
@@ -400,6 +419,19 @@ const DIALOG = [
  "w":[["lemonades","lemon juice"],["what","how to"],["needs","needing"],["in halves","on half"],["squeez","squeezing"],["Adding","Added"],["mixing","mixed"],["simply","simplely"]]}
 ];
 /* DIALOG-DATA-END */
+
+/* ── 본문 읽기 자료 ────────────────────────────────────
+   ⚠ **손으로 고치지 말 것.** `python build_reading.py` 가 `_본문대장.md` 에서
+   영어 문장을 그대로 뽑아 다시 쓴다. 우리말·문법 표시는 그 스크립트 안에 있다. */
+/* READING-DATA-START */
+const READING = [
+{"u": 5, "t": "My Hometown, Chuncheon", "p": "p.198", "l": [["Hi, my name is Yujin, and I'm writing a blog to introduce my hometown, Chuncheon.", "안녕하세요, 제 이름은 유진이고, 저는 제 고향인 춘천을 소개하기 위해서 블로그를 쓰고 있어요.", ""], ["Have you ever visited Chuncheon?", "당신은 춘천을 방문해 본 적이 있나요?", "현재완료 · 경험"], ["It's famous for its beautiful mountains and lakes.", "그것은 아름다운 산과 호수로 유명해요.", ""], ["There are so many things to do and so many things to see.", "할 것이 정말 많고, 볼 것도 정말 많답니다.", "to부정사 형용사적 ×2"], ["Nowadays, the number of foreign tourists who visit Chuncheon is growing.", "요즘에는 춘천을 방문하는 외국인 관광객들의 수가 늘고 있어요.", "관계대명사 who"], ["I want to share the history of Chuncheon and tips for visitors from around the world.", "저는 춘천의 역사와 전 세계 방문객들을 위한 조언을 공유하고 싶어요.", ""], ["So, I started this blog.", "그래서 저는 이 블로그를 시작했어요.", ""], ["Today's focus is the Memorial Hall for Ethiopian Soldiers in the Korean War.", "오늘 중점적으로 소개할 곳은 에티오피아군의 한국전 참전 기념관이에요.", ""], ["On the first floor of the hall, visitors can see the names and pictures of the brave soldiers.", "기념관 1층에서 방문객들은 용감한 군인들의 이름과 사진을 볼 수 있어요.", ""], ["On the second floor, Ethiopian cultural items are displayed.", "2층에는 에티오피아의 문화 유물들이 전시되어 있어요.", "수동태"], ["If you want to know about the special history between Korea and Ethiopia, please click on the link below.", "한국과 에티오피아 사이의 특별한 역사에 대해 알고 싶으면, 아래 링크를 클릭해 주세요.", ""]]},
+{"u": 5, "t": "Chuncheon News: Friendship Across the World", "p": "p.199", "l": [["Ethiopia and Korea are far apart on the map, but they have had strong ties for many years.", "에티오피아와 한국은 지도상으로는 멀리 떨어져 있지만, 오랜 세월 동안 강한 유대 관계를 맺어 왔다.", "현재완료 · 계속 (for)"], ["Ethiopia was the only African country to send soldiers during the Korean War.", "에티오피아는 한국 전쟁 중 군인들을 보낸 유일한 아프리카 국가였다.", "to부정사 형용사적"], ["Ethiopian soldiers fought many battles in Chuncheon and never lost.", "에티오피아 군인들은 춘천에서 많은 전쟁을 치렀고 결코 진 적이 없었다.", ""], ["During the war, some Korean children lost their parents.", "전쟁 중, 일부 한국 어린이들이 부모를 잃었다.", ""], ["Ethiopian soldiers used their own money to help them.", "에티오피아 군인들은 그들을 돕기 위해 자신들의 돈을 썼다.", "⚠ to부정사 부사적(목적) — 형용사적 아님"], ["In the 2000s, Chuncheon became the sister city of Addis Ababa, the capital city of Ethiopia.", "2000년대에 춘천은 에티오피아의 수도인 아디스아바바의 자매 도시가 되었다.", ""], ["Each city built a memorial hall to honor the Ethiopian soldiers who fought in the Korean War.", "각 도시는 한국 전쟁에서 싸운 에티오피아 군인들을 기리기 위해 기념관을 세웠다.", "⚠ to부정사 부사적(목적) · 관계대명사 who"], ["The Memorial Hall in Chuncheon was built in 2006.", "춘천에 있는 기념관은 2006년도에 지어졌다.", "수동태"], ["It looks like a traditional Ethiopian house.", "그것은 에티오피아의 전통 가옥처럼 생겼다.", ""], ["It has three round roofs.", "세 개의 둥근 지붕이 있다.", ""], ["Here, you can feel the strong friendship between the two countries.", "이곳에서 여러분은 두 나라 사이의 굳건한 우정을 느낄 수 있다.", ""], ["In the next story, I will introduce Soyanggang Skywalk and share some useful tips for traveling there.", "다음 이야기에서는, 소양강 스카이워크를 소개하고 그곳을 여행하는 데 유용한 정보를 공유할게요.", ""], ["You don't want to miss it!", "놓치면 안 돼요!", ""]]},
+{"u": 6, "t": "들어가며", "p": "p.240", "l": [["When did you last try something new?", "너는 언제 마지막으로 새로운 것을 시도했니?", ""], ["I have always wanted to learn skateboarding.", "나는 항상 스케이트보드 타기를 배우고 싶어 했어.", "현재완료 · 계속"], ["Today, I took the first step toward becoming a cool skater boy.", "오늘, 나는 멋진 스케이터 소년이 되기를 향하여 첫걸음을 내디뎠어.", ""], ["I joined a one-day skateboarding class.", "일일 스케이트보드 타기 수업에 참여했거든.", ""]]},
+{"u": 6, "t": "My First Skateboarding Lesson", "p": "p.234", "l": [["When I got to the skatepark, I saw a guy skateboarding in a big bowl.", "스케이트파크에 도착했을 때, 나는 한 남자가 큰 볼에서 스케이트보드를 타고 있는 것을 보았어.", "지각동사 see + 목적어 + -ing"], ["He was Eric, my skateboarding teacher.", "그는 나의 스케이트보드 선생님인 Eric이었어.", ""], ["He jumped into the air and flipped the board.", "그는 공중으로 뛰어올라 보드를 휙 뒤집었어.", ""], ["He landed cleanly.", "그는 깔끔하게 착지했지.", ""], ["He reminded me of a surfer on a big wave.", "그는 큰 파도를 타는 서퍼를 떠올리게 했어.", ""], ["I learned from a blog that skateboarding began with surfers in California.", "나는 한 블로그에서 스케이트보드 타기가 캘리포니아의 서퍼들로부터 시작되었다는 것을 알게 되었어.", ""], ["They wanted to surf on land, too, so they put wheels on wooden boards.", "그들은 땅에서도 서핑을 하고 싶어서 나무판자에 바퀴를 달았어.", ""], ["When there was little rain in California, skateboarders used empty swimming pools as their skateparks.", "캘리포니아에 비가 거의 오지 않았을 때, 스케이트보드 타는 사람들은 빈 수영장을 그들의 스케이트파크로 이용했어.", ""], ["Before the lesson, Eric and I did a warm-up exercise.", "수업 전에, Eric과 나는 준비 운동을 했어.", ""], ["Eric told me, \"Safety is the most important thing, Ian!\"", "Eric은 나에게 \"안전이 가장 중요한 거야, Ian!\"이라고 말했어.", ""], ["Then, he made me wear a helmet and pads to stay safe during the class.", "그런 다음 그는 수업 중에 안전하게 있기 위해 나에게 헬멧과 보호대를 착용하게 했어.", "사역동사 make + 목적어 + 원형  ⚠ 뒤의 to stay 는 부사적"]]},
+{"u": 6, "t": "My First Skateboarding Lesson (이어서)", "p": "p.236", "l": [["The lesson finally began.", "수업이 마침내 시작되었어.", ""], ["Eric taught me the most basic skill, the \"push-off.\"", "Eric은 나에게 가장 기초적인 기술인 '푸시 오프'를 가르쳐 주었어.", ""], ["To push off on the skateboard, I put one foot on the board and pushed against the ground with the other foot.", "스케이트보드 위에서 푸시 오프를 하기 위해서, 나는 한 발을 보드에 올리고 다른 발로 땅을 밀었어.", "⚠ To push off 는 부사적(목적)"], ["Tada! I moved forward!", "짜잔! 나는 앞으로 나아갔어!", ""], ["This skill looked simple, but I fell down many times.", "이 기술은 간단해 보였지만, 나는 여러 번 넘어졌어.", ""], ["With practice, I was able to keep my balance and ride.", "연습을 통해 나는 균형을 잡고 탈 수 있었어.", ""], ["I heard Eric cheering for me.", "나는 Eric이 나를 응원하는 소리를 들었어.", "지각동사 hear + 목적어 + -ing"], ["After the lesson, I realized skateboarding is more than just a cool-looking sport.", "수업 후에, 나는 스케이트보드 타기가 단지 멋져 보이는 스포츠 그 이상이라는 것을 깨달았어.", ""], ["It makes me feel free.", "그것은 나에게 자유를 느끼게 해 줘.", "사역동사 make + 목적어 + 원형"], ["I am glad that I started my skateboarding journey today.", "내가 오늘 스케이트보드 타기 여정을 시작해서 기뻐.", ""], ["My shoes and jeans got dirty, but I felt great.", "내 신발과 청바지는 더러워졌지만 나는 기분이 아주 좋았어.", ""], ["It shows I practiced really hard.", "그것은 내가 정말 열심히 연습했다는 것을 보여 주는 것이니까.", ""], ["I hope to skate better and more freely someday.", "나는 언젠가는 더 잘, 그리고 더 자유롭게 스케이트보드를 탈 수 있으면 좋겠어.", ""], ["Do you want to try skateboarding, too?", "너도 스케이트보드 타기를 해 보고 싶니?", ""], ["Just visit the nearest skatepark!", "일단 가장 가까운 스케이트파크를 방문해 봐!", ""]]}
+];
+/* READING-DATA-END */
 
 const PPER = 5;                                 // 빈칸도 한 세트 5개
 
@@ -771,6 +803,8 @@ function screenBlankSets(deck, unit){
      </div>
      <p class="muted">안 써져도 괜찮아요 — 틀리면 <b>글자·낱말을 섞어서</b> 다시 물어보고,
      그래도 어려우면 <b>셋 중에 고르기</b>로 바뀌어요.</p>
+     ${deck === "pass" ? `<button class="btn sub" id="toread"
+       style="margin-bottom:10px">📖 본문 먼저 읽기 (전문) ▶</button>` : ""}
      <div class="sets">`;
   sets.forEach(s => {
     const st = store[s.key] || {};
@@ -785,6 +819,7 @@ function screenBlankSets(deck, unit){
     b.onclick = () => screenBlankSets(deck, +b.dataset.u));
   app.querySelectorAll(".setbtn").forEach(b =>
     b.onclick = () => screenBlankQ(deck, b.dataset.key));
+  if($("#toread")) $("#toread").onclick = () => screenRead(u);
 }
 
 /* ── 화면 2 · 문제 ───────────────────────────────────── */
@@ -1002,6 +1037,118 @@ function screenBlankDone(deck, key, score, total){
   $("#back").onclick  = () => set.virtual ? screenMiss() : screenBlankSets(deck, set.u);
 }
 
+/* ══ 본문 읽기 ═══════════════════════════════════════════
+   빈칸만 풀면 문장을 따로따로 만나게 된다. 내신은 흐름·순서도 묻고,
+   시험 전날엔 「소리 내어 한 번 읽기」가 필요하다. 그래서 **전문**을 그대로 둔다.
+   ⚠ 영어 문장은 `build_reading.py` 가 `_본문대장.md` 에서 뽑아 넣는다 — 손으로 고치지 말 것. */
+
+function speakAll(lines){
+  try{
+    if(!window.speechSynthesis) return;
+    speechSynthesis.cancel();
+    lines.forEach(s => {
+      const u = new SpeechSynthesisUtterance(s);
+      u.lang = "en-US"; u.rate = .85;
+      speechSynthesis.speak(u);
+    });
+  }catch(e){}
+}
+
+function screenRead(u){
+  const parts = READING.filter(b => b.u === u);
+  const all = parts.reduce((a, b) => a.concat(b.l.map(x => x[0])), []);
+  const hide = !!ST.readHide;
+  let no = 0;
+
+  app.innerHTML = `
+   <div class="card">
+     <h2>본문 읽기</h2>
+     <p class="muted">교과서 본문 <b>전문</b>이에요. 빈칸을 풀기 전에 한 번,
+     시험 전날 소리 내어 한 번 읽으면 돼요.</p>
+     <div class="unitpick">
+       ${READING.reduce((a,b)=> a.some(x=>x[0]===b.u) ? a : a.concat([[b.u, b.u+"단원"]]), [])
+         .map(([n,label]) => `<button class="${u===n?'on':''}" data-u="${n}">${label}</button>`).join("")}
+     </div>
+     <div class="row">
+       <button class="btn sub" id="ko">${hide ? "우리말 보이기" : "우리말 가리기"}</button>
+       <button class="btn pri" id="play">🔊 전체 듣기</button>
+     </div>
+     <button class="btn gh" id="stop">■ 소리 멈추기</button>
+   </div>
+   ${parts.map(b => `
+   <div class="card${hide ? " hideko" : ""}">
+     <h2>${esc(b.t)} <span class="lvtag">${esc(b.p)}</span></h2>
+     ${b.l.map(([en, ko, tag]) => {
+       no++;
+       return `<div class="rl">
+         <div class="ren"><span class="rno">${no}</span>${esc(en)}
+           <button class="mini" data-say="${esc(en)}">🔊</button></div>
+         <div class="rko">${esc(ko)}</div>
+         ${tag ? `<div class="rtag${tag.indexOf("⚠")===0 ? " warn" : ""}">${esc(tag)}</div>` : ""}
+       </div>`;
+     }).join("")}
+   </div>`).join("")}
+   <div class="card">
+     <div class="tip"><b>이렇게 쓰면 좋아요</b><br>
+       ① 우리말을 <b>가리고</b> 영어만 읽어 보기<br>
+       ② 막히는 문장은 🔊 로 들어 보기<br>
+       ③ 파란 표시는 <b>시험에 나오는 문법</b>, 노란 ⚠ 는 <b>닮았는데 다른 것</b>이에요
+     </div>
+     <button class="btn pri" id="toblank">본문 빈칸 풀러 가기 ▶</button>
+   </div>`;
+
+  app.querySelectorAll(".unitpick button").forEach(b => b.onclick = () => screenRead(+b.dataset.u));
+  app.querySelectorAll(".mini").forEach(b => b.onclick = () => speak(b.dataset.say));
+  $("#play").onclick = () => speakAll(all);
+  $("#stop").onclick = () => { try{ speechSynthesis.cancel(); }catch(e){} };
+  $("#ko").onclick = () => { ST.readHide = !ST.readHide; save(ST); screenRead(u); };
+  $("#toblank").onclick = () => screenBlankSets("pass", u);
+  // 가려 둔 우리말은 눌러서 하나씩 확인할 수 있게 (전부 다시 켜지 않아도 되게)
+  app.querySelectorAll(".hideko .rko").forEach(e =>
+    e.onclick = () => e.classList.toggle("show"));
+}
+
+/* ══ 선생님께 보내기 ═════════════════════════════════════
+   기록은 폰 안에만 있으므로, 밖으로 나가는 유일한 길은 **소민이가 직접 보내는 것**이다.
+   공유 창(카톡 등) → 안 되면 복사 → 그것도 안 되면 화면에 띄워 직접 복사하게 한다. */
+function missText(){
+  const d = new Date();
+  const list = missList();
+  return "소민 · 자주 틀린 것 (" + (d.getMonth()+1) + "/" + d.getDate() + ")\n"
+       + list.map((r, i) => (i+1) + ". " + r.ans + " — " + r.w + "번 틀림"
+                            + (r.c ? ", " + r.c + "번 맞힘" : "") + " (" + r.src + ")").join("\n")
+       + "\n\n(연습장에서 자동으로 모은 목록이에요)";
+}
+
+function shareMiss(btn){
+  const text = missText();
+  const done = msg => { btn.textContent = msg; setTimeout(() => {
+    btn.textContent = "선생님께 보내기"; }, 2500); };
+  try{
+    if(navigator.share){ navigator.share({ text: text }).then(()=>done("보냈어요 ✓"), ()=>{}); return; }
+  }catch(e){}
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(()=>done("복사했어요 — 붙여넣기 하면 돼요 ✓"),
+                                               ()=>showMissText(text));
+      return;
+    }
+  }catch(e){}
+  showMissText(text);
+}
+
+/* 공유도 복사도 막힌 기기 — 텍스트를 띄워 직접 복사하게 한다 */
+function showMissText(text){
+  const box = document.createElement("div");
+  box.className = "card";
+  box.innerHTML = `<p class="muted">아래 글을 길게 눌러 복사한 뒤 보내면 돼요.</p>
+    <textarea class="sharebox" readonly>${esc(text)}</textarea>`;
+  app.appendChild(box);
+  const ta = box.querySelector("textarea");
+  ta.focus(); ta.select();
+  ta.scrollIntoView({ block: "center" });
+}
+
 /* ══ 자주 틀린 것 ═══════════════════════════════════════
    **폰 안에만** 쌓인다(localStorage). 서버로 보내지 않는다 — 학생 한 명의 답안이라
    폰 밖으로 내보낼 이유가 없다. 과외 때 소민이가 이 화면을 열어 보여 주면 그게 기록이다.
@@ -1122,9 +1269,11 @@ function screenMiss(){
    <div class="card">
      <p class="muted" style="margin:0">이 기록은 <b>이 폰 안에만</b> 있어요.
      아무 데도 보내지 않아요.</p>
+     <button class="btn pri" id="share">선생님께 보내기</button>
      <button class="btn gh" id="clear">목록 비우기</button>
    </div>`;
   if(drillable) $("#drill").onclick = startMissDrill;
+  $("#share").onclick = () => shareMiss($("#share"));
   $("#clear").onclick = () => {
     app.querySelector("#clear").outerHTML = `
       <div class="fb no" style="margin-top:10px">정말 비울까요? 지우면 되돌릴 수 없어요.
