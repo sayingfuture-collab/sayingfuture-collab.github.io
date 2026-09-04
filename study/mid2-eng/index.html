@@ -135,6 +135,14 @@
     font-family:inherit; padding-top:5px;}
   .dl.act{background:var(--blue-l); border-radius:9px; padding:6px 8px; margin:2px -8px;}
   .dl.act b{color:var(--blue);}
+  /* 자주 틀린 것 */
+  .missli{border-top:1px solid var(--line); padding:9px 0;}
+  .missli:first-child{border-top:none; padding-top:0;}
+  .missrow{display:flex; justify-content:space-between; align-items:baseline; gap:8px;}
+  .missrow b{font-family:Georgia,serif; font-size:18px;}
+  .misscnt{flex:0 0 auto; color:var(--red); font-size:12.5px; font-weight:700;}
+  .missko{color:var(--sub); font-size:14px; line-height:1.45; margin-top:1px;}
+  .misssrc{color:#9aa4b0; font-size:11.5px; margin-top:2px;}
   .unitpick{display:flex; gap:8px; margin-bottom:10px;}
   .unitpick button{flex:1; border:1px solid var(--line); background:var(--card); color:var(--sub);
     border-radius:10px; padding:8px; font-size:14px; font-weight:700; cursor:pointer;
@@ -158,7 +166,7 @@
     <button class="on" data-mode="verb">동사<br>3단 변화</button>
     <button data-mode="pass">본문<br>빈칸</button>
     <button data-mode="dlg">대화문<br>빈칸</button>
-    <button data-mode="soon" disabled>동사+<br>전치사</button>
+    <button data-mode="miss">자주<br>틀린 것</button>
   </div>
 
   <div id="app"></div>
@@ -402,6 +410,7 @@ let ST = load();
 if(!ST.verb) ST.verb = {};                       // {세트번호: {done:true, best:점수}}
 if(!ST.pass) ST.pass = {};                       // {"pass5-0": {done:true, best:점수}}
 if(!ST.dlg)  ST.dlg  = {};                       // 대화문도 같은 모양으로
+if(!ST.miss) ST.miss = {};                       // 자주 틀린 것 — 폰 안에만 쌓인다
 
 /* ── 소리 ─────────────────────────────────────────────── */
 function speak(text){
@@ -526,6 +535,7 @@ function screenQuiz(setNo, queue, wrong, score, total, round){
       else if(x === btn) x.classList.add("no");
     });
     if(ok){ if(round === 1) score++; } else wrong.push([v, which]);
+    if(round === 1) noteVerb(v, which, ok);      // 동사 오답도 「자주 틀린 것」에 모은다
     $("#fb").innerHTML = ok
       ? `<div class="fb ok">잘했어요! &nbsp; <b>${b} - ${past} - ${pp}</b></div>`
       : `<div class="fb no">아쉬워요. 정답은 <b>${answer}</b><br>
@@ -662,7 +672,10 @@ function setsOf(deck, u){
   }));
 }
 function allSets(deck){ return DECKS[deck].units.reduce((a,[u]) => a.concat(setsOf(deck,u)), []); }
-function findSet(deck, key){ return allSets(deck).find(s => s.key === key); }
+function findSet(deck, key){
+  if(key === "miss") return MISS_SET;        // 「모아 풀기」는 그때그때 만든 가상 세트다
+  return allSets(deck).find(s => s.key === key);
+}
 
 /* ── 문항 그리기 ──────────────────────────────────────
    본문은 문장 한 줄, 대화문은 장면 전체(앞뒤 말이 있어야 답이 나온다). */
@@ -747,6 +760,9 @@ function screenBlankSets(deck, unit){
      <p class="muted">${D.intro}</p>
      <div class="bar"><i style="width:${Math.round(doneCount/all.length*100)}%"></i></div>
      <p class="muted">${doneCount} / ${all.length} 세트 완료</p>
+     ${missList().length ? `<p class="muted" style="margin-bottom:0">
+       처음에 못 쓴 것 <b>${missList().length}개</b>가 모였어요 —
+       위 <b>「자주 틀린 것」</b> 탭에서 볼 수 있어요.</p>` : ""}
    </div>
    <div class="card">
      <div class="unitpick">
@@ -773,7 +789,6 @@ function screenBlankSets(deck, unit){
 
 /* ── 화면 2 · 문제 ───────────────────────────────────── */
 function screenBlankQ(deck, key, queue, wrong, score, total, round){
-  const D = DECKS[deck], items = D.items;
   const set = findSet(deck, key);
   if(!queue){
     queue = shuffle(set.items).map(x => Object.assign({}, x, {lv:1}));
@@ -788,7 +803,7 @@ function screenBlankQ(deck, key, queue, wrong, score, total, round){
   }
 
   const cur = queue[0];
-  const it  = items[cur.i];
+  const it  = DECKS[cur.d].items[cur.i];   // 「모아 풀기」는 덱이 섞여 있어 칸마다 본다
   const ans = it.a[cur.b];
   // 2단 이름은 조각이 낱말인지 글자인지에 따라 — 화면에 보이는 것과 말이 맞아야 한다
   const lvName = cur.lv === 1 ? "직접 쓰기"
@@ -796,7 +811,7 @@ function screenBlankQ(deck, key, queue, wrong, score, total, round){
                : "셋 중에 고르기";
 
   const head = `
-     <p class="muted">${it.u}단원 ${esc(set.name)} ·
+     <p class="muted">${set.virtual ? esc(set.name) : it.u + "단원 " + esc(set.name)} ·
         ${round===1 ? "빈칸 채우기" : "틀린 것 다시 "+(round-1)+"번째"}
         <span class="lvtag">${lvName}</span> <span class="nb">남은 ${queue.length}개</span></p>
      <div class="bar"><i style="width:${Math.round((total-queue.length)/total*100)}%"></i></div>
@@ -832,17 +847,20 @@ function screenBlankQ(deck, key, queue, wrong, score, total, round){
 
   focusScene(app);
   $("#spk").onclick = () => speak(itemSay(it, cur.b));
-  $("#back").onclick = () => screenBlankSets(deck, it.u);
+  $("#back").onclick = () => set.virtual ? screenMiss() : screenBlankSets(deck, it.u);
 
   /* 한 빈칸은 「틀린 것 다시」에 한 번만 넣는다.
      1단·2단·3단에서 각각 넣으면 같은 문제가 한 바퀴에 세 번 나온다. */
   function mark(){
-    if(!wrong.some(w => w.i === cur.i && w.b === cur.b))
-      wrong.push({d:deck, i:cur.i, b:cur.b});
+    if(!wrong.some(w => w.d === cur.d && w.i === cur.i && w.b === cur.b))
+      wrong.push({d:cur.d, i:cur.i, b:cur.b});
   }
 
   /* 판정 — ok면 넘어가고, 아니면 한 단 내려간다 */
   function judge(ok){
+    // 기록은 **첫 바퀴 1단에서만**. 도움받아 맞힌 건 맞힌 게 아니고,
+    // 같은 바퀴를 두 번 세면 숫자가 부푼다.
+    if(round === 1 && cur.lv === 1) noteBlank(cur, ok);
     const solved = {}; solved[cur.b] = 1;
     if(ok){
       if(cur.lv === 1 && round === 1) score++;      // 점수는 1단·첫 바퀴만
@@ -926,7 +944,6 @@ function screenBlankQ(deck, key, queue, wrong, score, total, round){
 
 /* ── 화면 3 · 아직 안 외워진 것 ──────────────────────── */
 function screenBlankStuck(deck, key, wrong, score, total){
-  const items = DECKS[deck].items;
   const set = findSet(deck, key);
   const uniq = [];
   wrong.forEach(w => { if(!uniq.some(x => x.i===w.i && x.b===w.b)) uniq.push(w); });
@@ -938,47 +955,184 @@ function screenBlankStuck(deck, key, wrong, score, total){
        한 번에 다 외우는 사람은 없어요.</p>
      </div>
      <div class="tip"><b>다시 볼 표현</b><br>
-       ${uniq.map(w => `<b>${esc(items[w.i].a[w.b])}</b>
-         &nbsp;<span style="color:var(--sub)">${esc(itemKo(items[w.i], w.b))}</span>`).join("<br>")}
+       ${uniq.map(w => `<b>${esc(DECKS[w.d].items[w.i].a[w.b])}</b>
+         &nbsp;<span style="color:var(--sub)">${esc(itemKo(DECKS[w.d].items[w.i], w.b))}</span>`).join("<br>")}
      </div>
      <button class="btn pri" id="retry">이 세트 다시 ▶</button>
      <button class="btn gh" id="back">← 세트 고르기</button>
    </div>`;
   $("#retry").onclick = () => screenBlankQ(deck, key);
-  $("#back").onclick = () => screenBlankSets(deck, set.u);
+  $("#back").onclick = () => set.virtual ? screenMiss() : screenBlankSets(deck, set.u);
 }
 
 /* ── 화면 4 · 결과 ───────────────────────────────────── */
 function screenBlankDone(deck, key, score, total){
-  const D = DECKS[deck], items = D.items;
-  ST[D.store][key] = { done:true, best: Math.max(score, (ST[D.store][key]||{}).best||0) };
-  save(ST);
   const set = findSet(deck, key);
-  const sets = setsOf(deck, set.u);
+  // 「모아 풀기」는 진짜 세트가 아니라서 초록불(진행 저장)을 건드리지 않는다
+  if(!set.virtual){
+    const D = DECKS[deck];
+    ST[D.store][key] = { done:true, best: Math.max(score, (ST[D.store][key]||{}).best||0) };
+    save(ST);
+  }
+  const sets = set.virtual ? [] : setsOf(deck, set.u);
   const at = sets.findIndex(s => s.key === key);
   const perfect = score === total;
   app.innerHTML = `
    <div class="card">
      <div class="result">
        <div class="big">${score} / ${total}</div>
-       <p class="muted">${set.u}단원 ${esc(set.name)} 끝! <b>처음에 바로 쓴 개수</b>예요.<br>
+       <p class="muted">${set.virtual ? esc(set.name) : set.u + "단원 " + esc(set.name)} 끝!
+       <b>처음에 바로 쓴 개수</b>예요.<br>
        ${perfect ? "한 번에 전부 썼어요 👏"
                  : "나머지 " + (total-score) + "개도 <b>결국 다 맞혔어요</b> 👍"}</p>
      </div>
      <div class="tip"><b>이 세트에서 나온 표현</b><br>
-       ${set.items.map(x => `<b>${esc(items[x.i].a[x.b])}</b>
-         &nbsp;<span style="color:var(--sub)">${esc(itemKo(items[x.i], x.b))}</span>`).join("<br>")}
+       ${set.items.map(x => `<b>${esc(DECKS[x.d].items[x.i].a[x.b])}</b>
+         &nbsp;<span style="color:var(--sub)">${esc(itemKo(DECKS[x.d].items[x.i], x.b))}</span>`).join("<br>")}
      </div>
      <div class="row">
        <button class="btn sub" id="again">한 번 더</button>
-       <button class="btn pri" id="next">다음 세트 ▶</button>
+       <button class="btn pri" id="next">${set.virtual ? "남은 것 더 풀기 ▶" : "다음 세트 ▶"}</button>
      </div>
-     <button class="btn gh" id="back">← 세트 고르기</button>
+     <button class="btn gh" id="back">${set.virtual ? "← 자주 틀린 것" : "← 세트 고르기"}</button>
    </div>`;
   $("#again").onclick = () => screenBlankQ(deck, key);
-  $("#next").onclick  = () => at+1 < sets.length
-      ? screenBlankQ(deck, sets[at+1].key) : screenBlankSets(deck, set.u);
-  $("#back").onclick  = () => screenBlankSets(deck, set.u);
+  $("#next").onclick  = () => set.virtual ? startMissDrill()
+      : at+1 < sets.length ? screenBlankQ(deck, sets[at+1].key) : screenBlankSets(deck, set.u);
+  $("#back").onclick  = () => set.virtual ? screenMiss() : screenBlankSets(deck, set.u);
+}
+
+/* ══ 자주 틀린 것 ═══════════════════════════════════════
+   **폰 안에만** 쌓인다(localStorage). 서버로 보내지 않는다 — 학생 한 명의 답안이라
+   폰 밖으로 내보낼 이유가 없다. 과외 때 소민이가 이 화면을 열어 보여 주면 그게 기록이다.
+
+   한 칸 = {w:틀린 횟수, c:맞힌 횟수, s:연속으로 맞힌 횟수, t:마지막 시각}
+   기록은 **첫 바퀴 1단(직접 쓰기)에서만** 남긴다. 도움받아 맞힌 건 「맞혔다」가 아니고,
+   같은 바퀴를 두 번 세면 숫자가 부풀기 때문이다.
+   **두 번 연속 맞히면 목록에서 빠진다** — 한 번은 우연일 수 있다. */
+const MISS_OUT = 2;                              // 연속 몇 번 맞히면 졸업인가
+
+function missKey(d, u, n, b){ return d + ":" + u + ":" + n + ":" + b; }
+
+function noteResult(key, ok){
+  const m = ST.miss[key] || {w:0, c:0, s:0};
+  if(ok){ m.c++; m.s = (m.s || 0) + 1; } else { m.w++; m.s = 0; }
+  m.t = Date.now();
+  ST.miss[key] = m;
+  save(ST);
+}
+/* 빈칸(본문·대화문) */
+function noteBlank(cur, ok){
+  const it = DECKS[cur.d].items[cur.i];
+  noteResult(missKey(cur.d, it.u, it.n, cur.b), ok);
+}
+/* 동사 3단 변화 — 여기 오답도 같이 봐야 과외에서 판단이 된다 */
+function noteVerb(v, which, ok){
+  noteResult(missKey("verb", 0, VERBS.indexOf(v), which === "past" ? 0 : 1), ok);
+}
+
+/* 저장된 칸을 지금 자료에 도로 붙여 목록을 만든다.
+   자료가 바뀌어 못 붙는 옛 칸은 조용히 버린다(오류로 화면을 깨뜨리지 않는다). */
+function missList(){
+  const out = [];
+  Object.keys(ST.miss || {}).forEach(k => {
+    const p = k.split(":"), d = p[0], u = +p[1], n = +p[2], b = +p[3];
+    const m = ST.miss[k];
+    if(!m || !m.w) return;                       // 틀린 적 없으면 목록에 없다
+    if((m.s || 0) >= MISS_OUT) return;           // 연속으로 맞혔으면 졸업
+    const rec = {key:k, w:m.w, c:m.c || 0, s:m.s || 0, t:m.t || 0};
+
+    if(d === "verb"){
+      const v = VERBS[n];
+      if(!v) return;
+      rec.kind = "verb";
+      rec.ans  = b === 0 ? v[1] : v[2];
+      rec.head = v[0];
+      rec.ko   = v[3] + " · " + (b === 0 ? "과거형" : "과거분사");
+      rec.full = v[0] + " - " + v[1] + " - " + v[2];
+      rec.src  = "동사 3단 변화";
+    }else{
+      const D = DECKS[d]; if(!D) return;
+      const i = D.items.findIndex(x => x.u === u && x.n === n);
+      if(i < 0 || b >= D.items[i].a.length) return;
+      rec.kind = "blank"; rec.d = d; rec.i = i; rec.b = b;
+      rec.ans  = D.items[i].a[b];
+      rec.ko   = itemKo(D.items[i], b);
+      rec.src  = u + "단원 " + (d === "pass" ? "본문" : D.items[i].sec);
+    }
+    out.push(rec);
+  });
+  out.sort((a, b) => b.w - a.w || b.t - a.t);     // 많이 틀린 것부터
+  return out;
+}
+
+/* 「모아 풀기」용 가상 세트 — 진짜 세트가 아니라 그때그때 만든다.
+   초록불(진행 저장)은 건드리지 않는다. 목록은 풀면서 저절로 줄어든다. */
+let MISS_SET = null;
+function startMissDrill(){
+  const picked = missList().filter(r => r.kind === "blank").slice(0, 10);
+  if(!picked.length) return screenMiss();
+  MISS_SET = { key:"miss", name:"틀린 것 모아 풀기", u:0, virtual:true,
+               items: picked.map(r => ({d:r.d, i:r.i, b:r.b})) };
+  screenBlankQ(picked[0].d, "miss");
+}
+
+function screenMiss(){
+  const list = missList();
+  const drillable = list.filter(r => r.kind === "blank").length;
+  const 날짜 = t => { const d = new Date(t); return (d.getMonth()+1) + "/" + d.getDate(); };
+
+  if(!list.length){
+    app.innerHTML = `
+     <div class="card">
+       <h2>자주 틀린 것</h2>
+       <p class="muted">아직 모인 게 없어요. 다른 탭에서 몇 세트 풀고 오면
+       <b>처음에 못 쓴 것</b>만 여기에 모여요.</p>
+       <div class="tip"><b>어떻게 쌓이나요</b><br>
+         「직접 쓰기」에서 처음에 못 쓴 것만 셉니다. 도움받아 맞힌 건 맞힌 걸로 안 쳐요.<br>
+         <b>두 번 연속 맞히면</b> 목록에서 빠져요.<br>
+         이 기록은 <b>이 폰 안에만</b> 있어요. 아무 데도 보내지 않아요.
+       </div>
+     </div>`;
+    return;
+  }
+
+  app.innerHTML = `
+   <div class="card">
+     <h2>자주 틀린 것 <span class="lvtag">${list.length}개</span></h2>
+     <p class="muted">「직접 쓰기」에서 <b>처음에 못 쓴 것</b>만 모았어요.
+     두 번 연속 맞히면 목록에서 빠져요.</p>
+     ${drillable ? `<button class="btn pri" id="drill">이것만 모아 풀기
+       (${Math.min(drillable,10)}개) ▶</button>` : ""}
+     <p class="muted" style="font-size:12.5px; margin-bottom:0">
+       시험 전날에는 새 문제 말고 <b>이 목록만</b> 보면 돼요.</p>
+   </div>
+   <div class="card">
+     ${list.map(r => `
+       <div class="missli">
+         <div class="missrow">
+           <b>${esc(r.ans)}</b>
+           <span class="misscnt">${r.w}번 틀림${r.c ? " · " + r.c + "번 맞힘" : ""}</span>
+         </div>
+         <div class="missko">${esc(r.ko)}</div>
+         <div class="misssrc">${esc(r.src)}${r.full ? " · " + esc(r.full) : ""}
+           ${r.t ? " · 마지막 " + 날짜(r.t) : ""}</div>
+       </div>`).join("")}
+   </div>
+   <div class="card">
+     <p class="muted" style="margin:0">이 기록은 <b>이 폰 안에만</b> 있어요.
+     아무 데도 보내지 않아요.</p>
+     <button class="btn gh" id="clear">목록 비우기</button>
+   </div>`;
+  if(drillable) $("#drill").onclick = startMissDrill;
+  $("#clear").onclick = () => {
+    app.querySelector("#clear").outerHTML = `
+      <div class="fb no" style="margin-top:10px">정말 비울까요? 지우면 되돌릴 수 없어요.
+        <button class="btn sub" id="no">아니요</button>
+        <button class="btn pri" id="yes">네, 비웁니다</button></div>`;
+    $("#no").onclick = screenMiss;
+    $("#yes").onclick = () => { ST.miss = {}; save(ST); screenMiss(); };
+  };
 }
 
 /* ── 시작 ─────────────────────────────────────────────── */
@@ -986,6 +1140,7 @@ function go(mode){
   document.querySelectorAll(".tabs button")
     .forEach(b => b.classList.toggle("on", b.dataset.mode === mode));
   if(mode === "verb") screenSets();
+  else if(mode === "miss") screenMiss();
   else screenBlankSets(mode);                   // "pass" 또는 "dlg"
 }
 document.querySelectorAll(".tabs button").forEach(b => {
