@@ -505,6 +505,10 @@ var EN = {
     '스테이지 2의 쥐왕을 잡으면 열립니다': 'Clear Stage 2 to unlock',
     '<b>{name}</b>: 쥐 수 ×{a} · 체력 ×{b} · 피해 ×{c} · 보스 체력 ×{d} · 코인 ×{e}':
       '<b>{name}</b>: rats ×{a} · HP ×{b} · damage ×{c} · boss HP ×{d} · coins ×{e}',
+    /* 28단계 2차 — 코인 배율이 1인 스테이지 */
+    '더 많고 단단한 쥐': 'More, tougher rats',
+    '<b>{name}</b>: 쥐 수 ×{a} · 체력 ×{b} · 피해 ×{c} · 보스 체력 ×{d}':
+      '<b>{name}</b>: rats ×{a} · HP ×{b} · damage ×{c} · boss HP ×{d}',
     '스테이지 {n}부터': 'From Stage {n}',
     '사거리': 'Range',
     '{r} · 열매 피해 {d}': '{r} · berry damage {d}',
@@ -967,7 +971,9 @@ var CONFIG = {
          // "매운 맛"(사용자 선택). 보스 체력은 아주 예민한 손잡이다 — 명세 4절 표.
          spawnMult: 1.3, enemyHpMult: 1.5, contactMult: 1.25,
          bossHpMult: 1.5, bossContactMult: 1.1,
-         coinMult: 1.5,   // 판이 끝날 때 한꺼번에가 아니라 벌 때마다 곱한다(화면 숫자 = 결과 숫자)
+         // 판이 끝날 때 한꺼번에가 아니라 벌 때마다 곱한다(화면 숫자 = 결과 숫자).
+         // 28단계 2차: 1.5 → 1 (사용자 결정 — 코인이 남는다). 1이면 고르는 카드에 코인을 안 적는다.
+         coinMult: 1,
          spawnOrder: ['mouse', 'rat', 'fat', 'slinger'],
          // 2분부터 2분에 걸쳐 차오른다. 다 차면 스폰의 12~17%.
          spawnInfo: { slinger: { fromMin: 2, weight: 0.4, rampMin: 2 } },
@@ -978,20 +984,27 @@ var CONFIG = {
     /* 28단계 — 스테이지 2를 사람이 맨몸 첫 판에 깼다(봇은 0/30). 스테이지 2를 고치지 않고 위에 하나 더 둔다.
        새 쥐는 없다: 스테이지 2의 쥐를 더 세고 더 많이 나오게 한다. 목표는 "풀강화 맨몸은 못 깨고,
        가지·장비를 다 갖추면 애써서 깬다"(명세 3.3 관문 B·C — 측정값은 계획/28-관문결과.md).
-       coinMult 는 조정 대상이 아니다(코인이 이미 남는다는 의견이라 2배까지 안 올린다).
-       시작값(쥐 수 1.45 · 체력 2.0 · 두목쥐 1400)에서 6번 조정한 값이다. 맨몸 봇은 어느 값에서나
+       1차 때 coinMult 는 1.75 로 고정했다(2차에서 1로 내렸다 — 아래).
+       1차 시작값(쥐 수 1.45 · 체력 2.0 · 두목쥐 1400)에서 6번 조정한 값이다. 맨몸 봇은 어느 값에서나
        10분 보스(king2) 에서 몇 초 만에 죽어 중앙 생존이 10분 07초 근처에 붙는다 — 쥐 수·피해 배율로는
-       거의 안 움직였다. 7.5분 두목쥐를 세게 한 것이 다 갖춘 봇의 클리어를 가장 덜 깎았다. */
+       거의 안 움직였다. 7.5분 두목쥐를 세게 한 것이 다 갖춘 봇의 클리어를 가장 덜 깎았다.
+       2차(명세 8절): 사용자가 가지·장비 없이 첫 판에 깼다(쥐왕 26초). 봇은 사람 난이도를 못 맞혔으니
+       이제 기준은 사용자의 실제 판이다. 쥐 수는 안 늘린다 — 잘하는 사람에게는 경험치만 더 주는 상이다.
+       보스는 보스마다 따로 센다(bossHpMults, CONFIG.bosses 순서). bossHpMult 2.2 는 보스 칸이
+       빠졌을 때의 기본값으로 남겨 둔다. 코인 배율은 1(사용자 결정). */
     3: { id: 3, name: '스테이지 3',
-         spawnMult: 1.6, enemyHpMult: 2.3, contactMult: 1.5,
+         spawnMult: 1.6, enemyHpMult: 3.9, contactMult: 1.95,
          bossHpMult: 2.2, bossContactMult: 1.25,
-         coinMult: 1.75,
+         // 5분 보스 ×2 · 10분 보스 ×3 · 쥐왕 ×5 (1차 2.2 기준). 첫 칸은 "다 갖춘 봇이 30판 중
+         // 25판 이상 5분 보스를 잡는다" 관문(8.3)으로 맞춘다 — 5분에 아무도 못 지나가는 벽은 안 된다.
+         bossHpMults: [4.4, 6.6, 11],
+         coinMult: 1,
          spawnOrder: ['mouse', 'rat', 'fat', 'slinger'],
          spawnInfo: { slinger: { fromMin: 1.5, weight: 0.5, rampMin: 2 } },
          // 등장 시각은 스테이지 2와 같다 — 체력만 올린다.
-         elites: [ { atMin: 2.5,  typeId: 'brute', hp: 500 },
-                   { atMin: 7.5,  typeId: 'brute', hp: 2200 },
-                   { atMin: 12.5, typeId: 'brute', hp: 2400 } ] }
+         elites: [ { atMin: 2.5,  typeId: 'brute', hp: 1000 },
+                   { atMin: 7.5,  typeId: 'brute', hp: 5000 },
+                   { atMin: 12.5, typeId: 'brute', hp: 9000 } ] }
   },
   // 영구 강화 (판이 끝나도 남는다). costs[i] = i+1단계로 올리는 비용
   // costs 의 칸 수는 maxStep 과 반드시 같아야 한다 (짧으면 마지막 단계가 공짜가 되고
@@ -1966,6 +1979,23 @@ World.prototype.stageMult = function(key){
   var v = s[key];
   return typeof v === 'number' ? v : 1;
 };
+/* 보스 한 마리의 스테이지 체력 배율(28단계 2차). 스테이지에 bossHpMults(CONFIG.bosses 순서)가
+   있고 그 보스 칸이 숫자면 그 값, 아니면 지금처럼 bossHpMult. 스테이지 1·2에는 bossHpMults 가
+   없으므로 예전과 같은 stageMult('bossHpMult') 를 그대로 돌려준다 — 계산이 한 글자도 안 바뀐다.
+   번호가 아니라 typeId 로 찾는다: 되살리기·디버그 이동처럼 bossIndex 와 따로 켜는 길도 같은 값을 받는다. */
+World.prototype.bossHpMultFor = function(typeId){
+  var s = this.stageCfg;
+  var arr = s && s.bossHpMults;
+  if (arr){
+    var list = this.config.bosses;
+    for (var i = 0; i < list.length; i++){
+      if (list[i].typeId !== typeId) continue;
+      if (typeof arr[i] === 'number') return arr[i];
+      break;
+    }
+  }
+  return this.stageMult('bossHpMult');
+};
 // 적을 켠다. 풀이 객체를 재사용하므로 여기서 모든 필드를 빠짐없이 덮어쓴다.
 // (필드를 새로 추가하면 반드시 이 함수도 같이 고칠 것 — 안 그러면 이전 적의 값이 샌다)
 World.prototype.spawnEnemy = function(typeId, x, y){
@@ -1977,7 +2007,8 @@ World.prototype.spawnEnemy = function(typeId, x, y){
   // 4슬롯 빌드의 최대 화력(초당 200~286)으로는 몇 분을 때려야 하는 수치가 된다.
   // 스테이지 배율(25단계)은 스테이지 1에서 전부 1 이다 — 1을 곱한 값은 원래 값과 비트까지 같다.
   // 보스는 "표의 값 × 스테이지 보스 배율" 이 최종값이다(시간 배율은 여전히 안 받는다).
-  var scaledHp = t.boss ? t.hp * this.stageMult('bossHpMult')
+  // 28단계 2차: 보스마다 배율이 다를 수 있다(bossHpMultFor — 없으면 bossHpMult).
+  var scaledHp = t.boss ? t.hp * this.bossHpMultFor(typeId)
                         : t.hp * this.hpScale() * this.stageMult('enemyHpMult');
   e.x = x;            e.y = y;
   e.typeId = typeId;  e.hp = scaledHp;  e.maxHp = scaledHp;
@@ -7262,7 +7293,7 @@ var stageJustUnlocked = false;
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '243e267';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = '4c6e8e3';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -8083,9 +8114,14 @@ function codexEnemies(){
   for (var sti = 0; sti < CONFIG.stageOrder.length; sti++){
     var sx = CONFIG.stages[CONFIG.stageOrder[sti]];
     if (!sx || typeof sx.spawnMult !== 'number') continue;   // 스테이지 1은 배율이 없다
-    codexNote(TF('<b>{name}</b>: 쥐 수 ×{a} · 체력 ×{b} · 피해 ×{c} · 보스 체력 ×{d} · 코인 ×{e}',
-                 { name: escapeHtml(sx.name), a: sx.spawnMult, b: sx.enemyHpMult, c: sx.contactMult,
-                   d: sx.bossHpMult, e: sx.coinMult }));
+    // 28단계 2차: 보스별 배율(bossHpMults)이 있으면 그 값을 보스 순서대로 적는다 — 실제로 안 쓰이는
+    // bossHpMult 를 띄우면 도감 숫자가 실제와 어긋난다. 코인 배율 1은 적지 않는다(카드와 같다).
+    var 보스배율 = sx.bossHpMults ? sx.bossHpMults.join('/×') : sx.bossHpMult;
+    var 배율값 = { name: escapeHtml(sx.name), a: sx.spawnMult, b: sx.enemyHpMult, c: sx.contactMult,
+                d: 보스배율, e: sx.coinMult };
+    codexNote(sx.coinMult === 1
+      ? TF('<b>{name}</b>: 쥐 수 ×{a} · 체력 ×{b} · 피해 ×{c} · 보스 체력 ×{d}', 배율값)
+      : TF('<b>{name}</b>: 쥐 수 ×{a} · 체력 ×{b} · 피해 ×{c} · 보스 체력 ×{d} · 코인 ×{e}', 배율값));
   }
   // 적 목록은 art 블록이 갖고 있다. shell 은 ART 별칭(2481줄)으로만 닿는다 —
   // 맨 ENEMY_IDS 로 쓰면 ReferenceError 다.
@@ -9001,7 +9037,9 @@ function showStagePick(){
     if (Save.stageUnlocked(sid)){
       appendCard('<div class="ico">\u{1F525}</div>' +
                  '<div class="nm">' + escapeHtml(st.name) + '</div>' +
-                 '<div class="ds">' + TF('더 많고 단단한 쥐 · 코인 {n}배', { n: st.coinMult }) + '</div>',
+                 // 28단계 2차: 코인 배율이 1이면 "코인 1배" 라고 적지 않는다(이상하다).
+                 '<div class="ds">' + (st.coinMult === 1 ? T('더 많고 단단한 쥐')
+                                       : TF('더 많고 단단한 쥐 · 코인 {n}배', { n: st.coinMult })) + '</div>',
                  function(){ Save.setStage(sid); 새판시작(); }, false);
     } else {
       // 잠긴 카드는 눌러도 아무 일도 없다(appendCard 의 disabled). 여는 조건을 같이 적는다.
