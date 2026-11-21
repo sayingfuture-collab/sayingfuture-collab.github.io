@@ -317,7 +317,8 @@ var EN = {
     fat:   { name: 'Fat Rat' },
     mole:  { name: 'Mole' },
     slinger: { name: 'Slingshot Rat' },
-    brute:   { name: 'Ringleader Rat' }
+    brute:   { name: 'Ringleader Rat' },
+    bomber:  { name: 'Bomb Rat' }
   },
   bosses: { king1: 'Giant Rat', king2: 'Horde Chieftain', king3: 'Rat King' },
   stages: { 1: 'Stage 1', 2: 'Stage 2', 3: 'Stage 3' },
@@ -512,6 +513,11 @@ var EN = {
     '스테이지 {n}부터': 'From Stage {n}',
     '사거리': 'Range',
     '{r} · 열매 피해 {d}': '{r} · berry damage {d}',
+    /* 29단계 — 폭탄쥐 */
+    '터지기까지': 'Fuse',
+    '{n}초': '{n}s',
+    '폭발 반경': 'Blast radius',
+    '폭발 피해': 'Blast damage',
     '금색': 'Gold',
     /* 26단계 — 스킬 트리 · 장비 · 뽑기 */
     '강화 · 무기 · 장비 · 뽑기': 'Upgrades · Weapons · Gear · Gacha',
@@ -767,6 +773,18 @@ var CONFIG = {
                          shotLifeSec: 2.5,  // 375px 날아가고 사라진다
                          shotRadius: 6,
                          shotDamage: 8 } }, // 시궁쥐에게 한 번 물린 것과 같다
+    /* 💣 폭탄쥐(29단계) — 스테이지 3 전용. fromMin 을 안 적는 이유는 새총쥐와 같다(위 주석).
+       평소엔 시궁쥐처럼 다가와 문다. 잡히면(damageEnemy) 그 자리에 도화선을 남기고 fuseSec 뒤 터진다.
+       그림은 시궁쥐를 주황으로 칠해 쓴다(까만색은 스테이지 3 바닥에 묻혔다). */
+    // 크기 32 · 반지름 13: 처음엔 시궁쥐와 같은 22 · 10 이었는데 사용자가 "너무 작아 구분이 안 된다"고 했다(2026-11-21).
+    bomber: { emoji: '\u{1F400}', name: '폭탄쥐', hp: 20, speed: 80, radius: 13, contact: 6, xp: 2, size: 32,
+              color: '#e8622a', coin: 2,
+              gem: 'green', dropPct: 90,
+              bomb: { fuseSec: 0.9,       // 빨간 원 예고 — 고양이는 이 동안 160쯤 걷는다
+                      radius: 80,
+                      enemyDamage: 20,    // × 터지는 시각의 쥐 체력 배율(시간 × 스테이지) — 갓 나온 폭탄쥐가 딱 죽는다
+                      playerDamage: 15,   // 스테이지 피해 배율은 안 받는다(열매 8 과 같은 규칙)
+                      showSec: 0.25 } },  // 터진 뒤 주황 잔상
     // 👑 두목쥐(중간 보스) — 진짜 보스와 달리 화면을 안 비우고 스폰도 안 줄이고 상자도 안 준다.
     // 체력은 elites 표의 값이 최종값이라 여기 hp 는 표가 없을 때의 기본값일 뿐이다.
     // dropPct 100 이라 보석 난수를 안 뽑는다(dropLoot 의 규칙).
@@ -957,6 +975,9 @@ var CONFIG = {
      동시에 조준하는 쥐는 maxAiming 마리까지, 날아가는 탄 + 조준 중인 쥐는 maxShots 까지.
      상한을 안 건 사전 측정에서는 한 판에 900발 넘게(초당 2발) 나왔다. */
   ranged: { maxAiming: 2, maxShots: 5 },
+  /* 💣 폭탄쥐의 도화선(29단계). 동시에 이만큼까지 탄다 — 넘치면(핵폭탄 한 방에 수십 마리 등)
+     조용히 안 생긴다. 화면이 폭발로 뒤덮이지 않게 하는 상한이기도 하다. */
+  bombs: { maxFuses: 12 },
   /* 스테이지(25단계). stageOrder 는 훑는 고정 순서(for...in 금지).
      **스테이지 1 항목은 일부러 비워 둔다** — 값이 없으면 지금의 spawn·enemies·bosses 를
      그대로 읽는다. 스테이지 1의 숫자를 여기로 옮겨 적지 않는 이유: 옮기다 한 글자
@@ -999,8 +1020,11 @@ var CONFIG = {
          // 25판 이상 5분 보스를 잡는다" 관문(8.3)으로 맞춘다 — 5분에 아무도 못 지나가는 벽은 안 된다.
          bossHpMults: [4.4, 6.6, 11],
          coinMult: 1,
-         spawnOrder: ['mouse', 'rat', 'fat', 'slinger'],
-         spawnInfo: { slinger: { fromMin: 1.5, weight: 0.5, rampMin: 2 } },
+         // 29단계: 폭탄쥐 — 3분부터 2분에 걸쳐 차오른다. 다 차면 스폰의 약 4%(몫이라 쥐 총수는 그대로).
+         // 처음엔 0.35(약 9%)였는데 사용자가 해 보고 "너무 자주 나온다"고 해서 0.15 로 내렸다(2026-11-21).
+         spawnOrder: ['mouse', 'rat', 'fat', 'slinger', 'bomber'],
+         spawnInfo: { slinger: { fromMin: 1.5, weight: 0.5, rampMin: 2 },
+                      bomber:  { fromMin: 3,   weight: 0.15, rampMin: 2 } },
          // 등장 시각은 스테이지 2와 같다 — 체력만 올린다.
          elites: [ { atMin: 2.5,  typeId: 'brute', hp: 1000 },
                    { atMin: 7.5,  typeId: 'brute', hp: 5000 },
@@ -1680,6 +1704,17 @@ function World(config, metaLevels, loadout){
   this.shotsHit = 0;        // 그중 고양이에게 맞은 수
   this.eliteIndex = 0;      // 다음에 나올 두목쥐 번호 (stageCfg.elites 의 색인)
   this.elitesKilled = 0;    // 이 판에서 잡은 두목쥐 수
+  /* 💣 도화선(29단계). left > 0 이면 타는 중, left <= 0 && show > 0 이면 방금 터져 잔상을 보여 주는 중.
+     둘 다 끝나면 풀로 돌아간다. 필드를 늘리면 dropFuse 도 반드시 같이 고칠 것 (풀 잔존값).
+     stamp 는 "몇 번째 updateFuses 에서 생겼나" — 같은 순회 중에 생긴 도화선은 그 프레임에 안 탄다. */
+  this.fuses = new Pool((config.bombs && config.bombs.maxFuses) || 12, function(){
+    return { x: 0, y: 0, left: 0, show: 0, showSec: 0, radius: 0, playerDmg: 0, enemyBase: 0, stamp: 0 };
+  });
+  this.fuseTick = 0;        // updateFuses 가 돈 횟수 (stamp 비교용)
+  this.bombsExploded = 0;   // 이 판에서 터진 도화선 수 (봇·테스트 집계 — 셸은 늘면 폭발음을 낸다)
+  this.bombHitsPlayer = 0;  // 그중 고양이가 맞은 수
+  this.bombKills = 0;       // 폭발로 잡은 쥐 수
+  this.fusesPeak = 0;       // 동시에 탄 도화선 최대 수
 
   // 매 프레임 콜백을 새로 만들지 않도록 생성자에서 한 번만 만든다.
   // 호출마다 바뀌는 값은 _contactCd 로 전달한다.
@@ -1831,6 +1866,17 @@ function World(config, metaLevels, loadout){
     if (dx * dx + dy * dy > r * r) return;
     // 캣닢·핵폭탄이 이 콜백을 같이 쓴다 — blastWeaponId 로 어느 쪽인지 구분한다.
     self.damageEnemy(e, self._hitDmg, self.blastWeaponId);
+  };
+
+  /* 💣 도화선 폭발 판정 콜백(29단계). blastAt 의 화면 상태(blastX 등)를 안 쓴다 —
+     덮어쓰면 캣닢·핵폭탄 잔상이 사라진다. 'bomb' 은 딜량 칸이 아니다(damageEnemy 가 안 센다). */
+  this._fuseX = 0; this._fuseY = 0; this._fuseR = 0; this._fuseDmg = 0;
+  this._onFuseCandidate = function(e){
+    if (!e.active) return;              // 이번 폭발(또는 앞의 폭발)에 이미 죽었다
+    var dx = e.x - self._fuseX, dy = e.y - self._fuseY;
+    var r = self._fuseR + e.radius;
+    if (dx * dx + dy * dy > r * r) return;
+    if (self.damageEnemy(e, self._fuseDmg, 'bomb')) self.bombKills++;
   };
 
   // 장판 판정 콜백 — 검사 중인 장판은 _field 로 전달한다. 안에 있으면 둔화를 걸고 때린다.
@@ -2173,6 +2219,72 @@ World.prototype.updateShots = function(dt){
   }
 };
 
+/* 💣 쥐 e 의 자리에 도화선을 놓는다(29단계). 풀이 꽉 찼으면 조용히 null.
+   풀 객체를 재사용하므로 칸을 전부 덮어쓴다(풀 잔존값 — 옛 show 가 남으면 터지기도 전에 잔상이 보인다).
+   stamp 를 지금의 fuseTick 으로 찍는다: updateFuses 가 순회 전에 fuseTick 을 올리므로, 순회 밖(무기 등)에서
+   생긴 도화선은 이번 프레임부터 타고, 순회 안(이어 터지기)에서 생긴 것은 다음 프레임부터 탄다. */
+World.prototype.dropFuse = function(e){
+  var t = this.config.enemies[e.typeId];
+  var bomb = t && t.bomb;
+  if (!bomb) return null;
+  var f = this.fuses.spawn();
+  if (!f) return null;
+  f.x = e.x;               f.y = e.y;
+  f.left = bomb.fuseSec;   f.show = 0;
+  f.radius = bomb.radius;
+  f.playerDmg = bomb.playerDamage;
+  f.enemyBase = bomb.enemyDamage;
+  f.showSec = bomb.showSec;
+  f.stamp = this.fuseTick;
+  if (this.fuses.activeCount > this.fusesPeak) this.fusesPeak = this.fuses.activeCount;
+  return f;
+};
+
+/* 💣 도화선을 태우고, 다 타면 터뜨리고, 잔상을 줄인다(29단계).
+   가드는 updateNukes·updateShots 와 같다 — 판이 끝난 프레임에 죽은 몸이 또 맞거나 이긴 뒤 처치가 얹히지 않게.
+   터질 때는 고양이부터 본다: 그 폭발로 판이 끝나면 쥐 처치도 얹지 않고 바로 멈춘다(남은 도화선도 안 터진다).
+   고양이 피해는 열매와 같은 식이다 — 같은 무적을 쓰고, 받는 피해 배율이 걸리고, 쓰러지면 playerDown.
+   쥐 피해는 터지는 순간의 체력 배율(시간 × 스테이지)을 받는다. 판정은 격자로(blastAt 은 안 쓴다). */
+World.prototype.updateFuses = function(dt){
+  if (this.gameOver || this.cleared || this.benchMode) return;
+  if (this.fuses.activeCount === 0) return;
+  var tick = ++this.fuseTick;
+  var p = this.player;
+  var pr = this.config.player.radius;
+  var items = this.fuses.items;
+  for (var i = 0; i < items.length; i++){
+    var f = items[i];
+    if (!f.active || f.stamp === tick) continue;   // 이번 순회에 생긴 것 — 0.9초를 온전히 받는다
+    if (f.left <= 0){                              // 잔상
+      f.show -= dt;
+      if (f.show <= 1e-9) this.fuses.release(f);
+      continue;
+    }
+    f.left -= dt;
+    if (f.left > 1e-9) continue;                   // 54프레임 × 1/60 의 부동소수 찌꺼기를 흡수한다
+    f.left = 0;
+    f.show = f.showSec;
+    this.bombsExploded++;
+    // 고양이
+    if (p.invuln <= 0){
+      var dx = p.x - f.x, dy = p.y - f.y;
+      var reach = f.radius + pr;
+      if (dx * dx + dy * dy <= reach * reach){
+        p.hp -= f.playerDmg * this.metaMult.taken;
+        p.invuln = this.config.combat.invulnSec + this.metaMult.invulnAdd;
+        this.bombHitsPlayer++;
+        if (p.hp <= 0 && this.playerDown()) return;   // 부활하면 판이 이어진다(남은 도화선도 계속 탄다)
+      }
+    }
+    // 쥐 — 이 안에서 폭탄쥐가 죽으면 새 도화선이 생긴다(stamp === tick 이라 이번 순회에선 안 탄다)
+    this._fuseX = f.x;
+    this._fuseY = f.y;
+    this._fuseR = f.radius;
+    this._fuseDmg = f.enemyBase * this.hpScale() * this.stageMult('enemyHpMult');
+    this.grid.forEachNear(f.x, f.y, f.radius + this.maxEnemyR, this._onFuseCandidate);
+  }
+};
+
 /* 체력이 0 이하가 됐다(26단계). 몸 접촉·열매 두 자리가 이 한 함수를 부른다 —
    자리마다 "부활이 남았나" 를 따로 적으면 한쪽만 고쳤을 때 그 피해로는 부활이 안 된다.
    아홉 목숨이 남았으면 하나 쓰고 최대 체력의 reviveHpPct% 로 일어나 reviveInvulnSec 초 무적.
@@ -2349,6 +2461,11 @@ World.prototype.enemyInfo = function(id){
     eliteMins: eliteMins,          // 두목쥐: 나오는 시각(분) [2.5, 7.5, 12.5]
     range:     e.ranged ? e.ranged.range : null,        // 새총쥐 사거리
     shotDamage: e.ranged ? e.ranged.shotDamage : null,  // 새총쥐 열매 피해
+    // 💣 폭탄쥐(29단계). 쥐 피해는 체력과 같은 규칙으로 그 스테이지 배율을 건 값(갓 나온 폭탄쥐 체력과 같다).
+    fuseSec:           e.bomb ? e.bomb.fuseSec : null,
+    blastRadius:       e.bomb ? e.bomb.radius : null,
+    blastPlayerDamage: e.bomb ? e.bomb.playerDamage : null,
+    blastEnemyDamage:  e.bomb ? Math.round(e.bomb.enemyDamage * hpMult) : null,
     contact: e.contact * contactMult, speed: e.speed,
     fromMin: fromMin, coin: e.coin, xp: e.xp,
     // 보석: gem 이 없으면(보스) 둘 다 null. dropPct 를 빠뜨린 적은 dropLoot 처럼 100 으로 본다.
@@ -2399,6 +2516,11 @@ World.prototype.reset = function(starterId, stageId){
   this.aimingCount = 0;
   this.shotsFired = 0;
   this.shotsHit = 0;
+  this.fuses.releaseAll();   // 💣 29단계 — 되살리기(restore)도 여기를 지난다
+  this.bombsExploded = 0;
+  this.bombHitsPlayer = 0;
+  this.bombKills = 0;
+  this.fusesPeak = 0;
   this.eliteIndex = 0;
   this.elitesKilled = 0;
   this.player.x = 0; this.player.y = 0;
@@ -2784,7 +2906,9 @@ World.prototype.damageEnemy = function(e, amount, source){
   // 남은 체력보다 크게 때려도 실제로 깎인 만큼만 센다 — 넘친 분까지 세면
   // 캣닢·핵폭탄처럼 한 번에 크게 때리는 무기가 실제보다 세 보인다.
   var real = amount < e.hp ? amount : e.hp;
-  if (real > 0) this.dmgBy[DAMAGE_INDEX[source] ? source : '?'] += real;
+  // 💣 폭탄쥐 폭발('bomb', 29단계)은 무기가 아니라 안 센다 — 딜량 칸·결과 화면 기여도·
+  // 도전과제(solo70)·서버 기록이 그대로다. 'bomb' 이 안 오는 스테이지 1·2는 식이 같다.
+  if (real > 0 && source !== 'bomb') this.dmgBy[DAMAGE_INDEX[source] ? source : '?'] += real;
   e.hp -= amount;
   e.hitFlash = 0.12;                  // 렌더가 흰색으로 번쩍이는 데 쓴다(초)
   if (e.hp > 0) return false;
@@ -2792,6 +2916,9 @@ World.prototype.damageEnemy = function(e, amount, source){
   if (e.elite) this.elitesKilled++;   // 두목쥐(25단계) — 집계용
   this.coins += this.coinGain(e.typeId);
   this.dropLoot(e);
+  // 💣 폭탄쥐는 죽은 자리에 도화선을 남긴다(29단계). typeId 로만 판단한다 — 슬롯을 물려받은 쥐는 안 남긴다.
+  var bt = this.config.enemies[e.typeId];
+  if (bt && bt.bomb) this.dropFuse(e);
   this.enemies.release(e);
   return true;
 };
@@ -3872,6 +3999,8 @@ World.prototype.bossTick = function(){
   }
   // 날아가던 열매도 같이 치운다(25단계) — 쥐는 사라졌는데 탄만 남아 날아오면 억울하다.
   this.shots.releaseAll();
+  // 타던 도화선도 치운다(29단계) — 열매와 같은 이유. 쥐는 사라졌는데 폭탄만 남으면 억울하다.
+  this.fuses.releaseAll();
   var ring = this.spawnRing();
   var ang = this.random() * Math.PI * 2;
   this.boss = this.spawnEnemy(next.typeId,
@@ -4254,6 +4383,7 @@ World.prototype.update = function(dt){
   this.updateFields(dt);
   this.resolveContacts(dt);
   this.updateShots(dt);     // 🍒 몸에 닿은 피해 다음 — 무적(invuln)을 같이 쓴다(25단계)
+  this.updateFuses(dt);     // 💣 열매 다음 — 같은 무적을 쓴다(29단계). 도화선이 없으면 바로 돌아간다
   this.regenTick(dt);       // 숨 고르기(26단계) — 이번 프레임의 피해를 다 받은 뒤에 찬다
   this.updateGems(dt);
   this.recycleFarEnemies();
@@ -5392,9 +5522,12 @@ var ENEMY_ART = {
   // 새총쥐: 시궁쥐를 검붉게. 빨간 열매·조준 줄과 같은 계열이라 "쏘는 놈" 이 한눈에 묶인다.
   slinger: { sprite: 'rat', tint: { b:'#a04a4a', l:'#d08a8a' }, flip: true },
   // 두목쥐: 뚱쥐를 금빛으로(크기는 CONFIG.size 50 이 키운다). 금색 별 보석과 짝이다.
-  brute:   { sprite: 'fat', tint: { b:'#d9a520', l:'#f3d27a' }, flip: true }
+  brute:   { sprite: 'fat', tint: { b:'#d9a520', l:'#f3d27a' }, flip: true },
+  // 29단계 — 스테이지 3 전용 폭탄쥐: 시궁쥐를 주황으로. 처음엔 까맣게(#3a3a3a) 했는데 스테이지 3의
+  // 어두운 붉은 바닥에 묻혀 안 보였다(화면 확인). 폭발 잔상(주황)과 같은 계열이다. 등의 불은 셸이 따로 깜빡인다.
+  bomber:  { sprite: 'rat', tint: { b:'#e8622a', l:'#ffb070' }, flip: true }
 };
-var ENEMY_IDS = ['mouse','rat','fat','mole','slinger','brute','king1','king2','king3'];
+var ENEMY_IDS = ['mouse','rat','fat','mole','slinger','brute','bomber','king1','king2','king3'];
 
 /* PAL_MOB 에 tint 를 덮어쓴 새 팔레트를 만든다.
    원본을 그대로 돌려주면 호출한 쪽이 더럽힐 수 있으므로 늘 새로 만든다. */
@@ -6018,6 +6151,11 @@ var STAR_X = [], STAR_Y = [];
 var SHOT_COLOR = '#ff4b3a';
 var AIM_DASH = [6, 6];      // 조준 예고 점선 — setLineDash 에 넘길 배열을 한 번만 만든다
 var NO_DASH = [];
+// 💣 폭탄쥐(29단계) — 도화선 예고 원과 폭발 잔상. 열매와 같은 빨강 계열이라 "맞으면 아프다" 로 묶인다.
+var FUSE_DASH = [8, 6];
+var FUSE_COLOR = SHOT_COLOR;
+var FUSE_BLAST_COLOR = '#ff9a2e';
+var BOMBER_LIGHT = '#fff27a';   // 주황 몸 위에서 보이게 밝은 노랑(처음의 빨강은 주황 몸에 묻힌다)
 /* ── 도트 굽기 ──────────────────────────────────────────────────
    글자 격자를 오프스크린 캔버스로 시작할 때 한 번만 굽는다.
    매 프레임에 픽셀을 찍으면 적 400마리에서 감당이 안 되므로,
@@ -6649,6 +6787,38 @@ function render(){
     }
   }
 
+  /* 💣 도화선(29단계) — 쥐 밑에 깐다. 타는 중: 옅은 빨간 바닥 + 빨간 점선 테두리, 터질 때가 가까울수록
+     빨리 깜빡인다. 깜빡임은 도화선의 left(게임 시계)로만 낸다 — 멈춘 화면에서 원만 깜빡이지 않게.
+     터진 뒤: 주황 원이 show/showSec 만큼 옅어진다. 동시에 최대 12개라 상태를 바꿔도 싸다. */
+  if (world.fuses.activeCount > 0){
+    var fzitems = world.fuses.items;
+    for (var fzi = 0; fzi < fzitems.length; fzi++){
+      var fz = fzitems[fzi];
+      if (!fz.active) continue;
+      var fzx = fz.x - camX, fzy = fz.y - camY;
+      if (fzx < -fz.radius || fzy < -fz.radius || fzx > viewW + fz.radius || fzy > viewH + fz.radius) continue;
+      if (fz.left > 0){
+        var fzT = CONFIG.enemies.bomber.bomb.fuseSec - fz.left;        // 탄 시간 0 → fuseSec
+        var fzOn = Math.floor(fzT * (5 + 12 * fzT)) % 2 === 0;         // 점점 빨라진다
+        ctx.globalAlpha = fzOn ? 0.34 : 0.18;
+        ctx.fillStyle = FUSE_COLOR;
+        ctx.beginPath();
+        ctx.arc(fzx, fzy, fz.radius, 0, Math.PI * 2);
+        ctx.fill();
+        // 테두리는 여기서 안 그린다 — 쥐보다 위에 따로 그린다(아래 "도화선 테두리").
+      } else if (fz.showSec > 0){
+        var fzS = fz.show / fz.showSec;                                 // 1 → 0
+        ctx.globalAlpha = 0.6 * fzS;
+        ctx.fillStyle = FUSE_BLAST_COLOR;
+        ctx.beginPath();
+        ctx.arc(fzx, fzy, fz.radius * (1.1 - 0.1 * fzS), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
   // 적 — 맞은 직후에는 흰색으로 번쩍인다
   var items = world.enemies.items;
   for (var i = 0; i < items.length; i++){
@@ -6707,6 +6877,27 @@ function render(){
       } else {
         ctx.drawImage(img, sx - dw / 2, sy - dh / 2, dw, dh);
       }
+      /* 💣 폭탄쥐가 등에 진 폭탄(29단계) — 흰 테두리의 까만 공 + 깜빡이는 노란 불꽃.
+         처음엔 3px 불 한 점이었는데 사용자가 "구분이 안 된다"고 했다. 색만으로는 쥐떼 속에서 안 읽혀
+         모양을 하나 얹는다. 불꽃은 게임 시계로 깜빡이고, 쥐마다 stamp 로 위상을 조금씩 어긋낸다. */
+      if (etype.bomb){
+        var bbr = dw * 0.2;
+        var bbx = sx, bby = sy - dh * 0.5;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(bbx, bby, bbr + 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1c1c1c';
+        ctx.beginPath();
+        ctx.arc(bbx, bby, bbr, 0, Math.PI * 2);
+        ctx.fill();
+        if (Math.floor(world.elapsed * 4 + (e.stamp & 3) * 0.5) % 2 === 0){
+          ctx.fillStyle = BOMBER_LIGHT;
+          ctx.beginPath();
+          ctx.arc(bbx + bbr * 0.75, bby - bbr * 0.95, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     } else {
       // 그림이 아직 없는 적 — 예전 방식으로 그린다. 어느 하나를 빠뜨려도
       // 화면에서 사라지지 않게 하는 안전장치다.
@@ -6759,6 +6950,35 @@ function render(){
       ctx.arc(shx, shy, sh.radius, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+
+  /* 💣 도화선 테두리(29단계) — 바닥 원(위쪽 블록)과 달리 쥐보다 위에 그린다. 쥐떼가 빽빽하면 바닥 원이
+     쥐에 가려 "예고 없이 맞는" 일이 생긴다(화면 확인에서 실제로 가려졌다). 흰 띠 위에 빨간 점선 —
+     열매와 같은 짝이라 어두운 바닥에서도 읽힌다. 깜빡임은 바닥 원과 같은 식(게임 시계)이다. */
+  if (world.fuses.activeCount > 0){
+    var frItems = world.fuses.items;
+    ctx.setLineDash(FUSE_DASH);
+    for (var fri = 0; fri < frItems.length; fri++){
+      var fr = frItems[fri];
+      if (!fr.active || fr.left <= 0) continue;
+      var frx = fr.x - camX, fry = fr.y - camY;
+      if (frx < -fr.radius || fry < -fr.radius || frx > viewW + fr.radius || fry > viewH + fr.radius) continue;
+      var frT = CONFIG.enemies.bomber.bomb.fuseSec - fr.left;
+      var frOn = Math.floor(frT * (5 + 12 * frT)) % 2 === 0;
+      ctx.beginPath();
+      ctx.arc(frx, fry, fr.radius, 0, Math.PI * 2);
+      ctx.globalAlpha = frOn ? 0.9 : 0.45;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 5;
+      ctx.stroke();
+      ctx.globalAlpha = frOn ? 1 : 0.7;
+      ctx.strokeStyle = FUSE_COLOR;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+    ctx.setLineDash(NO_DASH);
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
   }
 
   // 할퀴기 스윙 — 공격 리듬이 보여야 "언제 다가갈지"를 판단할 수 있다
@@ -7293,7 +7513,7 @@ var stageJustUnlocked = false;
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '4c6e8e3';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = 'e5508b6';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -8149,6 +8369,12 @@ function codexEnemies(){
     codexRow(T('이동 속도'), e.speed === 0 ? T('0 — 안 움직인다') : String(e.speed));
     if (e.range !== null)
       codexRow(T('사거리'), TF('{r} · 열매 피해 {d}', { r: e.range, d: e.shotDamage }));
+    // 💣 폭탄쥐(29단계) — 잡으면 남는 도화선. 폭발 피해는 고양이가 맞는 값이다.
+    if (e.fuseSec !== null){
+      codexRow(T('터지기까지'), TF('{n}초', { n: e.fuseSec }));
+      codexRow(T('폭발 반경'), String(e.blastRadius));
+      codexRow(T('폭발 피해'), String(e.blastPlayerDamage));
+    }
     // 보석 (24단계): 색·모양 표시 · 값 · 나올 확률. 보스는 보석을 안 준다.
     var gk = e.gem && CONFIG.gem.kinds[e.gem];
     codexRow(T('보석'), gk
@@ -8795,6 +9021,7 @@ var lastBossAlive = false;
 var lastBoxesTaken = 0;   // 🎁 상자를 먹은 횟수 — 늘어난 프레임에 소리를 낸다
 var lastMagnetsTaken = 0;   // 🧲 자석을 먹은 횟수 — 같은 방식
 var lastRevivesUsed = 0;    // 💫 아홉 목숨을 쓴 횟수(26단계) — 같은 방식
+var lastBombsExploded = 0;  // 💣 터진 도화선 수(29단계) — 같은 방식
 var reviveShownAt = -1;     // 부활한 판 시각(초). HUD 가 그 뒤 무적 시간 동안 문구를 띄운다. -1 = 없음
 var endScreenSounded = false;   // 게임오버·클리어 소리가 이미 났는지 — 상점 갔다 와도 다시 안 나게
 // 판을 새로 시작하거나 이어받는 모든 자리에서 반드시 불러야 한다. 안 부르면
@@ -8810,6 +9037,7 @@ function syncSoundTrackers(){
   lastBoxesTaken = world.boxesTaken;
   lastMagnetsTaken = world.magnetsTaken;   // 🧲 상자와 같은 이유로 같이 맞춘다
   lastRevivesUsed = world.revivesUsed;     // 💫 같은 이유 — 이어받은 판의 부활을 "방금" 으로 착각하지 않게
+  lastBombsExploded = world.bombsExploded; // 💣 같은 이유
   reviveShownAt = -1;
   endScreenSounded = false;
   // 17단계: 클리어 폭죽도 같은 자리에서 되돌린다. 여기서 안 돌리면 다음 판에서
@@ -8839,6 +9067,12 @@ function pollSoundTriggers(now){
   // 💫 아홉 목숨으로 일어났다(26단계). 새 소리 없이 상자 소리를 쓰고, HUD 가 무적 동안 문구를 띄운다.
   if (world.revivesUsed > lastRevivesUsed){ Sound.boxPick(); reviveShownAt = world.elapsed; }
   lastRevivesUsed = world.revivesUsed;
+
+  /* 💣 도화선이 터졌다(29단계). 새 소리를 만들지 않는다. 캣닢·핵폭탄의 폭발도 따로 소리가 없고
+     딜량이 늘 때 나는 타격음(Sound.hit)을 내므로 같은 것을 쓴다 — 폭발 피해는 딜량에 안 들어가서
+     이 줄이 없으면 아무 소리도 안 난다. */
+  if (world.bombsExploded > lastBombsExploded) Sound.hit(now);
+  lastBombsExploded = world.bombsExploded;
 }
 
 /* 17단계: 클리어 폭죽 ------------------------------------------------------
