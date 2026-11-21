@@ -333,7 +333,7 @@ var EN = {
     catnip:  { name: 'Catnip Blast',  desc: 'Explodes at the nearest enemy' },
     milk:    { name: 'Milk Puddle',   desc: 'Pools on the ground. Slows enemies in it' },
     tail:    { name: 'Tail Spin',     desc: 'An orb that circles around you' },
-    tornado: { name: 'Tornado',       desc: 'Rolls forward, pulling enemies in' },
+    tornado: { name: 'Tornado',       desc: 'Rolls forward, pushing enemies away' },
     zap:     { name: 'Static Shock',  desc: 'Arcs from the target to nearby enemies' },
     friend:  { name: 'Cat Friend',    desc: 'Dashes out to bite an enemy, then returns' }
   },
@@ -345,7 +345,7 @@ var EN = {
     catnip:  { name: 'Catnip Storm', desc: 'Bigger blasts, double damage' },
     milk:    { name: 'Sea of Milk',  desc: 'Half the screen becomes milk' },
     tail:    { name: 'Cyclone Tail', desc: 'Two orbs, double radius, knocks enemies back' },
-    tornado: { name: 'Typhoon',      desc: 'Twice as big, twice the pull, twice the damage' },
+    tornado: { name: 'Typhoon',      desc: 'Twice as big, twice the push, twice the damage' },
     zap:     { name: 'Lightning',    desc: 'Twice the chains, twice the damage' },
     friend:  { name: 'Feral Cat',    desc: 'Bites harder, faster, and farther' }
   },
@@ -391,7 +391,7 @@ var EN = {
     laser:   { damage: 'Damage', width: 'Beam Width', count: 'Beams' },
     catnip:  { damage: 'Damage', radius: 'Blast Radius' },
     tail:    { radius: 'Orbit Radius', count: 'Orbs' },
-    tornado: { damage: 'Damage', radius: 'Size', pull: 'Pull' },
+    tornado: { damage: 'Damage', radius: 'Size', pull: 'Push' },
     zap:     { damage: 'Damage', chain: 'Chains' },
     friend:  { damage: 'Damage', cooldown: 'Attack Interval', seek: 'Chase Range' }
   },
@@ -925,8 +925,9 @@ var CONFIG = {
             orbitRadius: 70, orbitRadiusPerLv: 6, ballRadius: 26,
             rotSpeed: 3.0,                // 초당 회전 각도(라디안)
             hitCooldownMs: 650 },         // 같은 적 재타격 간격 — 상시 고리를 얇게 유지한다
-    tornado: { kind: 'projectile', name: '토네이도', desc: '적을 끌어당기며 굴러간다', emoji: '\u{1F32A}\u{FE0F}', maxLevel: 5,
-               // 굴러가며 반경 안의 적을 끌어당기고, 회오리 안에 머무는 동안 계속 때린다.
+    tornado: { kind: 'projectile', name: '토네이도', desc: '적을 밀어내며 굴러간다', emoji: '\u{1F32A}\u{FE0F}', maxLevel: 5,
+               // 굴러가며 반경 안(앞쪽)의 적을 가는 방향으로 밀어내고, 회오리 안에 머무는 동안 계속 때린다.
+               // (2026-11-21 까지는 끌어당겼다 — 보스가 고양이 쪽으로 끌려와서 바꿨다. _onPullCandidate 주석.)
                // 만렙 단일 DPS 는 발사 쿨타임이 아니라 **재타격 간격**으로 센다:
                //   18 × 2.0 ÷ 1.2 = 30.0
                // (끌어당기기만 하고 안 때리면 적이 회오리 안에 갇힌 채 무사해서 고장으로 보인다.
@@ -934,8 +935,8 @@ var CONFIG = {
                damage: 18, cooldownMs: 2500, speed: 150, radius: 26, lifeSec: 3.0,
                counts: [1, 1, 1, 2, 2],   // 만렙 2발이 동시에 나간다
                spreadDeg: 30, pierce: 999,
-               pullRadius: 120,      // 이 안의 적을 끌어당긴다
-               pullSpeed: 90,        // 초당 이만큼 중심 쪽으로 당긴다
+               pullRadius: 120,      // 이 안(앞쪽)의 적을 민다 — 이름은 끌어당기던 때의 것
+               pullSpeed: 90,        // 초당 이만큼 가는 방향으로 민다(보스는 안 민다)
                hitCooldownMs: 1200 },// 같은 적 재타격 간격 — DPS 를 정하는 값이다
     zap: { kind: 'chain', name: '정전기', desc: '맞은 적에서 근처 적으로 튄다', emoji: '\u{26A1}', maxLevel: 5,
            // 맞은 적에서 근처 적으로 튄다. 만렙 단일 DPS 26.7 (첫 대상 기준).
@@ -1010,7 +1011,7 @@ var CONFIG = {
                      160=2.23배 · 110=2.50배 · 80=0.93배(붕괴).
                      110 이 무한 유지를 깨면서(180초+ → 15~18초) 피해는 제일 높다. */
                rule: 'gale', radius: 2, pushPerSec: 110 },
-    tornado: { name: '태풍',          desc: '두 배로 크고 두 배로 빨아들이고 두 배로 아프다',
+    tornado: { name: '태풍',          desc: '두 배로 크고 두 배로 밀어내고 두 배로 아프다',
                damage: 2,   radius: 2,   pull: 2 },
     zap:     { name: '번개',          desc: '두 배로 튀고 두 배로 아프다',
                damage: 2,   chain: 2 },
@@ -2128,7 +2129,7 @@ function World(config, metaLevels, loadout){
     self.damageEnemy(e, self._hitDmg, 'tail');   // 이 콜백은 fireOrbit 만 부른다
   };
 
-  /* 토네이도 끌어당김 콜백 — 피해를 주지 않고 좌표만 옮긴다.
+  /* 토네이도 밀어내기 콜백(예전 이름은 끌어당김 — 2026-11-21 에 방향을 뒤집었다, 아래 주석) — 피해를 주지 않고 좌표만 옮긴다.
      damageEnemy 를 부르지 않으므로 격자 콜백 재진입 함정에 걸리지 않는다.
      검사 중인 투사체는 _proj, 이번 프레임의 dt 는 _pullDt 로 전달한다. */
   this._pullDt = 0;
@@ -2151,11 +2152,21 @@ function World(config, metaLevels, loadout){
        덤으로 태풍의 초당 딜이 789 → 451 이 되어 "2위의 2.4배" 였던 쏠림도 풀린다
        (계획/20-무기밸런스-조사.md 발견 4). */
     if ((e.x - p.x) * p.vx + (e.y - p.y) * p.vy < 0) return;
-    var d = Math.sqrt(d2);
+    /* 2026-11-21 — **끌어당기지 않고 민다.**
+       예전에는 여기서 회오리 중심 쪽으로 끌었다. 회오리 앞쪽의 적만 끌므로 그 방향은 늘 고양이 쪽이다 —
+       사용자 신고: "멀리 있는 애들이 당겨져 와서 보스가 계속 끌려와 근접 딜이 박힌다. 당기는 건 없애고
+       밀려나는 효과만." 이제 같은 적(앞쪽 · 반경 안)을 **회오리가 가는 방향**으로 민다 = 고양이에게서 멀어진다.
+       미는 속도(pullSpeed 90)가 회오리(150)보다 느려서 회오리가 따라잡아 지나가며 때린다.
+       보스는 밀지 않는다(당기지도 않는다) — 태풍은 초당 180 으로 미는데 보스는 56~72 로 걷는다. 밀면 보스가
+       영영 못 다가와 보스전이 사라진다. 두목쥐는 보스가 아니라 밀린다.
+       칸 이름(pullRadius · pullSpeed · 진화표의 pull)은 그대로 둔다 — 뜻만 "미는 범위 · 미는 세기" 로 바뀌었다. */
+    var pt = self.config.enemies[e.typeId];
+    if (pt && pt.boss) return;
+    var pv = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+    if (pv < 1e-6) return;
     var step = p.pullSpeed * self._pullDt;
-    if (step > d) step = d;          // 중심을 지나쳐 튕기지 않게
-    e.x += dx / d * step;
-    e.y += dy / d * step;
+    e.x += p.vx / pv * step;
+    e.y += p.vy / pv * step;
   };
 
   // 투사체 충돌 판정 콜백 — 검사 중인 투사체는 _proj 로 전달한다
@@ -3256,7 +3267,7 @@ var EVO_FEATURE = {
   catnip:  { damage: '공격력', radius: '폭발 범위' },
   milk:    {},                                        // 반경이 화면 크기라 배수가 없다
   tail:    { radius: '공전 반경', count: '공 개수' },
-  tornado: { damage: '공격력', radius: '회오리 크기', pull: '끌어당김' },
+  tornado: { damage: '공격력', radius: '회오리 크기', pull: '밀어냄' },
   zap:     { damage: '공격력', chain: '연쇄 횟수' },
   friend:  { damage: '공격력', cooldown: '공격 주기', seek: '쫓는 거리' }
 };
@@ -3980,7 +3991,7 @@ World.prototype.updateProjectiles = function(dt){
     }
     if (p.life <= 0){ this.projectiles.release(p); continue; }
     this._proj = p;
-    // 끌어당김을 먼저 하고 그 다음에 때린다 — 당겨진 자리로 충돌을 판정한다.
+    // 밀어내기를 먼저 하고 그 다음에 때린다 — 밀린 자리로 충돌을 판정한다.
     if (p.pullRadius > 0){
       this._pullDt = dt;
       this.grid.forEachNear(p.x, p.y, p.pullRadius + this.maxEnemyR, this._onPullCandidate);
@@ -7879,7 +7890,7 @@ var stageJustUnlocked = false;
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = 'ae01843c';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = 'df6f2a1d';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
