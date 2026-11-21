@@ -182,6 +182,10 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
 .card.gear{ flex:1 1 130px; max-width:190px; padding:12px 8px }
 .card.gear .ds{ font-size:12px; word-break:keep-all }
 .card.worn{ box-shadow:0 0 0 2px #f7efd8 inset }
+/* 31단계 — 강화 카드. 가진 장비 카드 바로 뒤에 붙는 한 줄짜리 카드로, 강화 탭의 가지 카드(.branch)와 같은 틀이다. */
+.card.upg{ flex:0 0 calc(100% - 24px); max-width:none; margin-left:24px; min-height:44px;
+           border-left:6px solid #b8cc8a; padding:10px 12px }
+.card.upg .ds{ font-size:12px; word-break:keep-all }
 /* 27단계 — 장비 도트 아이콘은 정수 배로만 키운다(gearIcoHtml). 미리보기 고양이는 26×32 그림판의 5배. */
 .gearIco{ image-rendering:pixelated; vertical-align:middle }
 .gearPreviewBox{ flex:0 0 100%; display:flex; justify-content:center }
@@ -369,7 +373,8 @@ var EN = {
     tRegen: 'HP / s', tMagnet: 'Magnet Interval', tReroll: 'Rerolls', tCoin: 'Coins',
     gXp: 'XP', gPickup: 'Pickup Range', gMaxHp: 'Max HP', gTaken: 'Damage Taken',
     gSpeed: 'Move Speed', gReroll: 'Rerolls', gInvuln: 'Invuln After Hit',
-    gLowHp: 'Speed Below {n}% HP'
+    gLowHp: 'Speed Below {n}% HP',
+    tAtk: 'Damage', tMob: 'Horde Damage', gAtk: 'Damage', gMob: 'Horde Damage'
   },
   /* ---- 도전과제 (ACH 블록은 격리 실행되므로 표시 시점에 shell 이 찾아 쓴다) ---- */
   ach: {
@@ -549,11 +554,21 @@ var EN = {
     '{n}번': '{n} pulls',
     '최고 레벨': 'Max level',
     '레전더리 확정까지': 'Guaranteed Legendary in',
-    '레전더리 없이 {n}번째가 되면 반드시 레전더리가 나옵니다. 가진 장비가 또 나오면 단계가 오르고, 5단계면 코인으로 돌려받습니다.':
-      'Your {n}th pull without a Legendary is always Legendary. Duplicates level up your gear; at Lv.5 they are refunded in coins.',
+    '레전더리 없이 {n}번째가 되면 반드시 레전더리가 나옵니다. 가진 장비가 또 나오면 조각이 되고, {m}단계면 코인으로 돌려받습니다.':
+      'Your {n}th pull without a Legendary is always Legendary. Duplicates become shards; at Lv.{m} they are refunded in coins.',
     '방금 뽑은 것': 'Just Pulled',
     '새 장비': 'New gear',
-    '단계 오름 ({n}단계)': 'Level up (Lv.{n})',
+    /* 31단계 — 조각 강화 · 공격 가지 · 쥐떼 피해 */
+    '조각 +1': 'Shard +1',
+    '\u{1F9E9} 중복은 조각이 됩니다 — 장비 탭에서 조각과 코인을 내고 강화하세요.':
+      '\u{1F9E9} Duplicates become shards — spend shards and coins in the Gear tab to upgrade.',
+    '조각 {n}': 'Shards {n}',
+    '{n}단계로': 'To Lv.{n}',
+    '조각 {a} / {b}': 'Shards {a} / {b}',
+    '조각 필요 없음': 'No shards needed',
+    '조각이 {n}개 모자랍니다': 'Need {n} more shards',
+    '코인이 모자랍니다': 'Not enough coins',
+    '쥐떼 피해': 'Horde Damage',
     '환급 {n}': 'Refund {n}',
     '장비 입으러 가기': 'Go to Gear',
     '뽑기 결과': 'Pull Results',
@@ -579,7 +594,9 @@ var EN = {
     breather:     { name: 'Catch Breath',  desc: 'Slowly regenerate HP' },
     magnetMaster: { name: 'Magnet Master', desc: 'Magnets drop more often' },
     secondChance: { name: 'Second Chance', desc: 'More level-up rerolls' },
-    luckyCoin:    { name: 'Lucky Coin',    desc: 'Earn more coins' }
+    luckyCoin:    { name: 'Lucky Coin',    desc: 'Earn more coins' },
+    huntInstinct: { name: 'Hunting Instinct', desc: 'All your attacks hit harder' },
+    packHunter:   { name: 'Horde Hunter',  desc: 'Deal more damage to rats that are not bosses' }
   },
   gear: {
     strawHat:     { name: 'Straw Hat' },
@@ -643,7 +660,9 @@ var STR = {
   tRegen: '초당 체력', tMagnet: '자석 간격', tReroll: '다시 뽑기', tCoin: '코인',
   gXp: '경험치', gPickup: '줍는 범위', gMaxHp: '최대 체력', gTaken: '받는 피해',
   gSpeed: '이동 속도', gReroll: '다시 뽑기', gInvuln: '맞은 뒤 무적',
-  gLowHp: '체력 {n}% 아래 이동 속도'
+  gLowHp: '체력 {n}% 아래 이동 속도',
+  // 31단계 — 공격 가지 둘 · 장비 6단계부터의 공격 효과
+  tAtk: '공격력', tMob: '쥐떼 피해', gAtk: '공격력', gMob: '쥐떼 피해'
 };
 if (I18N && I18N.core){
   for (var strKey in STR){
@@ -1103,7 +1122,9 @@ var CONFIG = {
      순서를 바꾸면 서버 기록의 뜻이 바뀌므로 새 가지는 맨 뒤에만 붙인다.
      가지마다 효과 칸은 하나다(이름이 곧 뜻). World.metaMultFrom 이 읽는다. */
   tree: {
-    order: ['bossHunter', 'thickHide', 'nineLives', 'breather', 'magnetMaster', 'secondChance', 'luckyCoin'],
+    // 31단계: 공격 가지 둘(huntInstinct · packHunter)은 기록 문자열의 뜻을 지키려고 맨 뒤에 붙였다.
+    order: ['bossHunter', 'thickHide', 'nineLives', 'breather', 'magnetMaster', 'secondChance', 'luckyCoin',
+            'huntInstinct', 'packHunter'],
     bossHunter:   { name: '보스 사냥꾼', emoji: '\u{1F3AF}', trunk: 'power', needStep: 5, maxStep: 5,
                     costs: [2000, 3000, 4000, 5000, 6000], bossDmgPct: 5,
                     desc: '보스에게 더 아프게 들어갑니다' },
@@ -1126,7 +1147,15 @@ var CONFIG = {
     // 번 코인에 곱한다 — 판을 바로 버려서는 얻는 게 없다(명세 3절, 4단계 "시작 코인" 을 버린 이유).
     luckyCoin:    { name: '행운의 동전', emoji: '\u{1FA99}', trunk: 'xpGain', needStep: 10, maxStep: 5,
                     costs: [2000, 3000, 4000, 5000, 6000], coinPct: 5,
-                    desc: '코인을 더 많이 법니다' }
+                    desc: '코인을 더 많이 법니다' },
+    /* 31단계 — 공격 가지 둘(명세 2절). 사냥 본능은 공격력(damage)에 곱하고, 쥐떼 사냥꾼은 보스가 아닌 쥐
+       (두목쥐 포함)에게 주는 피해(mobDamage)에 곱한다 — 보스 사냥꾼의 반대편이다. 쿨타임 성장은 일부러 없다. */
+    huntInstinct: { name: '사냥 본능', emoji: '\u{1F43E}', trunk: 'power', needStep: 10, maxStep: 5,
+                    costs: [4000, 6000, 8000, 10000, 12000], damagePct: 6,
+                    desc: '모든 공격이 더 아프게 들어갑니다' },
+    packHunter:   { name: '쥐떼 사냥꾼', emoji: '\u{1F400}', trunk: 'power', needStep: 10, maxStep: 5,
+                    costs: [4000, 6000, 8000, 10000, 12000], mobDmgPct: 5,
+                    desc: '보스가 아닌 쥐에게 더 아프게 들어갑니다' }
   },
   /* 장비(26단계). 부위 셋 × 등급 넷에 하나씩, 12종. 명세 4절 표 그대로다.
      stats: 단계에 따라 크는 효과. 값 = base + (단계 − 1) × perLv — 1단계·5단계 값이 표와 정확히 맞게 잡았다.
@@ -1140,43 +1169,71 @@ var CONFIG = {
     slotNames:  { hat: '모자', top: '상의', shoes: '신발' },
     slotEmoji:  { hat: '\u{1F3A9}', top: '\u{1F455}', shoes: '\u{1F45F}' },
     gradeNames: { normal: '노멀', rare: '레어', epic: '에픽', legend: '레전더리' },
-    maxLevel: 5,
+    // 31단계: 5 → 10. stats 는 같은 식(1단계 값 + 단계당)으로 10단계까지 이어진다.
+    maxLevel: 10,
     order: ['strawHat', 'detectiveHat', 'minerHelmet', 'crown',
             'oldVest', 'leatherVest', 'paddedCoat', 'catCape',
             'strawSandals', 'sneakers', 'boots', 'wingedShoes'],
+    /* 31단계 late: 6단계부터 붙는 공격 효과(명세 3절). 값 = (단계 − fromLv + 1) × perLv — 5단계 이하는 정확히 0.
+       key: damagePct(공격력에 곱한다) · mobDmgPct(보스가 아닌 쥐에게 주는 피해에 곱한다). stats 와 따로 둬서
+       stats 의 1~5단계 값은 한 글자도 안 바뀐다. */
     items: {
       strawHat:     { name: '밀짚모자',   emoji: '\u{1F452}', slot: 'hat', grade: 'normal',
-                      stats: [{ key: 'xpPct', base: 3, perLv: 1 }] },
+                      stats: [{ key: 'xpPct', base: 3, perLv: 1 }],
+                      late: [{ key: 'damagePct', fromLv: 6, perLv: 1 }] },
       detectiveHat: { name: '탐정 모자',  emoji: '\u{1F575}\u{FE0F}', slot: 'hat', grade: 'rare',
-                      stats: [{ key: 'xpPct', base: 5, perLv: 1.5 }] },
+                      stats: [{ key: 'xpPct', base: 5, perLv: 1.5 }],
+                      late: [{ key: 'damagePct', fromLv: 6, perLv: 1.5 }] },
       minerHelmet:  { name: '광부 헬멧',  emoji: '\u{26D1}\u{FE0F}', slot: 'hat', grade: 'epic',
-                      stats: [{ key: 'xpPct', base: 6, perLv: 1.5 }, { key: 'pickupPct', base: 15, perLv: 5 }] },
+                      stats: [{ key: 'xpPct', base: 6, perLv: 1.5 }, { key: 'pickupPct', base: 15, perLv: 5 }],
+                      late: [{ key: 'damagePct', fromLv: 6, perLv: 2 }] },
       crown:        { name: '왕관',       emoji: '\u{1F451}', slot: 'hat', grade: 'legend',
-                      stats: [{ key: 'xpPct', base: 8, perLv: 2 }], unique: { rerollAdd: 1 } },
+                      stats: [{ key: 'xpPct', base: 8, perLv: 2 }], unique: { rerollAdd: 1 },
+                      late: [{ key: 'damagePct', fromLv: 6, perLv: 3 }] },
       oldVest:      { name: '헌 조끼',    emoji: '\u{1F9BA}', slot: 'top', grade: 'normal',
-                      stats: [{ key: 'maxHpAdd', base: 10, perLv: 4 }] },
+                      stats: [{ key: 'maxHpAdd', base: 10, perLv: 4 }],
+                      late: [{ key: 'mobDmgPct', fromLv: 6, perLv: 1 }] },
       leatherVest:  { name: '가죽 조끼',  emoji: '\u{1F9E5}', slot: 'top', grade: 'rare',
-                      stats: [{ key: 'maxHpAdd', base: 20, perLv: 6 }] },
+                      stats: [{ key: 'maxHpAdd', base: 20, perLv: 6 }],
+                      late: [{ key: 'mobDmgPct', fromLv: 6, perLv: 1.5 }] },
       paddedCoat:   { name: '솜옷',       emoji: '\u{1F97C}', slot: 'top', grade: 'epic',
-                      stats: [{ key: 'maxHpAdd', base: 20, perLv: 6 }, { key: 'takenPct', base: 4, perLv: 1 }] },
+                      stats: [{ key: 'maxHpAdd', base: 20, perLv: 6 }, { key: 'takenPct', base: 4, perLv: 1 }],
+                      late: [{ key: 'mobDmgPct', fromLv: 6, perLv: 2 }] },
       catCape:      { name: '고양이 망토', emoji: '\u{1F9E3}', slot: 'top', grade: 'legend',
-                      stats: [{ key: 'maxHpAdd', base: 30, perLv: 7.5 }], unique: { invulnAdd: 0.1 } },
+                      stats: [{ key: 'maxHpAdd', base: 30, perLv: 7.5 }], unique: { invulnAdd: 0.1 },
+                      late: [{ key: 'mobDmgPct', fromLv: 6, perLv: 2.5 }] },
       strawSandals: { name: '짚신',       emoji: '\u{1FA74}', slot: 'shoes', grade: 'normal',
-                      stats: [{ key: 'speedPct', base: 3, perLv: 1 }] },
+                      stats: [{ key: 'speedPct', base: 3, perLv: 1 }],
+                      late: [{ key: 'damagePct', fromLv: 6, perLv: 0.5 }] },
       sneakers:     { name: '운동화',     emoji: '\u{1F45F}', slot: 'shoes', grade: 'rare',
-                      stats: [{ key: 'speedPct', base: 5, perLv: 1.5 }] },
+                      stats: [{ key: 'speedPct', base: 5, perLv: 1.5 }],
+                      late: [{ key: 'damagePct', fromLv: 6, perLv: 0.75 }] },
       boots:        { name: '장화',       emoji: '\u{1F97E}', slot: 'shoes', grade: 'epic',
-                      stats: [{ key: 'speedPct', base: 6, perLv: 1.5 }, { key: 'maxHpAdd', base: 8, perLv: 2 }] },
+                      stats: [{ key: 'speedPct', base: 6, perLv: 1.5 }, { key: 'maxHpAdd', base: 8, perLv: 2 }],
+                      late: [{ key: 'damagePct', fromLv: 6, perLv: 1 }] },
       wingedShoes:  { name: '날개 신발',  emoji: '\u{1F97F}', slot: 'shoes', grade: 'legend',
                       stats: [{ key: 'speedPct', base: 8, perLv: 2 }],
-                      unique: { lowHpSpeedPct: 20, lowHpBelowPct: 30 } }
+                      unique: { lowHpSpeedPct: 20, lowHpBelowPct: 30 },
+                      late: [{ key: 'damagePct', fromLv: 6, perLv: 1.5 }] }
+    },
+    /* 31단계 조각 강화(명세 4절). 뽑기 중복은 단계 대신 조각 +1, 장비 탭에서 조각 + 코인을 내고 한 단계.
+       need[등급][지금 단계 − 1] = 다음 단계로 가는 데 드는 조각(0 이면 코인만).
+       코인 = Math.round(costs[지금 단계 − 1] × mult[등급]). 10단계가 되는 순간 남은 조각은 gacha.refund 로 환급. */
+    upgrade: {
+      need: { normal: [1, 1, 2, 2, 2, 2, 3, 3, 4],
+              rare:   [1, 1, 1, 2, 2, 1, 2, 2, 2],
+              epic:   [1, 1, 1, 1, 1, 1, 1, 1, 2],
+              legend: [1, 1, 1, 1, 0, 1, 0, 1, 0] },
+      costs: [300, 600, 1000, 2000, 3000, 5000, 8000, 12000, 18000],
+      mult: { normal: 0.5, rare: 0.75, epic: 1, legend: 1.5 }
     }
   },
   /* 뽑기(26단계). 명세 5절. 판의 난수(world.random)·보석 난수(lootRoll)와 완전히 따로다 —
      gachaPull 이 난수 함수를 인자로 받는다(셸은 Math.random, 테스트는 씨앗 난수).
      levels: 누적 뽑은 횟수(atPulls)가 쌓이면 저절로 오르는 "뽑기 레벨". prob 는 grades 순서(%)이고 합이 100.
      pity: 레전더리 없이 pity − 1 번을 뽑았으면 다음 한 번은 레전더리 확정.
-     refund: 이미 5단계인 장비가 또 나오면 돌려주는 코인(헛탕이 없다).
+     refund: 이미 최대 단계(31단계부터 10)인 장비가 또 나오면 돌려주는 코인(헛탕이 없다).
+             31단계: 최대가 아닌 중복은 조각이 된다 — 10단계가 되는 강화에서 남은 조각도 이 값으로 돌려준다.
      28단계: 천장 20 → 100, 레벨 문턱 전부 5배(사용자 지시 — 한 판에 코인이 3만 개쯤 벌려
      천장과 레벨이 너무 빨리 찼다). 확률·값·환급은 그대로다. 이미 뽑아 본 사람은 레벨이 내려갈 수
      있다(누적 횟수는 그대로, 문턱만 뒤로 갔다) — 의도한 것. */
@@ -1286,14 +1343,15 @@ function emptyLoadout(){
   var tree = {}, equipped = {}, i;
   for (i = 0; i < TREE_IDS.length; i++) tree[TREE_IDS[i]] = 0;
   for (i = 0; i < CONFIG.gear.slots.length; i++) equipped[CONFIG.gear.slots[i]] = null;
-  return { tree: tree, gear: { owned: {}, equipped: equipped }, gacha: { pulls: 0, pity: 0 } };
+  // 31단계 copies: 장비마다 모은 조각 수 { id: n }. 0 이면 칸을 안 둔다(읽는 쪽은 없으면 0 으로 본다).
+  return { tree: tree, gear: { owned: {}, equipped: equipped, copies: {} }, gacha: { pulls: 0, pity: 0 } };
 }
 
 /* 저장에서 읽은 트리·장비·뽑기 칸을 믿을 수 있는 모양으로 만든다(명세 2절 ①).
    raw 는 영구 저장 객체 통째(o.tree · o.gear · o.gacha 를 읽는다), metaLevels 는 이미 걸러 낸 줄기 단계.
    - 가지: 숫자가 아니면 0, 0~최대로 자른다. 줄기가 열리는 단계에 못 미치면 0 —
      손으로 고친 저장이 잠긴 가지를 열면 안 된다.
-   - 가진 장비: 아는 이름만, 단계 1~5. 숫자가 아니면 "안 가짐".
+   - 가진 장비: 아는 이름만, 단계 1~최대(31단계부터 10). 숫자가 아니면 "안 가짐".
    - 입은 장비: 가진 것이고 그 부위의 것일 때만. 아니면 null.
    - 천장 카운터 0 ~ pity−1, 뽑은 횟수 0 이상의 정수.
    칸이 아예 없는 옛 저장은 전부 빈 값이 된다(강화 단계·코인은 셸이 따로 읽으므로 그대로 남는다). */
@@ -1337,6 +1395,20 @@ function normalizeLoadoutSave(raw, metaLevels){
       out.gear.equipped[slot] = id;
     }
   }
+  // 31단계 조각: 가진 장비이고 최대 단계 미만일 때만, 1 이상의 정수(소수는 내림)로 남긴다.
+  // 칸이 없는 옛 저장 · 음수 · 문자열 · 안 가진 장비 · 최대 단계 장비의 조각은 버린다(= 0).
+  var rc = rg && rg.copies && typeof rg.copies === 'object' ? rg.copies : null;
+  if (rc){
+    for (i = 0; i < GEAR_IDS.length; i++){
+      id = GEAR_IDS[i];
+      v = rc[id];
+      if (typeof v !== 'number' || !isFinite(v)) continue;
+      v = Math.floor(v);
+      if (v < 1) continue;
+      if (typeof out.gear.owned[id] !== 'number' || out.gear.owned[id] >= CONFIG.gear.maxLevel) continue;
+      out.gear.copies[id] = v;
+    }
+  }
   var ra = raw && raw.gacha && typeof raw.gacha === 'object' ? raw.gacha : null;
   if (ra){
     out.gacha.pulls = safeInt(ra.pulls, 0, Number.MAX_SAFE_INTEGER || 9007199254740991, 0);
@@ -1375,11 +1447,15 @@ function treeEffectAt(id, step){
                                       text: round1(CONFIG.magnetItem.everySec - n * b.magnetSecLess) + STR.sec };
   if (id === 'secondChance') return { label: STR.tReroll, text: '+' + (n * b.rerollAdd) };
   if (id === 'luckyCoin')    return { label: STR.tCoin,   text: '+' + round1(n * b.coinPct) + '%' };
+  if (id === 'huntInstinct') return { label: STR.tAtk,    text: '+' + round1(n * b.damagePct) + '%' };
+  if (id === 'packHunter')   return { label: STR.tMob,    text: '+' + round1(n * b.mobDmgPct) + '%' };
   return null;
 }
 
 // 장비 한 줄 효과 값(단계 lv). 고유 효과는 따로 — 단계가 올라도 그대로다.
 function gearStatAt(st, lv){ return st.base + (lv - 1) * st.perLv; }
+// 31단계 — 6단계부터 붙는 공격 효과 한 줄(lt = items[id].late[k]). fromLv 아래는 정확히 0.
+function gearLateAt(lt, lv){ return lv >= lt.fromLv ? (lv - lt.fromLv + 1) * lt.perLv : 0; }
 
 /* 장비 lv 단계의 효과 줄 [{label, text}]. **공식은 여기 한 벌** — 장비 탭·뽑기 결과·도감이 같이 쓴다.
    모르는 id 는 빈 배열. */
@@ -1395,6 +1471,14 @@ function gearEffectRows(id, lv){
     if (st.key === 'speedPct')  out.push({ label: STR.gSpeed,  text: '+' + v + '%' });
     if (st.key === 'maxHpAdd')  out.push({ label: STR.gMaxHp,  text: '+' + v });
     if (st.key === 'takenPct')  out.push({ label: STR.gTaken,  text: '−' + v + '%' });
+  }
+  // 31단계 — 6단계부터의 공격 효과. 그 단계에 못 미치면 줄을 안 만든다(5단계 이하 화면은 예전 그대로).
+  var late = it.late || [];
+  for (var li = 0; li < late.length; li++){
+    if (L < late[li].fromLv) continue;
+    var lv2 = round1(gearLateAt(late[li], L));
+    if (late[li].key === 'damagePct') out.push({ label: STR.gAtk, text: '+' + lv2 + '%' });
+    if (late[li].key === 'mobDmgPct') out.push({ label: STR.gMob, text: '+' + lv2 + '%' });
   }
   var u = it.unique;
   if (u){
@@ -1424,7 +1508,8 @@ function gachaLevelAt(pulls){
       천장으로 레전더리가 확정된 뽑기에서도 첫째를 버리고 부른다 — 횟수가 상황마다 다르면
       같은 씨앗으로 재현할 때 천장 하나가 뒤의 결과를 전부 밀어낸다.
    확률은 이번 뽑기 **전**의 횟수로 고른 레벨이다 — 10회 도중에 레벨이 오르면 그다음 뽑기부터 새 확률.
-   돌려주는 것: { id, grade, kind: 'new'|'up'|'refund', level(뽑은 뒤 단계), refund(코인) }.
+   돌려주는 것: { id, grade, kind: 'new'|'copy'|'refund', level(뽑은 뒤 단계), copies(뽑은 뒤 조각), refund(코인) }.
+   31단계: 중복은 단계가 오르지 않고 조각(gear.copies) +1 — 옛 'up' 은 없어졌다. 최대 단계의 중복만 환급.
    코인을 받고 내는 일은 하지 않는다(잔액은 Save 가 안다). */
 function gachaPull(loadout, rnd){
   var gc = CONFIG.gacha, gr = CONFIG.gear;
@@ -1451,9 +1536,50 @@ function gachaPull(loadout, rnd){
   loadout.gacha.pity = (grade === 'legend') ? 0 : loadout.gacha.pity + 1;
   var owned = loadout.gear.owned;
   var have = typeof owned[id] === 'number' ? owned[id] : 0;
-  if (have <= 0){ owned[id] = 1; return { id: id, grade: grade, kind: 'new', level: 1, refund: 0 }; }
-  if (have < gr.maxLevel){ owned[id] = have + 1; return { id: id, grade: grade, kind: 'up', level: have + 1, refund: 0 }; }
-  return { id: id, grade: grade, kind: 'refund', level: have, refund: gc.refund[grade] };
+  if (have <= 0){ owned[id] = 1; return { id: id, grade: grade, kind: 'new', level: 1, copies: 0, refund: 0 }; }
+  // 31단계: 최대가 아닌 중복은 단계 대신 조각 +1(강화는 장비 탭에서 gearUpgrade 로).
+  if (have < gr.maxLevel){
+    if (!loadout.gear.copies) loadout.gear.copies = {};
+    var cp = loadout.gear.copies;
+    cp[id] = (typeof cp[id] === 'number' ? cp[id] : 0) + 1;
+    return { id: id, grade: grade, kind: 'copy', level: have, copies: cp[id], refund: 0 };
+  }
+  return { id: id, grade: grade, kind: 'refund', level: have, copies: 0, refund: gc.refund[grade] };
+}
+
+/* 31단계 — 장비 id 를 level 단계에서 한 단계 올리는 값 { copies(조각), coins }. 모르는 id ·
+   1 미만 · 최대 이상 · 정수가 아니면 null. 표는 CONFIG.gear.upgrade(칸 번호 = 지금 단계 − 1). */
+function gearUpgradeCost(id, level){
+  if (GEAR_IDS.indexOf(id) < 0) return null;
+  var gr = CONFIG.gear, up = gr.upgrade;
+  if (typeof level !== 'number' || Math.floor(level) !== level || level < 1 || level >= gr.maxLevel) return null;
+  var grade = gr.items[id].grade;
+  return { copies: up.need[grade][level - 1], coins: Math.round(up.costs[level - 1] * up.mult[grade]) };
+}
+
+/* 31단계 — 조각을 내고 한 단계 올린다. loadout 을 **직접 고친다**(gachaPull 과 같다).
+   못 올리면(안 가짐 · 최대 · 조각 부족) null 이고 아무것도 안 바꾼다.
+   올리면 { id, level(올린 뒤), coins(낼 값), refund } — 최대 단계가 됐으면 남은 조각 × 환급 값을 refund 에 담고
+   조각을 0으로 만든다. **코인은 여기서 안 본다** — 잔액은 Save 가 알고, 코인 확인·차감도 Save 가 한다. */
+function gearUpgrade(loadout, id){
+  var g = loadout && loadout.gear;
+  if (!g || !g.owned) return null;
+  var lv = g.owned[id];
+  var cost = gearUpgradeCost(id, lv);
+  if (!cost) return null;
+  var have = g.copies && typeof g.copies[id] === 'number' ? g.copies[id] : 0;
+  if (have < cost.copies) return null;
+  if (!g.copies) g.copies = {};
+  var left = have - cost.copies;
+  g.owned[id] = lv + 1;
+  var refund = 0;
+  if (lv + 1 >= CONFIG.gear.maxLevel){
+    refund = left * CONFIG.gacha.refund[CONFIG.gear.items[id].grade];
+    left = 0;
+  }
+  if (left > 0) g.copies[id] = left;
+  else delete g.copies[id];
+  return { id: id, level: lv + 1, coins: cost.coins, refund: refund };
 }
 
 /* 기록 전송의 강화 문자열(meta) 뒤에 붙일 토막. 트리·장비가 하나도 없으면 빈 문자열 —
@@ -1635,9 +1761,10 @@ function World(config, metaLevels, loadout){
   this.config = config;
   // 영구 강화 단계 → 배수·가산값을 한 번만 계산한다 (매 프레임 다시 곱하지 않는다)
   // 26단계: 가지·장비 칸이 늘었다. 기본값은 전부 "×1 / +0" 이라 loadout 을 안 준 판은 예전과 같다.
+  // 31단계: mobDamage(보스가 아닌 쥐에게 주는 피해, 기본 ×1).
   this.metaMult = { damage: 1, maxHpAdd: 0, speed: 1, pickup: 1, xp: 1,
                     taken: 1, regen: 0, revives: 0, rerollAdd: 0, magnetSecLess: 0,
-                    coin: 1, bossDamage: 1, invulnAdd: 0, lowHpSpeed: 1, lowHpBelow: 0 };
+                    coin: 1, bossDamage: 1, invulnAdd: 0, lowHpSpeed: 1, lowHpBelow: 0, mobDamage: 1 };
   this.applyMeta(metaLevels, loadout);
   // 아홉 목숨(26단계). 남은 부활 수와 이번 판에 쓴 수(셸이 연출을 낼 때 늘어난 것을 본다).
   this.revivesLeft = this.metaMult.revives;
@@ -2391,8 +2518,9 @@ World.prototype.metaMultFrom = function(metaLevels, loadout){
   var tr = loadout && loadout.tree;
   function ts(id){ return tr && typeof tr[id] === 'number' ? tr[id] : 0; }
   // 입은 장비의 효과를 키별로 모은다(부위 고정 순서로 훑는다)
+  // 31단계: damagePct · mobDmgPct(late) 도 0 으로 넣어 둔다 — 빠뜨리면 undefined += n 이 NaN 이다.
   var g = { xpPct: 0, pickupPct: 0, speedPct: 0, maxHpAdd: 0, takenPct: 0,
-            rerollAdd: 0, invulnAdd: 0, lowHpSpeedPct: 0, lowHpBelowPct: 0 };
+            rerollAdd: 0, invulnAdd: 0, lowHpSpeedPct: 0, lowHpBelowPct: 0, damagePct: 0, mobDmgPct: 0 };
   var eq = loadout && loadout.gear && loadout.gear.equipped;
   var ow = loadout && loadout.gear && loadout.gear.owned;
   if (eq && ow && gc){
@@ -2401,6 +2529,7 @@ World.prototype.metaMultFrom = function(metaLevels, loadout){
       if (typeof gid !== 'string' || GEAR_IDS.indexOf(gid) < 0 || typeof ow[gid] !== 'number') continue;
       var it = gc.items[gid];
       for (var k = 0; k < it.stats.length; k++) g[it.stats[k].key] += gearStatAt(it.stats[k], ow[gid]);
+      if (it.late) for (var lk = 0; lk < it.late.length; lk++) g[it.late[lk].key] += gearLateAt(it.late[lk], ow[gid]);
       if (it.unique){
         if (typeof it.unique.rerollAdd === 'number') g.rerollAdd += it.unique.rerollAdd;
         if (typeof it.unique.invulnAdd === 'number') g.invulnAdd += it.unique.invulnAdd;
@@ -2411,8 +2540,14 @@ World.prototype.metaMultFrom = function(metaLevels, loadout){
       }
     }
   }
+  /* 31단계 — 공격력 = 줄기 × (1 + 사냥 본능) × (1 + 입은 장비 공격력 합), 쥐떼 피해 = (1 + 쥐떼 사냥꾼) × (1 + 장비 합).
+     가지가 config 에 없으면(손으로 만든 테스트 config) 그 인자는 ×1. 없는 판·옛 최대(가지 0 · 장비 5단계 이하)는
+     ×1 을 곱하므로 damage 는 예전과 비트까지 같고 mobDamage 는 정확히 1 이다. */
+  var hunt = tc.huntInstinct ? 1 + ts('huntInstinct') * tc.huntInstinct.damagePct / 100 : 1;
+  var pack = tc.packHunter ? 1 + ts('packHunter') * tc.packHunter.mobDmgPct / 100 : 1;
   return {
-    damage:   1 + (ml.power  || 0) * mc.power.pct / 100,
+    damage:  (1 + (ml.power  || 0) * mc.power.pct / 100) * hunt * (1 + g.damagePct / 100),
+    mobDamage: pack * (1 + g.mobDmgPct / 100),
     maxHpAdd:     (ml.maxHp  || 0) * mc.maxHp.add + g.maxHpAdd,
     speed:   (1 + (ml.speed  || 0) * mc.speed.pct / 100) * (1 + g.speedPct / 100),
     pickup:  (1 + (ml.magnet || 0) * mc.magnet.pct / 100) * (1 + g.pickupPct / 100),
@@ -2434,7 +2569,8 @@ World.prototype.metaMultFrom = function(metaLevels, loadout){
 // metaMult 객체 자체는 갈지 않는다 — 매 프레임 읽는 자리라 참조를 유지한다.
 // 26단계: 가지·장비도 같은 길로 들어온다(loadout). 칸을 하나씩 덮어쓴다 — 고정 목록이라 for...in 을 안 쓴다.
 var META_MULT_KEYS = ['damage', 'maxHpAdd', 'speed', 'pickup', 'xp', 'taken', 'regen', 'revives',
-                      'rerollAdd', 'magnetSecLess', 'coin', 'bossDamage', 'invulnAdd', 'lowHpSpeed', 'lowHpBelow'];
+                      'rerollAdd', 'magnetSecLess', 'coin', 'bossDamage', 'invulnAdd', 'lowHpSpeed', 'lowHpBelow',
+                      'mobDamage'];
 World.prototype.applyMeta = function(metaLevels, loadout){
   var m = this.metaMultFrom(metaLevels, loadout);
   for (var i = 0; i < META_MULT_KEYS.length; i++) this.metaMult[META_MULT_KEYS[i]] = m[META_MULT_KEYS[i]];
@@ -2539,6 +2675,7 @@ World.prototype.playerStats = function(metaLevels, loadout){
     regen:      { base: 0, now: m.regen },
     revives:    { base: 0, now: m.revives },
     bossDamage: { base: 1, now: m.bossDamage },
+    mobDamage:  { base: 1, now: m.mobDamage },   // 31단계 — 쥐떼 피해
     coin:       { base: 1, now: m.coin },
     reroll:     { base: this.config.level.rerollPerRun, now: this.config.level.rerollPerRun + m.rerollAdd },
     magnetSec:  { base: mi.everySec, now: mi.everySec - m.magnetSecLess },
@@ -2947,6 +3084,12 @@ World.prototype.damageEnemy = function(e, amount, source){
   if (this.metaMult.bossDamage !== 1){
     var et = this.config.enemies[e.typeId];
     if (et && et.boss) amount *= this.metaMult.bossDamage;
+  }
+  // 쥐떼 피해(31단계) — 보스가 아닌 쥐(두목쥐 포함)에게만 곱한다. 무기·핵폭탄·폭탄쥐 폭발이 다 여기를 지난다.
+  // 가지·장비가 없으면(×1) 적 표를 찾아보는 일도 안 한다(보스 사냥꾼과 같은 가드).
+  if (this.metaMult.mobDamage !== 1){
+    var mt = this.config.enemies[e.typeId];
+    if (!(mt && mt.boss)) amount *= this.metaMult.mobDamage;
   }
   // 남은 체력보다 크게 때려도 실제로 깎인 만큼만 센다 — 넘친 분까지 세면
   // 캣닢·핵폭탄처럼 한 번에 크게 때리는 무기가 실제보다 세 보인다.
@@ -4485,6 +4628,9 @@ global.CatCore = {
   gearEffectRows: gearEffectRows,
   gachaLevelAt: gachaLevelAt,
   gachaPull: gachaPull,
+  gearLateAt: gearLateAt,
+  gearUpgradeCost: gearUpgradeCost,
+  gearUpgrade: gearUpgrade,
   loadoutRecordSuffix: loadoutRecordSuffix
 };
 
@@ -5659,6 +5805,9 @@ var normalizeLoadoutSave = window.CatCore.normalizeLoadoutSave;
 var coreGachaPull = window.CatCore.gachaPull;
 var treeCanBuy = window.CatCore.treeCanBuy;
 var treeCostOf = window.CatCore.treeCostOf;
+// 31단계 — 조각 강화(값 보기 · 올리기). 코인은 Save 가 낸다.
+var gearUpgradeCost = window.CatCore.gearUpgradeCost;
+var coreGearUpgrade = window.CatCore.gearUpgrade;
 var WEAPON_IDS = window.CatCore.WEAPON_IDS;
 var PASSIVE_IDS = window.CatCore.PASSIVE_IDS;
 var DAMAGE_IDS = window.CatCore.DAMAGE_IDS;
@@ -6026,6 +6175,21 @@ var Save = (function(){
       d.coins += refund;
       write();
       return out;
+    },
+    /* 31단계 — 장비 하나를 조각 + 코인으로 한 단계 올린다. 못 올리면(안 가짐 · 최대 · 조각이나 코인 부족) false 이고
+       아무것도 안 바뀐다. 코인을 먼저 보고(잔액은 여기만 안다) core 의 gearUpgrade 가 조각·단계를 고친 뒤,
+       값을 빼고 10단계 환급을 더해 **한 번에** 저장한다. */
+    upgradeGear: function(id){
+      var d = this.get();
+      if (CONFIG.gear.order.indexOf(id) < 0) return false;   // CONFIG 조회는 프로토타입 이름을 통과시킨다
+      var cost = gearUpgradeCost(id, d.gear.owned[id]);
+      if (!cost || d.coins < cost.coins) return false;
+      var r = coreGearUpgrade(d, id);
+      if (!r) return false;
+      d.coins -= r.coins;
+      d.coins += r.refund;
+      write();
+      return true;
     },
     // 가진 장비만 입는다. 부위는 장비 표가 정한다(부위마다 하나).
     equipGear: function(id){
@@ -7613,7 +7777,7 @@ var stageJustUnlocked = false;
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '4a61ece';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = '4ac2550';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -8514,6 +8678,8 @@ function codexMe(){
     codexRow('\u{1F4AB} ' + T('부활'), TF('{n}회', { n: s.revives.now }));
   if (s.bossDamage.now !== s.bossDamage.base)
     codexRow('\u{1F3AF} ' + T('보스 피해'), '×' + s.bossDamage.base.toFixed(2) + ' → ×' + s.bossDamage.now.toFixed(2));
+  if (s.mobDamage.now !== s.mobDamage.base)   // 31단계 — 쥐떼 사냥꾼 · 상의 6단계부터
+    codexRow('\u{1F400} ' + T('쥐떼 피해'), '×' + s.mobDamage.base.toFixed(2) + ' → ×' + s.mobDamage.now.toFixed(2));
   if (s.coin.now !== s.coin.base)
     codexRow('\u{1FA99} ' + T('코인'), '×' + s.coin.base.toFixed(2) + ' → ×' + s.coin.now.toFixed(2));
   if (s.reroll.now !== s.reroll.base)
@@ -8840,10 +9006,12 @@ function shopGear(d){
         var 아랫줄 = !owned ? T('뽑기에서 나옵니다')
                    : 입음 ? '<b>' + T('입는 중') + '</b> · ' + T('누르면 벗기')
                           : T('입기');
+        var 조각 = owned && d.gear.copies && d.gear.copies[id] > 0 ? d.gear.copies[id] : 0;   // 31단계
         appendCard('<div class="ico">' + gearIcoHtml(id, 78, 40) + '</div>' +
                    '<div class="nm">' + it.name + '</div>' +
                    '<div class="lv">' + gc.gradeNames[it.grade] +
-                     (owned ? ' · ' + lv + ' / ' + gc.maxLevel : '') + '</div>' +
+                     (owned ? ' · ' + lv + ' / ' + gc.maxLevel : '') +
+                     (조각 ? ' · ' + TF('조각 {n}', { n: 조각 }) : '') + '</div>' +
                    '<div class="ds">' + gearEffectLine(id, owned ? lv : 1) + '<br>' + 아랫줄 + '</div>',
                    function(){
                      if (입음) Save.unequipGear(slot);
@@ -8852,9 +9020,40 @@ function shopGear(d){
                      rebakePlayerCat(Save.get().gear.equipped);
                      showShop();
                    }, !owned).className += ' gear g-' + it.grade + (입음 ? ' worn' : '');
+        if (owned && lv < gc.maxLevel) shopGearUpgradeCard(d, id, lv, 조각);
       })(gc.order[gi], slot);
     }
   }
+}
+
+/* 31단계 — 강화 카드. 가진 장비(최대 단계 미만) 카드 **바로 뒤의 형제 카드** 한 장.
+   강화 탭의 가지 카드(.branch)와 같은 틀(들여쓰기 · 왼쪽 선)이라 "위 장비에 딸린 것" 으로 읽힌다.
+   ⚠️ class 에 gear·worn 글자를 넣지 않는다 — 기존 화면 시험이 그 글자로 장비 카드를 찾는다(장비 이름도 안 넣는다).
+   내용: 다음 단계 · 조각 지금/필요 · 코인 · 효과 지금 → 다음. 모자라면 흐리게 하고 무엇이 모자란지 적는다. */
+function shopGearUpgradeCard(d, id, lv, 조각){
+  var cost = gearUpgradeCost(id, lv);
+  if (!cost) return;
+  var 조각줄 = cost.copies === 0 ? T('조각 필요 없음') : TF('조각 {a} / {b}', { a: 조각, b: cost.copies });
+  var 모자람 = [];
+  if (조각 < cost.copies) 모자람.push(TF('조각이 {n}개 모자랍니다', { n: cost.copies - 조각 }));
+  if (d.coins < cost.coins) 모자람.push(T('코인이 모자랍니다'));
+  appendCard('<div class="nm">\u{2B06}\u{FE0F} ' + TF('{n}단계로', { n: lv + 1 }) + '</div>' +
+             '<div class="ds">' + 조각줄 + ' · \u{1FA99} ' + cost.coins.toLocaleString('en-US') +
+             '<br>' + gearUpgradeEffect(id, lv) +
+             (모자람.length ? '<br>' + 모자람.join(' · ') : '') + '</div>',
+             function(){ if (Save.upgradeGear(id)) showShop('gear'); },
+             모자람.length > 0).className += ' upg';
+}
+
+// 강화 카드의 효과 줄: 바뀌는 줄만 "이름 지금 → 다음". 6단계에 처음 붙는 공격 효과는 +0% 에서 시작한다.
+function gearUpgradeEffect(id, lv){
+  var now = window.CatCore.gearEffectRows(id, lv), next = window.CatCore.gearEffectRows(id, lv + 1), out = [];
+  for (var i = 0; i < next.length; i++){
+    var before = '+0%';
+    for (var j = 0; j < now.length; j++) if (now[j].label === next[i].label){ before = now[j].text; break; }
+    if (before !== next[i].text) out.push(next[i].label + ' ' + before + ' → ' + next[i].text);
+  }
+  return out.join(' · ');
 }
 
 /* 뽑기 탭 — 잔액은 위 머리글에 있다. 1회·10회 두 카드, 지금 뽑기 레벨의 확률표 네 줄,
@@ -8887,15 +9086,17 @@ function shopGacha(d){
   codexRow(T('다음 레벨까지'), li + 1 < lvs.length
            ? TF('{n}번', { n: lvs[li + 1].atPulls - d.gacha.pulls }) : T('최고 레벨'), true);
   codexRow(T('레전더리 확정까지'), TF('{n}번', { n: gc.pity - d.gacha.pity }), true);
-  codexNote(TF('레전더리 없이 {n}번째가 되면 반드시 레전더리가 나옵니다. 가진 장비가 또 나오면 단계가 오르고, 5단계면 코인으로 돌려받습니다.',
-               { n: gc.pity }));
+  // 31단계: 중복은 단계 대신 조각 — 최대 단계가 10 이 됐다. 숫자는 표에서 읽는다.
+  codexNote(TF('레전더리 없이 {n}번째가 되면 반드시 레전더리가 나옵니다. 가진 장비가 또 나오면 조각이 되고, {m}단계면 코인으로 돌려받습니다.',
+               { n: gc.pity, m: gr.maxLevel }));
+  codexNote(T('\u{1F9E9} 중복은 조각이 됩니다 — 장비 탭에서 조각과 코인을 내고 강화하세요.'));
   if (lastGacha && lastGacha.length){
     codexSection(T('방금 뽑은 것'));
     for (var r = 0; r < lastGacha.length; r++){
       var x = lastGacha[r], it = gr.items[x.id];
-      var 결과 = x.kind === 'new' ? '\u{2728} ' + T('새 장비')
-               : x.kind === 'up'  ? '\u{2B06}\u{FE0F} ' + TF('단계 오름 ({n}단계)', { n: x.level })
-                                  : '\u{1FA99} ' + TF('환급 {n}', { n: x.refund });
+      var 결과 = x.kind === 'new'  ? '\u{2728} ' + T('새 장비')
+               : x.kind === 'copy' ? '\u{1F9E9} ' + T('조각 +1')
+                                   : '\u{1FA99} ' + TF('환급 {n}', { n: x.refund });
       codexRow(gearIcoHtml(x.id, 40, 20) + ' <span class="gtag g-' + x.grade + '">' + gr.gradeNames[x.grade] + '</span> ' + it.name,
                결과, true);
     }
@@ -8936,9 +9137,9 @@ function showGachaResult(results){
   var tiles = [];
   for (var i = 0; i < results.length; i++){
     var x = results[i], it = gr.items[x.id];
-    var 결과 = x.kind === 'new' ? '\u{2728} ' + T('새 장비')
-             : x.kind === 'up'  ? '\u{2B06}\u{FE0F} ' + TF('{n}단계', { n: x.level })
-                                : '\u{1FA99} ' + TF('환급 {n}', { n: x.refund });
+    var 결과 = x.kind === 'new'  ? '\u{2728} ' + T('새 장비')
+             : x.kind === 'copy' ? '\u{1F9E9} ' + T('조각 +1')   // 31단계 — 중복은 조각
+                                 : '\u{1FA99} ' + TF('환급 {n}', { n: x.refund });
     var tile = document.createElement('div');
     tile.className = 'grTile g-' + x.grade;
     // 정수 배 상자: 10장일 때 375px 폰의 한 장(약 65px) 안에 들어가는 크기, 1장일 때는 크게
