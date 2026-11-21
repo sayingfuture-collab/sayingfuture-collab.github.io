@@ -80,6 +80,13 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
 .card .lv{font-size:12px; opacity:.75; margin-top:2px}
 .card .ds{font-size:13px; opacity:.9; margin-top:8px; line-height:1.4}
 .card.off{ opacity:.45; cursor:default }
+/* 한 줄 카드(30단계) — 스테이지 고르는 화면 전용. 스테이지가 다섯이 되어 카드가 여섯 장인데, 보통 카드로는
+   폰(375×812)에서 스테이지 5와 "뒤로" 가 화면 아래로 밀렸다. 아이콘을 왼쪽에 두고 낮게 쌓아 한 화면에 다 넣는다. */
+.card.row{ flex:1 1 100%; max-width:340px; display:grid; grid-template-columns:44px 1fr; column-gap:10px;
+           align-items:center; text-align:left; padding:10px 14px }
+.card.row .ico{ grid-row:1 / span 2; font-size:28px; line-height:1; text-align:center }
+.card.row .nm{ margin-top:0 }
+.card.row .ds{ margin-top:2px }
 /* 장착 중인 카드 — 못 사는 카드와 같은 흐림 처리를 쓰면 "지금 쓰는 것"인지
    "못 사는 것"인지 라벨을 읽기 전엔 구분이 안 된다. 불투명하게 두고
    기존 강조색(포커스 아웃라인과 동일)으로 테두리만 준다. */
@@ -321,7 +328,7 @@ var EN = {
     bomber:  { name: 'Bomb Rat' }
   },
   bosses: { king1: 'Giant Rat', king2: 'Horde Chieftain', king3: 'Rat King' },
-  stages: { 1: 'Stage 1', 2: 'Stage 2', 3: 'Stage 3' },
+  stages: { 1: 'Stage 1', 2: 'Stage 2', 3: 'Stage 3', 4: 'Stage 4', 5: 'Stage 5' },
   meta: {
     power:  { name: 'Sharp Claws',   desc: 'Your attacks hit harder' },
     maxHp:  { name: 'Sturdy Body',   desc: 'More max HP' },
@@ -492,7 +499,9 @@ var EN = {
     '회복하고 계속하세요': 'Heal to continue',
     '처음부터 다시': 'Start from scratch',
     /* 25단계 — 스테이지 2 · 새총쥐 · 두목쥐 */
-    '스테이지 2가 열렸습니다': 'Stage 2 unlocked',
+    /* 30단계: "스테이지 N이/가 열렸습니다" 는 번호를 넣어 만든다. 조사는 번호의 끝자리 발음으로 고른다(셸의 STAGE_JOSA). */
+    '스테이지 {n}가 열렸습니다': 'Stage {n} unlocked',
+    '스테이지 {n}이 열렸습니다': 'Stage {n} unlocked',
     '스테이지 고르기': 'Choose Stage',
     '시작 화면으로': 'Back to title',
     '어느 스테이지를 할까요?': 'Which stage do you want to play?',
@@ -502,8 +511,8 @@ var EN = {
     '더 많고 단단한 쥐 · 코인 {n}배': 'More, tougher rats · {n}× coins',
     '스테이지 1의 쥐왕을 잡으면 열립니다': 'Unlocks after you defeat the Rat King in Stage 1',
     /* 28단계 — 스테이지 3 */
-    '스테이지 3이 열렸습니다': 'Stage 3 unlocked',
-    '스테이지 2의 쥐왕을 잡으면 열립니다': 'Clear Stage 2 to unlock',
+    // 30단계: 스테이지 3부터의 잠긴 카드는 앞 스테이지 번호를 넣어 만든다(스테이지 2 카드는 위의 옛 문구 그대로).
+    '스테이지 {n}의 쥐왕을 잡으면 열립니다': 'Clear Stage {n} to unlock',
     '<b>{name}</b>: 쥐 수 ×{a} · 체력 ×{b} · 피해 ×{c} · 보스 체력 ×{d} · 코인 ×{e}':
       '<b>{name}</b>: rats ×{a} · HP ×{b} · damage ×{c} · boss HP ×{d} · coins ×{e}',
     /* 28단계 2차 — 코인 배율이 1인 스테이지 */
@@ -985,7 +994,7 @@ var CONFIG = {
      숫자를 직접 읽고 고치기 때문이다.
      배율은 World.stageMult 가 읽는다(없으면 1 — evoMult 와 같은 방식).
      elites 의 hp 는 최종값이다(시간 배율·스테이지 체력 배율을 안 받는다 — 보스와 같다). */
-  stageOrder: [1, 2, 3],
+  stageOrder: [1, 2, 3, 4, 5],
   stages: {
     1: { id: 1, name: '스테이지 1' },
     2: { id: 2, name: '스테이지 2',
@@ -1002,7 +1011,35 @@ var CONFIG = {
          elites: [ { atMin: 2.5,  typeId: 'brute', hp: 300 },
                    { atMin: 7.5,  typeId: 'brute', hp: 900 },
                    { atMin: 12.5, typeId: 'brute', hp: 1500 } ] },
-    /* 28단계 — 스테이지 2를 사람이 맨몸 첫 판에 깼다(봇은 0/30). 스테이지 2를 고치지 않고 위에 하나 더 둔다.
+    /* 30단계 — 스테이지 2와 5(29단계까지의 스테이지 3) 사이에 둘을 넣었다(계획/30-스테이지-5개-명세.md 3절).
+       새 스테이지 3은 사용자가 가지·장비 없이 첫 판에 깼던 "28단계 1차 스테이지 3"을 기준으로 잡았다 —
+       쥐떼는 그보다 조금 가볍고, 그때 너무 빨리 녹았던 10분 보스·쥐왕만 올렸다(2.8 · 3.2).
+       폭탄쥐는 여기서 처음 나온다 — 더 늦게(4분) 더 적게(0.10). bossHpMult 는 보스 칸이 빠졌을 때의 기본값(첫 칸). */
+    3: { id: 3, name: '스테이지 3',
+         spawnMult: 1.45, enemyHpMult: 2.2, contactMult: 1.45,
+         bossHpMult: 2.2, bossContactMult: 1.15,
+         bossHpMults: [2.2, 2.8, 3.2],
+         coinMult: 1,
+         spawnOrder: ['mouse', 'rat', 'fat', 'slinger', 'bomber'],
+         spawnInfo: { slinger: { fromMin: 1.75, weight: 0.45, rampMin: 2 },
+                      bomber:  { fromMin: 4,    weight: 0.10, rampMin: 2 } },
+         elites: [ { atMin: 2.5,  typeId: 'brute', hp: 500 },
+                   { atMin: 7.5,  typeId: 'brute', hp: 1800 },
+                   { atMin: 12.5, typeId: 'brute', hp: 2400 } ] },
+    // 30단계 — 스테이지 3과 5의 가운데(쥐왕은 3.2 → 6.0 → 11 로 매번 약 1.9배).
+    4: { id: 4, name: '스테이지 4',
+         spawnMult: 1.6, enemyHpMult: 3.0, contactMult: 1.7,
+         bossHpMult: 3.2, bossContactMult: 1.2,
+         bossHpMults: [3.2, 4.4, 6.0],
+         coinMult: 1,
+         spawnOrder: ['mouse', 'rat', 'fat', 'slinger', 'bomber'],
+         spawnInfo: { slinger: { fromMin: 1.5, weight: 0.5,  rampMin: 2 },
+                      bomber:  { fromMin: 3,   weight: 0.15, rampMin: 2 } },
+         elites: [ { atMin: 2.5,  typeId: 'brute', hp: 800 },
+                   { atMin: 7.5,  typeId: 'brute', hp: 3500 },
+                   { atMin: 12.5, typeId: 'brute', hp: 5500 } ] },
+    /* 30단계: 아래는 29단계까지의 스테이지 3을 값 그대로 옮긴 것이다(id · name 만 5로). 주석의 "스테이지 3"은 그때의 이름이다.
+       28단계 — 스테이지 2를 사람이 맨몸 첫 판에 깼다(봇은 0/30). 스테이지 2를 고치지 않고 위에 하나 더 둔다.
        새 쥐는 없다: 스테이지 2의 쥐를 더 세고 더 많이 나오게 한다. 목표는 "풀강화 맨몸은 못 깨고,
        가지·장비를 다 갖추면 애써서 깬다"(명세 3.3 관문 B·C — 측정값은 계획/28-관문결과.md).
        1차 때 coinMult 는 1.75 로 고정했다(2차에서 1로 내렸다 — 아래).
@@ -1013,7 +1050,7 @@ var CONFIG = {
        이제 기준은 사용자의 실제 판이다. 쥐 수는 안 늘린다 — 잘하는 사람에게는 경험치만 더 주는 상이다.
        보스는 보스마다 따로 센다(bossHpMults, CONFIG.bosses 순서). bossHpMult 2.2 는 보스 칸이
        빠졌을 때의 기본값으로 남겨 둔다. 코인 배율은 1(사용자 결정). */
-    3: { id: 3, name: '스테이지 3',
+    5: { id: 5, name: '스테이지 5',
          spawnMult: 1.6, enemyHpMult: 3.9, contactMult: 1.95,
          bossHpMult: 2.2, bossContactMult: 1.25,
          // 5분 보스 ×2 · 10분 보스 ×3 · 쥐왕 ×5 (1차 2.2 기준). 첫 칸은 "다 갖춘 봇이 30판 중
@@ -1221,12 +1258,20 @@ var STAGE_IDS = CONFIG.stageOrder;
    잠긴 스테이지를 열면 안 된다. 그 밖의 값(문자열 "2", 99, 없음)은 전부 1.
    normalizeStarterSave 와 같은 이유로 core 에 둔다: shell 의 Save 는 Node 에서 못 돌린다.
    28단계: 스테이지 3은 스테이지 1·2를 각각 한 번 이상 깼을 때만(셋째 인자). 인자 둘로 부르면
-   셋째가 없으니 3은 늘 1이 되고, 2·1 동작은 예전 그대로다. */
-function normalizeStagePick(rawStage, stage1Clears, stage2Clears){
-  var c1 = typeof stage1Clears === 'number' && stage1Clears >= 1;
-  if (rawStage === 2 && c1) return 2;
-  if (rawStage === 3 && c1 && typeof stage2Clears === 'number' && stage2Clears >= 1) return 3;
-  return 1;
+   셋째가 없으니 3은 늘 1이 되고, 2·1 동작은 예전 그대로다.
+   30단계: 스테이지 N 은 1…N−1 을 전부 한 번 이상 깼을 때만. 둘째 인자부터 차례로 스테이지 1, 2, 3, 4…의
+   클리어 수다. 배열 하나로도 받는다(normalizeStagePick(4, [1, 1, 1])) — 셸이 stageOrder 를 훑어 만든 배열.
+   인자가 모자라면 그 스테이지는 잠긴 것이다. 번호를 손으로 나열하지 않으므로 스테이지가 늘어도 그대로다. */
+function normalizeStagePick(rawStage){
+  if (typeof rawStage !== 'number' || STAGE_IDS.indexOf(rawStage) < 0) return 1;
+  var list = arguments, off = 1;
+  if (Array.isArray(arguments[1])){ list = arguments[1]; off = 0; }
+  var pos = STAGE_IDS.indexOf(rawStage);
+  for (var i = 0; i < pos; i++){
+    var c = list[off + i];
+    if (typeof c !== 'number' || !(c >= 1)) return 1;
+  }
+  return rawStage;
 }
 
 /* ── 26단계: 스킬 트리 · 장비 · 뽑기 ─────────────────────────────────
@@ -4536,18 +4581,55 @@ var GROUND_PALETTES_S2 = {
             s:'#46435f', S:'#35324b', p:'#3b3d63', P:'#2d2f50', f:'#5e4a86' }
 };
 
-/* 28단계: 스테이지 3 바닥 — **붉은 기가 도는 밤**. 새 그림 없이 스테이지 2와 같은 무늬를 이 색으로만
+/* 30단계: 스테이지 3 바닥 — **짙은 청록 숲**. 같은 무늬를 색만 바꿔 굽는다(밤 → 새벽 → 낮, 뒤로 갈수록 조금 밝다).
+   청록은 주황 폭탄쥐(#e8622a) · 빨간 열매(#ff4b3a) · 빨간 예고 원의 보색 쪽이라 그것들이 가장 잘 튄다.
+   보석(파랑 #5ad1e8 · 초록 #6fe36a)과 색조가 가까우므로 바닥은 아주 어둡게 눌러 밝기 차이로 가른다.
+   꽃(f)은 청록·보석과 먼 어두운 자주로 둔다. 어느 칸도 가장 어두운 쥐보다 밝지 않다. */
+var GROUND_PALETTE_IDS_S3 = ['night3','dawn3','day3'];
+var GROUND_PALETTES_S3 = {
+  night3: { g:'#14282a', G:'#0f2023', h:'#1a3234', H:'#203b3d', d:'#0b191b',
+            s:'#2e3c3c', S:'#222e2e', p:'#1d3a33', P:'#152c27', f:'#4e3650' },
+  dawn3:  { g:'#173033', G:'#12282b', h:'#1e3a3d', H:'#254447', d:'#0e1f22',
+            s:'#344444', S:'#273535', p:'#22433b', P:'#1a342e', f:'#583c5a' },
+  day3:   { g:'#1b383b', G:'#163033', h:'#234346', H:'#2b4e51', d:'#122629',
+            s:'#3b4b4b', S:'#2d3b3b', p:'#284c43', P:'#1f3c35', f:'#624264' }
+};
+
+/* 30단계: 스테이지 4 바닥 — **잿빛 남색**. 스테이지 1 밤(#1a2233)보다 채도를 빼 회색에 가깝게 해서
+   "더 깊은 밤" 으로 보이게 한다. 차가운 색이라 주황·빨강이 튀고, 채도가 낮아 보석의 원색이 바닥과 안 섞인다.
+   꽃(f)은 보석의 청록과 먼 흐린 라벤더. 규칙은 위와 같다. */
+var GROUND_PALETTE_IDS_S4 = ['night4','dawn4','day4'];
+var GROUND_PALETTES_S4 = {
+  night4: { g:'#202430', G:'#1a1e28', h:'#282c39', H:'#303542', d:'#151821',
+            s:'#3a3d45', S:'#2b2e36', p:'#2c3240', P:'#222733', f:'#48425a' },
+  dawn4:  { g:'#262a36', G:'#20232e', h:'#2e323f', H:'#363b49', d:'#1a1c26',
+            s:'#40434b', S:'#31343c', p:'#323847', P:'#272c39', f:'#4f4861' },
+  day4:   { g:'#2c303c', G:'#252934', h:'#343845', H:'#3d4250', d:'#1f222b',
+            s:'#474a52', S:'#373a42', p:'#383e4d', P:'#2d323f', f:'#564e68' }
+};
+
+/* 28단계: 스테이지 3 바닥 — **붉은 기가 도는 밤**. 30단계부터 스테이지 5의 바닥이다(값 그대로, 이름만 _S5).
+   새 그림 없이 스테이지 2와 같은 무늬를 이 색으로만
    다시 굽는다(한눈에 다른 판으로 보이게). 규칙은 위와 같다: 어느 칸도 가장 어두운 쥐보다 밝지 않고,
    뒤로 갈수록 조금 밝다. 빨간 열매(#ff4b3a)와 색조가 겹치므로 채도와 밝기를 낮게 눌러 둔다 —
    열매는 이 바닥보다 몇 배 밝아서 밝기 차이로 튄다. 꽃(f)은 보석의 청록과 먼 자주로 둔다. */
-var GROUND_PALETTE_IDS_S3 = ['night3','dawn3','day3'];
-var GROUND_PALETTES_S3 = {
-  night3: { g:'#2a1a20', G:'#22141a', h:'#331f27', H:'#3d252e', d:'#1a1015',
+var GROUND_PALETTE_IDS_S5 = ['night5','dawn5','day5'];
+var GROUND_PALETTES_S5 = {
+  night5: { g:'#2a1a20', G:'#22141a', h:'#331f27', H:'#3d252e', d:'#1a1015',
             s:'#3e3238', S:'#2e252a', p:'#3a2228', P:'#2c1a1f', f:'#5a3048' },
-  dawn3:  { g:'#321e25', G:'#29181e', h:'#3b242c', H:'#452a34', d:'#20131a',
+  dawn5:  { g:'#321e25', G:'#29181e', h:'#3b242c', H:'#452a34', d:'#20131a',
             s:'#46383f', S:'#352a30', p:'#42272e', P:'#331e24', f:'#64364f' },
-  day3:   { g:'#3a2229', G:'#311c22', h:'#442931', H:'#4e303a', d:'#26161c',
+  day5:   { g:'#3a2229', G:'#311c22', h:'#442931', H:'#4e303a', d:'#26161c',
             s:'#4e3f46', S:'#3c2f35', p:'#4a2c33', P:'#3a2228', f:'#6e3c58' }
+};
+
+/* 30단계: 스테이지 → 바닥 팔레트 묶음. 셸이 굽기와 그리기에서 번호로 찾는다(손으로 === 2 / === 3 을 나열하지 않는다).
+   스테이지 1은 위의 GROUND_PALETTES 를 따로 굽는다 — 여기 없는 번호는 스테이지 1 바닥으로 그린다. */
+var GROUND_SETS = {
+  2: { ids: GROUND_PALETTE_IDS_S2, palettes: GROUND_PALETTES_S2 },
+  3: { ids: GROUND_PALETTE_IDS_S3, palettes: GROUND_PALETTES_S3 },
+  4: { ids: GROUND_PALETTE_IDS_S4, palettes: GROUND_PALETTES_S4 },
+  5: { ids: GROUND_PALETTE_IDS_S5, palettes: GROUND_PALETTES_S5 }
 };
 
 /* 장식. 12×12 격자, 화면에 24px 로 그린다(도트 하나 = 2px — 바닥 타일과 같은 배율).
@@ -5557,6 +5639,9 @@ root.CatArt = {
   GROUND_PALETTE_IDS: GROUND_PALETTE_IDS, GROUND_PALETTES: GROUND_PALETTES,
   GROUND_PALETTE_IDS_S2: GROUND_PALETTE_IDS_S2, GROUND_PALETTES_S2: GROUND_PALETTES_S2,
   GROUND_PALETTE_IDS_S3: GROUND_PALETTE_IDS_S3, GROUND_PALETTES_S3: GROUND_PALETTES_S3,
+  GROUND_PALETTE_IDS_S4: GROUND_PALETTE_IDS_S4, GROUND_PALETTES_S4: GROUND_PALETTES_S4,
+  GROUND_PALETTE_IDS_S5: GROUND_PALETTE_IDS_S5, GROUND_PALETTES_S5: GROUND_PALETTES_S5,
+  GROUND_SETS: GROUND_SETS,
   DECOR_IDS: DECOR_IDS, DECOR: DECOR
 };
 
@@ -5745,19 +5830,29 @@ var Save = (function(){
   var KNOWN_ACH_IDS = Ach.ACHIEVEMENTS.map(function(a){ return a.id; })
                         .concat(WEAPON_IDS.map(Ach.masteryId));
 
+  /* 스테이지 n 의 기록 칸 이름. 스테이지 1은 예전 그대로 best, 그 밖은 'best' + n(25단계 best2 · 28단계 best3 ·
+     30단계 best4 · best5). 칸 목록은 CONFIG.stageOrder 를 훑어 만든다 — 스테이지를 더할 때 표 한 줄만 고치면 된다. */
+  function bestKey(n){ return n === 1 ? 'best' : 'best' + n; }
   function fresh(){
     var lo = normalizeLoadoutSave(null, null);
-    return { coins: 0, meta: { power: 0, maxHp: 0, speed: 0, magnet: 0, xpGain: 0 },
+    var f = { coins: 0, meta: { power: 0, maxHp: 0, speed: 0, magnet: 0, xpGain: 0 },
              best: { sec: 0, level: 0, clears: 0 },
-             // 25단계 — 스테이지 2 최고 기록은 따로 센다(스테이지 1 기록 best 는 그 자리 그대로).
-             best2: { sec: 0, level: 0, clears: 0 },
-             best3: { sec: 0, level: 0, clears: 0 },   // 28단계 — 스테이지 3 기록(best2 와 같은 방식)
              stage: 1,          // 마지막에 고른 스테이지 — "다시 하기" 가 이걸로 시작한다
              unlocked: ['claw'], starter: 'claw',
              achievements: [],   // 달성한 도전과제 id (23단계)
              mastered: [],       // 만렙을 찍어 본 무기 id (23단계)
              // 26단계 — 가지 단계 · 가진/입은 장비 · 뽑은 횟수와 천장. 빈 모양은 core 가 만든다.
              tree: lo.tree, gear: lo.gear, gacha: lo.gacha };
+    // 25단계 — 스테이지 2부터의 최고 기록은 스테이지마다 따로 센다(스테이지 1 기록 best 는 그 자리 그대로).
+    for (var i = 1; i < CONFIG.stageOrder.length; i++)
+      f[bestKey(CONFIG.stageOrder[i])] = { sec: 0, level: 0, clears: 0 };
+    return f;
+  }
+  // stageOrder 순서의 클리어 수 배열 — normalizeStagePick 에 그대로 넘긴다.
+  function clearsList(d){
+    var out = [];
+    for (var i = 0; i < CONFIG.stageOrder.length; i++) out.push(d[bestKey(CONFIG.stageOrder[i])].clears);
+    return out;
   }
   function read(){
     try {
@@ -5779,16 +5874,17 @@ var Save = (function(){
         f.best[b] = safeStoredInt(o.best[b], Number.MAX_SAFE_INTEGER || 9007199254740991);
       // 옛 저장(25단계 이전)에는 best2·stage 칸이 없다 — 스테이지 2 기록은 0, 고른 스테이지는 1.
       // 28단계 이전 저장에는 best3 칸이 없다 — 스테이지 3 기록은 0. 같은 규칙으로 읽는다.
+      // 30단계: best4 · best5 도 같다. 옛 best3 은 옮기지 않고 새 스테이지 3의 기록으로 그대로 읽는다(명세 4절).
       var BEST_KEYS = ['sec', 'level', 'clears'];   // 고정 순서(새 코드에 for...in 금지)
-      var STAGE_BESTS = ['best2', 'best3'];
-      for (var sb = 0; sb < STAGE_BESTS.length; sb++){
-        var ob = o[STAGE_BESTS[sb]];
+      for (var sb = 1; sb < CONFIG.stageOrder.length; sb++){
+        var bk = bestKey(CONFIG.stageOrder[sb]);
+        var ob = o[bk];
         if (!ob || typeof ob !== 'object') continue;
         for (var b2 = 0; b2 < BEST_KEYS.length; b2++)
-          f[STAGE_BESTS[sb]][BEST_KEYS[b2]] = safeStoredInt(ob[BEST_KEYS[b2]], Number.MAX_SAFE_INTEGER || 9007199254740991);
+          f[bk][BEST_KEYS[b2]] = safeStoredInt(ob[BEST_KEYS[b2]], Number.MAX_SAFE_INTEGER || 9007199254740991);
       }
       // 잠긴 스테이지를 고른 채로 저장돼 있으면 1로 되돌린다(검증은 core 의 순수 함수가 한다).
-      f.stage = normalizeStagePick(o.stage, f.best.clears, f.best2.clears);
+      f.stage = normalizeStagePick(o.stage, clearsList(f));
       // 해금·장착은 core 의 순수 함수가 검증한다 (테스트로 고정돼 있다).
       var st = normalizeStarterSave(o);
       f.unlocked = st.unlocked;
@@ -5834,14 +5930,14 @@ var Save = (function(){
     // 스테이지별 최고 기록(25단계). 모르는 번호는 스테이지 1 — 기존 호출(인자 없음)과 같다.
     bestOf: function(stage){
       var d = this.get();
-      return stage === 2 ? d.best2 : stage === 3 ? d.best3 : d.best;
+      return (typeof stage === 'number' && stage !== 1 && CONFIG.stageOrder.indexOf(stage) >= 0) ? d[bestKey(stage)] : d.best;
     },
     // 스테이지 2는 스테이지 1의 쥐왕을 한 번이라도 잡으면 열린다. 1은 늘 열려 있다.
     // 28단계: 스테이지 3은 스테이지 1·2를 각각 한 번 이상 깨면 열린다.
+    // 30단계: 스테이지 N 은 1…N−1 을 전부 한 번 이상 깨면 열린다(규칙은 core 의 normalizeStagePick).
     stageUnlocked: function(n){
       if (n === 1) return true;
-      var d = this.get();
-      return normalizeStagePick(n, d.best.clears, d.best2.clears) === n;
+      return normalizeStagePick(n, clearsList(this.get())) === n;
     },
     stage: function(){ return this.get().stage; },
     // 열린 스테이지만 고를 수 있다. 바뀌었을 때만 쓴다.
@@ -6113,11 +6209,11 @@ function drawBackground(camX, camY){
   /* 스테이지 2는 차가운 보랏빛 바닥(25단계). 시간대 경계(groundPhase)는 스테이지 1과 같다.
      굽기에 실패했거나 벌 수가 다르면 스테이지 1 바닥으로 떨어진다 — 화면이 비는 것보다 낫다. */
   var pats = GROUND_PATTERN, decors = DECOR_BAKED;
-  if (world.stage === 2 && GROUND_PATTERN_S2.length === GROUND_PATTERN.length){
-    pats = GROUND_PATTERN_S2; decors = DECOR_BAKED_S2;
-  } else if (world.stage === 3 && GROUND_PATTERN_S3.length === GROUND_PATTERN.length){
-    // 28단계 — 스테이지 3은 같은 무늬를 붉은 밤 색으로 구운 것. 실패하면 위와 같이 스테이지 1 바닥.
-    pats = GROUND_PATTERN_S3; decors = DECOR_BAKED_S3;
+  // 30단계: 스테이지 2~5 는 같은 무늬를 스테이지마다 색만 바꿔 구운 것(GROUND_BAKED[번호]).
+  // 표에 없거나 굽기에 실패했으면 위와 같이 스테이지 1 바닥.
+  var gb = GROUND_BAKED[world.stage];
+  if (gb && gb.pats.length === GROUND_PATTERN.length){
+    pats = gb.pats; decors = gb.decors;
   }
   if (ph.fade < 1){
     // 이전 시간대를 꽉 채운 뒤 새 시간대를 그 위에 서서히 덮는다.
@@ -6280,11 +6376,10 @@ function validDecorRows(rows){
    반쯤 채워 두면 어떤 시간대에서만 화면이 비는 편이 더 나쁘다. */
 var GROUND_PATTERN = [];
 var DECOR_BAKED = [];
-var GROUND_PATTERN_S2 = [];   // 25단계 스테이지 2 바닥. 규칙은 위 두 칸과 똑같다.
-var DECOR_BAKED_S2 = [];
-var GROUND_PATTERN_S3 = [];   // 28단계 스테이지 3 바닥. 같은 규칙, 색만 다르다.
-var DECOR_BAKED_S3 = [];
-// 스테이지 2 바닥은 스테이지 1 굽기가 성공한 다음에 같은 절차로 굽는다(아래 bakeGroundAll 끝).
+/* 스테이지 2부터의 바닥(25단계 스테이지 2 · 28단계 스테이지 3 · 30단계 스테이지 3~5). 번호 → { pats, decors }.
+   규칙은 위 두 칸과 똑같고 색만 다르다. 구운 것만 들어간다 — 없는 번호는 스테이지 1 바닥으로 그린다. */
+var GROUND_BAKED = {};
+// 스테이지 2부터의 바닥은 스테이지 1 굽기가 성공한 다음에 같은 절차로 굽는다(아래 bakeGroundAll 끝).
 function bakeGroundSet(ids, palettes){
   if (!ids || !palettes) return null;
   var pats = [], decors = [];
@@ -6329,10 +6424,15 @@ function bakeGroundSet(ids, palettes){
   }
   GROUND_PATTERN = pats;
   DECOR_BAKED = decors;
-  var s2 = bakeGroundSet(ART.GROUND_PALETTE_IDS_S2, ART.GROUND_PALETTES_S2);
-  if (s2){ GROUND_PATTERN_S2 = s2.pats; DECOR_BAKED_S2 = s2.decors; }
-  var s3 = bakeGroundSet(ART.GROUND_PALETTE_IDS_S3, ART.GROUND_PALETTES_S3);
-  if (s3){ GROUND_PATTERN_S3 = s3.pats; DECOR_BAKED_S3 = s3.decors; }
+  // 30단계: stageOrder 를 훑어 art 의 GROUND_SETS 에 있는 번호만 굽는다. 하나가 실패해도 그 스테이지만 스테이지 1 바닥이 된다.
+  if (!ART.GROUND_SETS) return;
+  for (var si = 0; si < CONFIG.stageOrder.length; si++){
+    var sid = CONFIG.stageOrder[si];
+    var gs = ART.GROUND_SETS[sid];
+    if (!gs) continue;
+    var baked = bakeGroundSet(gs.ids, gs.palettes);
+    if (baked) GROUND_BAKED[sid] = baked;
+  }
 })();
 
 var DECOR_CELL = 96;         // 장식 한 칸의 크기(px)
@@ -7195,8 +7295,8 @@ function drawHud(){
   ctx.textAlign = 'left';
   ctx.fillStyle = '#f7efd8';
   // 스테이지 2 판에만 앞에 S2 를 붙인다(25단계). 스테이지 1 글자 줄은 예전 그대로다.
-  // 28단계: 스테이지 3 판은 S3.
-  ctx.fillText((world.stage === 2 ? 'S2 ' : world.stage === 3 ? 'S3 ' : '') +
+  // 28단계: 스테이지 3 판은 S3. 30단계: 번호를 그대로 붙인다(S4 · S5).
+  ctx.fillText((world.stage >= 2 ? 'S' + world.stage + ' ' : '') +
                'Lv.' + world.level + '   ' + mm + ':' + (ss < 10 ? '0' : '') + ss +
                '   ' + TF('잡은 쥐 {n}', { n: world.kills }) +
                '   \u{1FA99} ' + Math.floor(world.coins), pad, pad + 44);
@@ -7513,7 +7613,7 @@ var stageJustUnlocked = false;
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = 'e5508b6';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = '4a61ece';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -7928,14 +8028,17 @@ function bankRun(cleared){
   runBanked = true;
   RunSave.clear();                   // 끝난 판은 이어할 것이 없다
   Save.addCoins(world.coins);
-  var stage2WasLocked = !Save.stageUnlocked(2);
-  var stage3WasLocked = !Save.stageUnlocked(3);
+  // 깨기 전에 잠겨 있던 스테이지들(stageOrder 순서, 스테이지 1은 늘 열려 있어 뺀다).
+  var wasLocked = [];
+  for (var wl = 1; wl < CONFIG.stageOrder.length; wl++) wasLocked.push(!Save.stageUnlocked(CONFIG.stageOrder[wl]));
   // 최고 기록은 스테이지별로 따로 센다(25단계).
   if (!runTainted) Save.recordRun(Math.floor(world.elapsed), world.level, cleared, world.stage);
   // 스테이지 1 쥐왕을 처음 잡은 판 — 결과 화면에 "열렸습니다" 한 줄을 띄운다.
   // 28단계: 스테이지 2 쥐왕을 처음 잡은 판이면 스테이지 3. 값은 방금 열린 스테이지 번호다.
-  if (stage2WasLocked && Save.stageUnlocked(2)) stageJustUnlocked = 2;
-  else if (stage3WasLocked && Save.stageUnlocked(3)) stageJustUnlocked = 3;
+  // 30단계: 번호를 훑어 "깨기 전 잠겨 있다가 깬 뒤 열린" 첫 번호. 마지막 스테이지를 깨면 열릴 것이 없다.
+  for (var nl = 1; nl < CONFIG.stageOrder.length; nl++){
+    if (wasLocked[nl - 1] && Save.stageUnlocked(CONFIG.stageOrder[nl])){ stageJustUnlocked = CONFIG.stageOrder[nl]; break; }
+  }
   // "다시 하기" 는 방금 한 스테이지를 다시 한다. 이어하기로 들어온 판이라 고른 스테이지와
   // 다를 수 있으므로 여기서 맞춰 둔다(잠긴 스테이지면 setStage 가 스스로 거절한다).
   Save.setStage(world.stage);
@@ -8016,11 +8119,17 @@ function stageResultHtml(){
   // 28단계: 스테이지 2 이상이면 이름을 붙인다(스테이지 1은 여전히 아무것도 안 붙는다).
   if (world.stage >= 2 && CONFIG.stages[world.stage])
     out += '<small>' + escapeHtml(CONFIG.stages[world.stage].name) + '</small><br>';
-  if (stageJustUnlocked === 2)
-    out += '<b>\u{1F513} ' + T('스테이지 2가 열렸습니다') + '</b><br>';
-  else if (stageJustUnlocked === 3)
-    out += '<b>\u{1F513} ' + T('스테이지 3이 열렸습니다') + '</b><br>';
+  // 30단계: 번호를 넣어 만든다. 화면 글자는 예전과 같다(스테이지 2가 · 스테이지 3이).
+  if (typeof stageJustUnlocked === 'number' && CONFIG.stages[stageJustUnlocked])
+    out += '<b>\u{1F513} ' + stageUnlockedText(stageJustUnlocked) + '</b><br>';
   return out;
+}
+/* "스테이지 N이/가 열렸습니다". 조사는 번호 끝자리의 한국어 발음으로 고른다
+   (영·일·삼·육·칠·팔 → 이, 이·사·오·구 → 가). 영어는 둘 다 'Stage {n} unlocked'. */
+var STAGE_JOSA = ['이', '이', '가', '이', '가', '가', '이', '이', '이', '가'];
+function stageUnlockedText(n){
+  return STAGE_JOSA[n % 10] === '가' ? TF('스테이지 {n}가 열렸습니다', { n: n })
+                                    : TF('스테이지 {n}이 열렸습니다', { n: n });
 }
 
 /* 결과 화면의 "스테이지 고르기" 카드(25단계). "다시 하기"(overlayBtn)는 방금 한 스테이지를
@@ -9260,7 +9369,14 @@ function showStagePick(){
   rerollBtn.style.display = 'none';
   overlayBtn.style.display = 'none';
 
-  appendCard('<div class="ico">\u{25B6}\u{FE0F}</div>' +
+  // 30단계: 이 화면의 카드는 전부 낮은 한 줄 카드다(.card.row) — 여섯 장이 폰 한 화면에 들어가게.
+  function rowCard(html, onActivate, disabled){
+    var el = appendCard(html, onActivate, disabled);
+    el.className += ' row';
+    return el;
+  }
+
+  rowCard('<div class="ico">\u{25B6}\u{FE0F}</div>' +
              '<div class="nm">' + escapeHtml(CONFIG.stages[1].name) + '</div>' +
              '<div class="ds">' + T('기본 난이도') + '</div>',
              function(){ Save.setStage(1); 새판시작(); }, false);
@@ -9269,7 +9385,7 @@ function showStagePick(){
   function stageCard(sid){
     var st = CONFIG.stages[sid];
     if (Save.stageUnlocked(sid)){
-      appendCard('<div class="ico">\u{1F525}</div>' +
+      rowCard('<div class="ico">\u{1F525}</div>' +
                  '<div class="nm">' + escapeHtml(st.name) + '</div>' +
                  // 28단계 2차: 코인 배율이 1이면 "코인 1배" 라고 적지 않는다(이상하다).
                  '<div class="ds">' + (st.coinMult === 1 ? T('더 많고 단단한 쥐')
@@ -9277,15 +9393,17 @@ function showStagePick(){
                  function(){ Save.setStage(sid); 새판시작(); }, false);
     } else {
       // 잠긴 카드는 눌러도 아무 일도 없다(appendCard 의 disabled). 여는 조건을 같이 적는다.
-      appendCard('<div class="ico">\u{1F512}</div>' +
+      rowCard('<div class="ico">\u{1F512}</div>' +
                  '<div class="nm">' + escapeHtml(st.name) + '</div>' +
+                 // 30단계: 스테이지 3부터는 바로 앞 스테이지 번호를 넣는다(stageOrder 에서 하나 앞).
                  '<div class="ds">' + (sid === 2 ? T('스테이지 1의 쥐왕을 잡으면 열립니다')
-                                                 : T('스테이지 2의 쥐왕을 잡으면 열립니다')) + '</div>',
+                                                 : TF('스테이지 {n}의 쥐왕을 잡으면 열립니다',
+                                                      { n: CONFIG.stageOrder[CONFIG.stageOrder.indexOf(sid) - 1] })) + '</div>',
                  null, true);
     }
   }
   for (var si = 1; si < CONFIG.stageOrder.length; si++) stageCard(CONFIG.stageOrder[si]);
-  appendCard('<div class="ico">\u{21A9}\u{FE0F}</div>' +
+  rowCard('<div class="ico">\u{21A9}\u{FE0F}</div>' +
              '<div class="nm">' + T('뒤로') + '</div>' +
              '<div class="ds">' + T('시작 화면으로') + '</div>',
              function(){ showStartScreen(); }, false);
