@@ -197,13 +197,27 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
 /* 장비 탭 — 부위 세 칸은 한 줄, 장비 카드는 진화 카드처럼 한 줄에 두 장(320px 폰 계산은 .card.evo 주석). */
 .card.slot{ flex:1 1 0; min-width:0; padding:10px 4px; cursor:default }
 .card.slot .ico{ font-size:28px }
-.card.gear{ flex:1 1 130px; max-width:190px; padding:12px 8px }
-.card.gear .ds{ font-size:12px; word-break:keep-all }
+/* 장비 카드 — 가로형 한 줄(왼쪽에 도트 그림, 오른쪽에 이름 · 단계 · 효과). 31단계에서 강화 카드가 생기며
+   세로형 카드가 한 줄에 한 장씩 좁게 놓였고(그 아래 강화 카드만 넓었다) 12종이면 화면 네 개 분량이었다.
+   가로형으로 눕혀 길이를 줄이고, 강화 카드와 **한 상자**로 묶는다(강화 탭의 묶음 상자와 같은 규칙):
+   장비 카드가 상자의 머리(.grp — 위만 둥글다), 강화 카드가 틈 없이 붙은 바닥(아래만 둥글다)이다.
+   카드는 여전히 #cards 의 형제 버튼들이다 — 위를 누르면 입기/벗기, 아래를 누르면 강화. */
+.card.gear{ flex:0 0 100%; max-width:none; padding:10px 12px; text-align:left;
+            display:grid; grid-template-columns:82px 1fr; column-gap:10px; align-items:center }
+.card.gear .ico{ grid-row:1 / span 3; line-height:1; text-align:center }
+.card.gear .nm{ margin-top:0 }
+.card.gear .ds{ font-size:12px; word-break:keep-all; margin-top:4px }
+.card.gear.grp{ border-radius:14px 14px 0 0 }
 .card.worn{ box-shadow:0 0 0 2px #f7efd8 inset }
-/* 31단계 — 강화 카드. 가진 장비 카드 바로 뒤에 붙는 한 줄짜리 카드로, 강화 탭의 가지 카드(.branch)와 같은 틀이다. */
-.card.upg{ flex:0 0 calc(100% - 24px); max-width:none; margin-left:24px; min-height:44px;
-           border-left:6px solid #b8cc8a; padding:10px 12px }
-.card.upg .ds{ font-size:12px; word-break:keep-all }
+/* 강화 카드 — 장비 카드 바로 뒤에 붙는 상자의 바닥. 테두리는 그 장비의 등급 색(g-등급)을 이어받는다. */
+.card.upg{ flex:0 0 100%; max-width:none; margin:-12px 0 0 0; min-height:44px;
+           border-top-width:0; border-radius:0 0 14px 14px; padding:10px 12px; text-align:left;
+           background:#1b2415 }
+.card.upg .nm{ font-size:14px }
+.card.upg .ds{ font-size:12px; word-break:keep-all; margin-top:4px }
+/* 못 올리는 강화 카드는 통째로 흐리게 하지 않고 글자만 흐리게 한다(상자 테두리가 끊겨 보이지 않게). */
+.card.upg.off{ opacity:1 }
+.card.upg.off > div{ opacity:.5 }
 /* 27단계 — 장비 도트 아이콘은 정수 배로만 키운다(gearIcoHtml). 미리보기 고양이는 26×32 그림판의 5배. */
 .gearIco{ image-rendering:pixelated; vertical-align:middle }
 .gearPreviewBox{ flex:0 0 100%; display:flex; justify-content:center }
@@ -7797,7 +7811,7 @@ var stageJustUnlocked = false;
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = 'b8412e8';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = '8ca22404';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -9039,7 +9053,7 @@ function shopGear(d){
                    : 입음 ? '<b>' + T('입는 중') + '</b> · ' + T('누르면 벗기')
                           : T('입기');
         var 조각 = owned && d.gear.copies && d.gear.copies[id] > 0 ? d.gear.copies[id] : 0;   // 31단계
-        appendCard('<div class="ico">' + gearIcoHtml(id, 78, 40) + '</div>' +
+        var 장비카드 = appendCard('<div class="ico">' + gearIcoHtml(id, 78, 40) + '</div>' +
                    '<div class="nm">' + it.name + '</div>' +
                    '<div class="lv">' + gc.gradeNames[it.grade] +
                      (owned ? ' · ' + lv + ' / ' + gc.maxLevel : '') +
@@ -9051,30 +9065,35 @@ function shopGear(d){
                      else if (Save.equipGear(id) && slot !== 'shoes') gearPreviewLift[slot] = 5;
                      rebakePlayerCat(Save.get().gear.equipped);
                      showShop();
-                   }, !owned).className += ' gear g-' + it.grade + (입음 ? ' worn' : '');
-        if (owned && lv < gc.maxLevel) shopGearUpgradeCard(d, id, lv, 조각);
+                   }, !owned);
+        장비카드.className += ' gear g-' + it.grade + (입음 ? ' worn' : '');
+        // 묶음 상자: 강화 카드가 붙으면 장비 카드가 상자의 머리(grp)가 된다.
+        if (owned && lv < gc.maxLevel && shopGearUpgradeCard(d, id, lv, 조각)) 장비카드.className += ' grp';
       })(gc.order[gi], slot);
     }
   }
 }
 
 /* 31단계 — 강화 카드. 가진 장비(최대 단계 미만) 카드 **바로 뒤의 형제 카드** 한 장.
-   강화 탭의 가지 카드(.branch)와 같은 틀(들여쓰기 · 왼쪽 선)이라 "위 장비에 딸린 것" 으로 읽힌다.
+   장비 카드와 틈 없이 붙어 한 상자가 된다(위가 장비, 아래가 강화 — .card.upg 주석). 테두리는 장비의 등급 색.
    ⚠️ class 에 gear·worn 글자를 넣지 않는다 — 기존 화면 시험이 그 글자로 장비 카드를 찾는다(장비 이름도 안 넣는다).
-   내용: 다음 단계 · 조각 지금/필요 · 코인 · 효과 지금 → 다음. 모자라면 흐리게 하고 무엇이 모자란지 적는다. */
+   내용: 다음 단계 · 조각 지금/필요 · 코인 · 효과 지금 → 다음. 모자라면 글자를 흐리게 하고 무엇이 모자란지 적는다.
+   만든 카드를 돌려준다(없으면 null) — 부르는 쪽이 장비 카드를 상자의 머리(grp)로 만든다. */
 function shopGearUpgradeCard(d, id, lv, 조각){
   var cost = gearUpgradeCost(id, lv);
-  if (!cost) return;
+  if (!cost) return null;
   var 조각줄 = cost.copies === 0 ? T('조각 필요 없음') : TF('조각 {a} / {b}', { a: 조각, b: cost.copies });
   var 모자람 = [];
   if (조각 < cost.copies) 모자람.push(TF('조각이 {n}개 모자랍니다', { n: cost.copies - 조각 }));
   if (d.coins < cost.coins) 모자람.push(T('코인이 모자랍니다'));
-  appendCard('<div class="nm">\u{2B06}\u{FE0F} ' + TF('{n}단계로', { n: lv + 1 }) + '</div>' +
+  var 카드 = appendCard('<div class="nm">\u{2B06}\u{FE0F} ' + TF('{n}단계로', { n: lv + 1 }) + '</div>' +
              '<div class="ds">' + 조각줄 + ' · \u{1FA99} ' + cost.coins.toLocaleString('en-US') +
              '<br>' + gearUpgradeEffect(id, lv) +
              (모자람.length ? '<br>' + 모자람.join(' · ') : '') + '</div>',
              function(){ if (Save.upgradeGear(id)) showShop('gear'); },
-             모자람.length > 0).className += ' upg';
+             모자람.length > 0);
+  카드.className += ' upg g-' + CONFIG.gear.items[id].grade;
+  return 카드;
 }
 
 // 강화 카드의 효과 줄: 바뀌는 줄만 "이름 지금 → 다음". 6단계에 처음 붙는 공격 효과는 +0% 에서 시작한다.
