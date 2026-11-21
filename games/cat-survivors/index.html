@@ -174,8 +174,26 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
 /* 26단계 상점 — 강화 탭은 줄기 한 장마다 한 줄을 다 쓰고, 그 밑의 가지는 들여쓰고 왼쪽 선을 둘러
    "딸린 것" 임을 보이게 한다. 한 줄씩이라 폰에서도 순서가 안 섞인다. 높이는 그대로 44px 이상. */
 .card.trunk{ flex:0 0 100%; max-width:none }
-.card.branch{ flex:0 0 calc(100% - 24px); max-width:none; margin-left:24px; min-height:44px;
-              border-left:6px solid #b8cc8a; padding:10px 12px }
+/* 묶음 상자(31단계 뒤 사용자 말: "뭐가 뭐의 줄기인지 모르겠다"). 예전에는 가지 카드를 조금 들여쓰기만 해서
+   줄기 카드와 거의 같아 보였고, 스크롤로 줄기가 화면 밖에 나가면 누구의 가지인지 알 수 없었다.
+   이제 줄기 한 장과 그 가지들이 **한 상자**로 붙는다: 줄기는 상자의 머리(위만 둥글다), 가지는 그 아래에
+   틈 없이 이어 붙고(#cards 의 줄 간격 12px 를 음수 여백으로 되돌린다) 왼쪽 세로선에 매달린 줄로 보인다.
+   마지막 가지(.last)가 상자의 바닥(아래만 둥글다)이고 세로선도 거기서 끝난다.
+   카드는 여전히 #cards 의 형제 버튼들이다 — 감싸는 요소를 두지 않아 화면 시험이 세는 카드 수가 그대로다. */
+.card.trunk.grp{ border-radius:14px 14px 0 0; margin-top:6px }
+.card.branch{ flex:0 0 100%; max-width:none; margin:-12px 0 0 0; min-height:44px; position:relative;
+              border-top-width:0; border-radius:0; padding:10px 12px 10px 48px; text-align:left;
+              background:#1b2415 }
+.card.branch.last{ border-radius:0 0 14px 14px }
+.card.branch::before{ content:''; position:absolute; left:22px; top:0; bottom:0; width:2px; background:#7a8f5c }
+.card.branch.last::before{ bottom:50% }
+.card.branch::after{ content:''; position:absolute; left:22px; top:50%; width:16px; height:2px; background:#7a8f5c }
+/* 상자 안에서는 못 사는 카드를 통째로 흐리게 하지 않는다 — 테두리와 세로선까지 흐려지면 상자가 끊겨 보인다.
+   글자만 흐리게 한다(최대 단계인 줄기 머리는 읽혀야 하므로 덜 흐리게). */
+.card.trunk.grp.off{ opacity:1 }
+.card.trunk.grp.off > div{ opacity:.72 }
+.card.branch.off{ opacity:1 }
+.card.branch.off > div{ opacity:.5 }
 /* 장비 탭 — 부위 세 칸은 한 줄, 장비 카드는 진화 카드처럼 한 줄에 두 장(320px 폰 계산은 .card.evo 주석). */
 .card.slot{ flex:1 1 0; min-width:0; padding:10px 4px; cursor:default }
 .card.slot .ico{ font-size:28px }
@@ -559,6 +577,8 @@ var EN = {
     '방금 뽑은 것': 'Just Pulled',
     '새 장비': 'New gear',
     /* 31단계 — 조각 강화 · 공격 가지 · 쥐떼 피해 */
+    '줄기': 'Trunk',
+    '{name}의 가지 · 단계 {a} / {b}': 'Branch of {name} · Step {a} / {b}',
     '조각 +1': 'Shard +1',
     '\u{1F9E9} 중복은 조각이 됩니다 — 장비 탭에서 조각과 코인을 내고 강화하세요.':
       '\u{1F9E9} Duplicates become shards — spend shards and coins in the Gear tab to upgrade.',
@@ -7777,7 +7797,7 @@ var stageJustUnlocked = false;
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '910849d';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = 'b8412e8';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -8851,19 +8871,23 @@ function shopUpgrades(d){
       var effect = (cost === null)
         ? nowText + T(' (최대)')
         : nowText + ' → ' + metaEffectText(key, step + 1);
-      appendCard('<div class="ico">' + m.emoji + '</div>' +
+      var 줄기카드 = appendCard('<div class="ico">' + m.emoji + '</div>' +
                  '<div class="nm">' + m.name + '</div>' +
-                 '<div class="lv">' + step + ' / ' + CONFIG.meta.maxStep + '</div>' +
+                 '<div class="lv">' + T('줄기') + ' · ' + step + ' / ' + CONFIG.meta.maxStep + '</div>' +
                  '<div class="ds">' + m.desc + '<br>' + effect + '<br>' +
                  (cost === null ? T('최대 강화') : '\u{1FA99} ' + cost) + '</div>',
                  function(){
                    if (Save.buy(key)) showShop();     // 사고 나서 화면을 다시 그린다
-                 }, !buyable).className += ' trunk';
+                 }, !buyable);
+      줄기카드.className += ' trunk';
       // 이 줄기의 가지들. tree.order 고정 순서(for...in 금지).
+      // 묶음 상자: 가지가 하나라도 있으면 줄기가 상자의 머리(grp)가 되고, 마지막 가지가 바닥(last)이 된다.
+      var 마지막가지 = null;
       for (var b = 0; b < CONFIG.tree.order.length; b++){
         var bid = CONFIG.tree.order[b];
-        if (CONFIG.tree[bid].trunk === key) shopBranchCard(d, bid);
+        if (CONFIG.tree[bid].trunk === key) 마지막가지 = shopBranchCard(d, bid);
       }
+      if (마지막가지){ 줄기카드.className += ' grp'; 마지막가지.className += ' last'; }
     })(keys[i]);
   }
 }
@@ -8873,10 +8897,11 @@ function shopBranchCard(d, id){
   var b = CONFIG.tree[id], m = CONFIG.meta[b.trunk];
   var 머리 = '<div class="nm">' + b.emoji + ' ' + b.name + '</div>';
   if (d.meta[b.trunk] < b.needStep){
-    appendCard(머리 + '<div class="ds">' +
+    var 잠긴 = appendCard(머리 + '<div class="ds">' +
                TF('\u{1F512} {name} {n}단계에서 열립니다', { name: m.name, n: b.needStep }) +
-               '<br>' + b.desc + '</div>', null, true).className += ' branch';
-    return;
+               '<br>' + b.desc + '</div>', null, true);
+    잠긴.className += ' branch';
+    return 잠긴;
   }
   var step = d.tree[id];
   var cost = treeCostOf(id, step);
@@ -8884,12 +8909,14 @@ function shopBranchCard(d, id){
   var 효과 = (cost === null)
     ? now.label + ' ' + now.text + T(' (최대)')
     : now.label + ' ' + now.text + ' → ' + window.CatCore.treeEffectAt(id, step + 1).text;
-  appendCard(머리 +
-             '<div class="lv">' + TF('단계 {a} / {b}', { a: step, b: b.maxStep }) + '</div>' +
+  var 카드 = appendCard(머리 +
+             '<div class="lv">' + TF('{name}의 가지 · 단계 {a} / {b}', { name: m.name, a: step, b: b.maxStep }) + '</div>' +
              '<div class="ds">' + b.desc + '<br>' + 효과 + '<br>' +
              (cost === null ? T('최대 강화') : '\u{1FA99} ' + cost) + '</div>',
              function(){ if (Save.buyTree(id)) showShop(); },
-             cost === null || d.coins < cost).className += ' branch';
+             cost === null || d.coins < cost);
+  카드.className += ' branch';
+  return 카드;   // 부르는 쪽이 그 줄기의 마지막 가지에 last 를 붙여 묶음 상자의 바닥으로 삼는다
 }
 
 // 무기 탭 — 예전 상점 아래쪽의 시작 무기 목록을 그대로 옮겼다.
