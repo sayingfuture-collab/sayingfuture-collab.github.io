@@ -98,6 +98,21 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
 .coopTurn{ display:inline-block; padding:2px 12px; margin-bottom:6px; border-radius:999px;
            font-size:14px; font-weight:800; letter-spacing:0; color:#1a1408 }
 .coopKeys{ flex:0 0 100%; text-align:center; font-size:13px; opacity:.8 }
+/* 37단계: 협동 카드 화면 — 반쪽마다(왼쪽 1P · 오른쪽 2P) 따로 덮고 둘이 동시에 고른다. 반쪽이 좁아 카드는 세로로 쌓는다 */
+#coopPick{ position:fixed; inset:0; z-index:20; display:none; color:#f7efd8; font-family:system-ui,sans-serif }
+#coopPick.on{ display:flex }
+.cpHalf{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+         gap:10px; padding:20px 16px; background:rgba(10,14,8,.84); overflow-y:auto }
+.cpHalf + .cpHalf{ border-left:3px solid #0b0f1a }
+.cpTitle{ font-size:clamp(18px,4vmin,28px); font-weight:800; letter-spacing:.04em; text-align:center }
+.cpStat{ font-size:14px; opacity:.9; text-align:center }
+.cpCards{ display:flex; flex-direction:column; gap:8px; width:100%; max-width:360px }
+.cpCards .card.row{ max-width:none; flex:0 0 auto }
+.cpCards .card.row .nm small{ font-weight:400; opacity:.75 }
+.cpReroll{ min-height:44px; padding:10px 20px; font-size:15px; font-weight:800; cursor:pointer;
+           background:#5a4a6a; color:#f0e8f8; border:none; border-radius:12px; font-family:inherit }
+.cpWait{ text-align:center; line-height:1.8; font-size:16px; font-weight:700 }
+.cpWait b{ font-size:22px }
 /* 36단계: 협동 결과 화면의 성적표 — 고양이마다 한 칸(테두리는 그 고양이 색). 좁아서 둘이 안 들어가면 위아래로 */
 .coopReport{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:4px 0 8px }
 .coopCol{ flex:1 1 150px; max-width:240px; border:2px solid; border-radius:10px; padding:6px 10px;
@@ -307,6 +322,7 @@ body{touch-action:none;user-select:none;-webkit-user-select:none}
   <button id="overlayBtn"></button>
   <button id="shopBtn">강화 상점</button>
 </div>
+<div id="coopPick"><div class="cpHalf"></div><div class="cpHalf"></div></div>
 
 <script id="i18n">
 /* ================================================================
@@ -500,6 +516,12 @@ var EN = {
     'W A S D 로 움직이기': 'Move with W A S D',
     '방향키로 움직이기': 'Move with the arrow keys',
     '카드: 1P A · D · 스페이스 / 2P ← · → · 엔터': 'Cards: 1P A · D · Space / 2P ← · → · Enter',
+    // 37단계: 협동 카드를 반쪽마다 각자
+    '골랐어요': 'Picked',
+    '친구가 고르는 중…': 'Your friend is picking…',
+    '친구가 진화를 고르는 중…': 'Your friend is evolving…',
+    '5성 무기가 없어요': 'No 5-star weapon',
+    '남은 카드 {n}장': '{n} cards left',
     // 35단계: 시작 화면의 "둘이서" 카드 · 협동의 스테이지 고르기 키 안내
     '둘이서': 'Two Players',
     '한 키보드로 같이 하기': 'Play together on one keyboard',
@@ -763,9 +785,9 @@ var CONFIG = {
      revive(34단계 — 계획/34-협동-규칙-명세.md 2.1): 쓰러진 고양이의 반경 radius 안에 서 있는 고양이가 sec 초 있으면
      최대 체력의 hpPct% · 무적 invulnSec 초로 일어난다. 출발값 — 사용자가 해 보고 고친다.
      coinMult(36단계 — 계획/36-협동-다듬기-명세.md 2.3): 협동 판에서 코인이 더해질 때마다 한 번 곱한다(쥐 · 보스 상자).
-     0.7 = 2인 봇의 분당 코인이 1인 봇의 1.42배(스테이지 1·2 · 강화 0/풀강화 평균)라서(계획/36-관문결과.md).
-     spawnMult · enemyHpMult · bossHpMult 는 36단계에 봇으로 재 보고 그대로 뒀다(같은 문서). */
-  coop:   { arena: { w: 2304, h: 1664 }, spawnMult: 1.5, enemyHpMult: 1, bossHpMult: 1.8, startGap: 80, coinMult: 0.7,
+     37단계(각자 카드 — 두 고양이가 각자 혼자 할 때만큼 강해진다)에 2인 봇으로 다시 재서 정했다(계획/37-관문결과.md):
+     쥐 ×2.2 · 쥐 체력 ×2 · 보스 ×2.8 · 코인 ×0.44. (36단계는 쥐 ×1.5 · 쥐 체력 ×1 · 보스 ×1.8 · 코인 ×0.7) */
+  coop:   { arena: { w: 2304, h: 1664 }, spawnMult: 2.2, enemyHpMult: 2, bossHpMult: 2.8, startGap: 80, coinMult: 0.44,
             revive: { radius: 60, sec: 3, hpPct: 50, invulnSec: 2 } },
   pools:  { enemies: 400, projectiles: 300, gems: 600, particles: 200, fields: 12, warns: 24, nukes: 8,
             boxes: 2,          // 상자는 동시에 최대 하나지만 여유를 둔다
@@ -1989,13 +2011,12 @@ function World(config, metaLevels, loadout){
   this.catTurn = 0;
   this.spawnTurn = 0;
   /* 34단계(협동 규칙). down·reviveT 는 고양이마다(CAT_NUM_KEYS) — 쓰러졌나(0/1) · 일으키기가 찬 시간(초).
-     pickTurn: 다음 레벨업 카드를 고를 고양이 · pickCat: 지금 떠 있는 3택(rolledChoices)의 주인(없으면 −1) ·
-     evolveTurn: 진화 카드를 고를 고양이. 1인 판에서는 늘 0 · 0 · 0 · −1 · 0 이고 계산에 안 섞인다. */
+     37단계(각자 카드 — 계획/37-협동-각자-카드-명세.md): cardsOwed · evolveOwed 도 고양이마다 — 그 고양이가 아직
+     고를 레벨업 카드 수 · 진화 카드(0/1). 1인 판에서는 늘 0 이고 계산에 안 섞인다(1인 판은 pendingChoices · pendingEvolve 만 본다). */
   this.down = 0;
   this.reviveT = 0;
-  this.pickTurn = 0;
-  this.pickCat = -1;
-  this.evolveTurn = 0;
+  this.cardsOwed = 0;
+  this.evolveOwed = 0;
   /* 36단계(성적표). 고양이마다(CAT_NUM_KEYS) — 준 피해 합 · 쓰러진 횟수 · 친구를 일으킨 횟수.
      협동 판에서만 센다. 1인 판에서는 늘 0 이고 snapshot 에 안 들어간다. */
   this.dmgDone = 0;
@@ -2308,13 +2329,16 @@ World.prototype.setInput = function(x, y){
    _hit…·_bmI·_obI·_orbitCd·_chain…·_field·_proj·_pullDt·_fuse…(부를 때마다 다시 채우는 임시 칸). */
 var CAT_REF_KEYS = ['player', 'rawInput', 'moveDir', 'facing', 'aimDir',
                     'weapons', 'weaponOrder', 'evolved', 'passives',
+                    'rolledChoices',   // 37단계: 떠 있는 3택도 고양이마다(둘이 동시에 고른다)
                     'swingDir', 'beamDirs', 'orbitXs', 'orbitYs', 'chainX', 'chainY', 'companion'];
 var CAT_NUM_KEYS = ['starter', 'swingTimer', 'swingRadius', 'beamTimer', 'beamN', 'beamLen', 'beamHalfW',
                     'orbitAngle', 'orbitN', 'orbitR', 'galePush', 'chainTimer', 'chainShow', 'chainN',
                     // 34단계: 쓰러짐 · 일으키기 · 다시 뽑기 · 아홉 목숨도 고양이마다
                     'down', 'reviveT', 'rerollLeft', 'revivesLeft', 'revivesUsed',
                     // 36단계: 성적표 — 준 피해 합 · 쓰러진 횟수 · 친구를 일으킨 횟수
-                    'dmgDone', 'downs', 'rescues'];
+                    'dmgDone', 'downs', 'rescues',
+                    // 37단계: 아직 고를 레벨업 카드 수 · 진화 카드(0/1)
+                    'cardsOwed', 'evolveOwed'];
 
 // 지금 차례의 값을 그 묶음에 써 넣기만 한다. 1인 판이면 아무것도 안 한다.
 World.prototype.syncCat = function(){
@@ -2336,12 +2360,6 @@ World.prototype.useCat = function(k){
 // k 번 고양이가 쓰러져 있나(협동 전용). 지금 꺼내 둔 고양이는 World 칸이, 아니면 묶음이 최신이다.
 World.prototype.catDown = function(k){
   return (k === this.catTurn ? this.down : this.cats[k].down) !== 0;
-};
-// 지금 카드를 고를 고양이 번호. 차례(pickTurn)인 고양이가 쓰러져 있으면 다른 고양이가 대신 고른다. 1인 판은 0.
-World.prototype.picker = function(){
-  if (this.cats === null) return 0;
-  var t = this.pickTurn;
-  return this.catDown(t) ? 1 - t : t;
 };
 /* 일으키기(프레임에 한 번, updateCoop 이 부른다). 한 명만 쓰러져 있을 때 서 있는 고양이가 반경 안이면
    reviveT 가 dt 만큼 차고, 밖이면 같은 속도로 준다(0 아래로 안 간다). sec 에 닿으면 일어난다.
@@ -2400,6 +2418,7 @@ World.prototype.resetCoop = function(starterId, stageId){
   c1.weapons[this.starter] = { level: 1, cdLeft: 0 };
   c1.weaponOrder = [this.starter];
   c1.evolved = {};
+  c1.rolledChoices = null;   // 37단계
   c1.passives = {};
   for (i = 0; i < PASSIVE_IDS.length; i++) c1.passives[PASSIVE_IDS[i]] = 0;
   c1.swingDir = { x: 1, y: 0 };
@@ -2970,9 +2989,8 @@ World.prototype.reset = function(starterId, stageId){
   this.spawnTurn = 0;
   this.down = 0;          // 34단계 — 1인 판에서는 늘 0
   this.reviveT = 0;
-  this.pickTurn = 0;
-  this.pickCat = -1;
-  this.evolveTurn = 0;
+  this.cardsOwed = 0;     // 37단계 — 1인 판에서는 늘 0
+  this.evolveOwed = 0;
   this.dmgDone = 0;       // 36단계 — 협동 판에서만 센다(resetCoop 이 두 묶음에 이 0 을 옮긴다)
   this.downs = 0;
   this.rescues = 0;
@@ -4264,6 +4282,13 @@ World.prototype.checkLevelUp = function(){
     this.xp -= this.xpToNext();
     this.level++;
     this.pendingChoices++;
+    /* 37단계: 협동은 레벨 하나에 카드가 고양이마다 한 장(쓰러진 고양이도 받는다). pendingChoices 는 두 고양이의
+       남은 카드 합 — 셸은 이것이 0 이 될 때까지 판을 멈춘다. */
+    if (this.cats !== null){
+      this.pendingChoices++;
+      this.cardsOwed++;
+      this.cats[1 - this.catTurn].cardsOwed++;
+    }
     var p = this.player;
     p.hp += p.maxHp * this.config.level.healPerLvPct / 100;
     if (p.hp > p.maxHp) p.hp = p.maxHp;
@@ -4277,18 +4302,14 @@ World.prototype.checkLevelUp = function(){
   }
 };
 
-/* 레벨업 후보 3개. 1인 판은 rollChoicesNow 그대로.
-   협동(34단계): 고를 고양이(picker)를 꺼내 그 고양이의 무기·패시브·슬롯으로 만들고, 그 번호를 pickCat 에 적는다
-   (applyChoice · reroll 이 굴린 뒤에 누가 쓰러지거나 일어나도 이 값을 쓴다). 어느 길로 끝나든 0번 차례. */
-World.prototype.rollChoices = function(){
+/* 레벨업 후보 3개. 1인 판은 rollChoicesNow 그대로(인자를 안 본다).
+   협동(37단계): k 번 고양이(0 · 1, 안 주면 지금 꺼내 둔 고양이)를 꺼내 그 고양이의 무기·패시브·슬롯으로 만든다 — 3택은 그 고양이의
+   rolledChoices 에 남는다(셸은 world.cats[k].rolledChoices 로 읽는다). 어느 길로 끝나든 0번 차례. */
+World.prototype.rollChoices = function(k){
   if (this.cats === null) return this.rollChoicesNow();
-  var who = this.picker();
   try {
-    this.useCat(who);
-    this.pickCat = -1;
-    var out = this.rollChoicesNow();
-    this.pickCat = who;
-    return out;
+    this.useCat((k === 0 || k === 1) ? k : this.catTurn);
+    return this.rollChoicesNow();
   } finally {
     this.useCat(0);
     this.syncCat();
@@ -4380,18 +4401,14 @@ World.prototype.rollChoicesNow = function(){
 
 /* 3택을 통째로 다시 만든다. 판당 CONFIG.level.rerollPerRun 회.
    남은 횟수가 없으면 null 을 돌려주고 아무것도 바꾸지 않는다. */
-World.prototype.reroll = function(){
-  // 협동(34단계): 지금 3택의 주인(pickCat — 없으면 picker)의 다시 뽑기를 쓰고 그 고양이 것으로 다시 굴린다.
+World.prototype.reroll = function(k){
+  // 협동(37단계): k 번 고양이(0 · 1, 안 주면 지금 꺼내 둔 고양이)의 다시 뽑기를 쓰고 그 고양이 것으로 다시 굴린다.
   if (this.cats !== null){
-    var who = this.pickCat >= 0 ? this.pickCat : this.picker();
     try {
-      this.useCat(who);
+      this.useCat((k === 0 || k === 1) ? k : this.catTurn);
       if (this.rerollLeft <= 0) return null;
       this.rerollLeft--;
-      this.pickCat = -1;
-      var out = this.rollChoicesNow();
-      this.pickCat = who;
-      return out;
+      return this.rollChoicesNow();
     } finally {
       this.useCat(0);
       this.syncCat();
@@ -4488,22 +4505,27 @@ World.prototype.choiceFromKindId = function(kind, id){
   return null;
 };
 
-/* 고른 것을 반영한다. 1인 판은 applyChoiceNow 그대로.
-   협동(34단계): 3택의 주인(pickCat)에게 적용하고, 제 차례에 고른 것이면(대신 고른 것이 아니면) 차례를 넘긴다.
-   어느 길로 끝나든 0번 차례. 굴리지 않고 바로 부르면(pickCat < 0) 지금 차례 고양이에게 넣고 차례는 그대로다
-   (33단계의 테스트 · 도구가 useCat 으로 고양이를 골라 넣는 길). */
-World.prototype.applyChoice = function(choice){
-  if (this.cats === null || this.pickCat < 0){ this.applyChoiceNow(choice); return; }
-  var who = this.pickCat;
+/* 고른 것을 반영한다. 1인 판은 applyChoiceNow 그대로(k 를 안 본다).
+   협동(37단계): k 번 고양이(0 · 1)에게 넣고 그 고양이의 남은 카드(cardsOwed)를 하나 줄인다. 어느 길로 끝나든 0번 차례.
+   k 를 안 주면 지금 꺼내 둔 고양이에게 넣고 차례도 그대로 둔다(33단계의 테스트 · 도구가 useCat 으로 고양이를
+   골라 넣는 길 — 34단계와 같다).
+   쓰러진 고양이도 고른다 — 참치캔 · 회복이 체력을 올려도 쓰러진 동안은 0 으로 둔다(일으킬 때 체력이 정해진다). */
+World.prototype.applyChoice = function(choice, k){
+  if (this.cats === null){ this.applyChoiceNow(choice); return; }
+  if (k !== 0 && k !== 1){ this.applyChoiceOwed(choice); return; }
   try {
-    this.useCat(who);
-    this.applyChoiceNow(choice);
-    if (who === this.pickTurn) this.pickTurn = 1 - who;
+    this.useCat(k);
+    this.applyChoiceOwed(choice);
   } finally {
-    this.pickCat = -1;
     this.useCat(0);
     this.syncCat();
   }
+};
+// 37단계(협동 전용): 지금 꺼내 둔 고양이에게 넣고 그 고양이의 남은 카드를 하나 줄인다.
+World.prototype.applyChoiceOwed = function(choice){
+  this.applyChoiceNow(choice);
+  if (this.cardsOwed > 0) this.cardsOwed--;
+  if (this.down !== 0) this.player.hp = 0;
 };
 // 지금 차례 고양이에게 고른 것을 반영한다.
 World.prototype.applyChoiceNow = function(choice){
@@ -4859,12 +4881,13 @@ World.prototype.dropBossBox = function(x, y){
 /* 지금 진화할 수 있는 무기들. 5성이면서 아직 안 진화한 것.
    weaponOrder 는 "얻은 순서" 고 보유한 무기만 들어 있어 그대로 쓴다 —
    for...in 으로 훑으면 엔진마다 순서가 달라 봇 재현성이 깨진다. */
-World.prototype.evolveCandidates = function(){
-  // 협동(34단계): 진화를 고를 고양이(evolveTurn)의 것으로 본다. 들어올 때의 차례로 되돌아간다(updateCoop 안에서도 부른다).
-  if (this.cats !== null && this.catTurn !== this.evolveTurn){
+World.prototype.evolveCandidates = function(k){
+  /* 협동(37단계): k 번 고양이(0 · 1)의 것으로 본다 — 안 주면 지금 꺼내 둔 고양이. 들어올 때의 차례로 되돌아간다
+     (updateCoop 안에서도 부른다). 1인 판은 k 를 안 본다. */
+  if (this.cats !== null && (k === 0 || k === 1) && k !== this.catTurn){
     var turn = this.catTurn;
     try {
-      this.useCat(this.evolveTurn);
+      this.useCat(k);
       return this.evolveCandidates();
     } finally {
       this.useCat(turn);
@@ -4902,17 +4925,23 @@ World.prototype.updateBoxes = function(dt){
     if (dx * dx + dy * dy > eat * eat) continue;
     this.boxes.release(it);
     this.boxesTaken++;
-    /* 협동(34단계): 밟은 고양이(지금 차례)에게 5성이 있으면 그 고양이가, 없고 다른 고양이에게 있으면 다른 고양이가
-       진화를 고른다(evolveTurn — evolveCandidates 가 그 고양이 것으로 본다). 둘 다 없으면 회복은 밟은 고양이(p). */
+    /* 협동(37단계): 누가 밟든 5성이 있는 고양이는 모두(쓰러져 있어도) 진화를 하나씩 고른다 — 그 고양이의
+       evolveOwed 가 1, pendingEvolve 는 고를 고양이 수. 둘 다 없으면 1인 판처럼 회복(밟은 고양이 p)과 코인. */
+    var canEvolve;
     if (this.cats !== null){
-      this.evolveTurn = this.catTurn;
-      if (this.evolveCandidates().length === 0) this.evolveTurn = 1 - this.catTurn;
-    }
-    var canEvolve = this.evolveCandidates().length > 0;
-    if (this.cats !== null && !canEvolve) this.evolveTurn = 0;
-    if (canEvolve){
-      this.pendingEvolve = 1;              // 셸이 카드를 띄운다
+      var n = 0;
+      for (var j = 0; j < 2; j++){
+        if (this.evolveCandidates(j).length === 0) continue;
+        if (j === this.catTurn) this.evolveOwed = 1; else this.cats[j].evolveOwed = 1;
+        n++;
+      }
+      canEvolve = n > 0;
+      if (canEvolve) this.pendingEvolve = n;   // 셸이 반쪽마다 카드를 띄운다
     } else {
+      canEvolve = this.evolveCandidates().length > 0;
+      if (canEvolve) this.pendingEvolve = 1;   // 셸이 카드를 띄운다
+    }
+    if (!canEvolve){
       // 5성이 없다 — 헛탕을 만들지 않는다
       p.hp += p.maxHp * cfg.healPct;
       if (p.hp > p.maxHp) p.hp = p.maxHp;
@@ -4925,15 +4954,18 @@ World.prototype.updateBoxes = function(dt){
   }
 };
 
-World.prototype.applyEvolve = function(id){
-  // 협동(34단계): 진화를 고르는 고양이(evolveTurn)를 진화시킨다. 어느 길로 끝나든 0번 차례.
+World.prototype.applyEvolve = function(id, k){
+  /* 협동(37단계): k 번 고양이(0 · 1, 안 주면 0)를 진화시키고 그 고양이의 진화 카드를 닫는다(pendingEvolve 도 하나 준다).
+     어느 길로 끝나든 0번 차례. */
   if (this.cats !== null){
     try {
-      this.useCat(this.evolveTurn);
+      this.useCat(k === 1 ? 1 : 0);
       this.evolve(id);
-      this.pendingEvolve = 0;
+      if (this.evolveOwed !== 0){
+        this.evolveOwed = 0;
+        if (this.pendingEvolve > 0) this.pendingEvolve--;
+      }
     } finally {
-      this.evolveTurn = 0;
       this.useCat(0);
       this.syncCat();
     }
@@ -4948,9 +4980,21 @@ World.prototype.applyEvolve = function(id){
    셸이 world.pendingEvolve 를 직접 0 으로 쓰면 안 되기 때문에 여기 둔다 —
    이 저장소는 "셸은 core 를 읽고 메서드만 부른다" 를 지켜 왔고, 그 경계가 한 줄씩
    무너지면 나중에 어디까지가 core 의 규칙인지 아무도 못 가린다. */
-World.prototype.cancelEvolve = function(){
+World.prototype.cancelEvolve = function(k){
+  // 37단계(협동): k 번 고양이(0 · 1)의 진화 카드만 닫는다. 안 주면 둘 다. 늘 0번 차례에서 불린다.
+  if (this.cats !== null){
+    for (var j = 0; j < 2; j++){
+      if ((k === 0 || k === 1) && j !== k) continue;
+      var c = j === this.catTurn ? this : this.cats[j];
+      if (c.evolveOwed !== 0){
+        c.evolveOwed = 0;
+        if (this.pendingEvolve > 0) this.pendingEvolve--;
+      }
+    }
+    if (k !== 0 && k !== 1) this.pendingEvolve = 0;
+    return;
+  }
   this.pendingEvolve = 0;
-  if (this.cats !== null) this.evolveTurn = 0;   // 34단계 — 차례는 안 바꾼다(늘 0번에서 불린다)
 };
 
 // 화면 밖 링에서 적을 생성한다. 초당 수는 spawnRate 곡선이 정한다.
@@ -8864,7 +8908,7 @@ var stageJustUnlocked = false;
 
 /* 기록을 받는 서버. 게임과 분리돼 있어서, 이 주소가 죽어도 게임은 멀쩡하다. */
 var RECORD_URL = 'https://nyang-api.sayingfuture.workers.dev/api/run';
-var GAME_VERSION = '5f588f42';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
+var GAME_VERSION = 'ef25c659';   // tools/build-dist.js 가 배포본에서 git 해시로 바꾼다
 // GAME_VERSION 은 IIFE 안에서 선언돼 콘솔에서 안 보인다. 배포가 반영됐는지
 // 확인할 유일한 방법이 "콘솔에서 버전 읽기"라서, window 에 따로 붙여둔다.
 window.게임버전 = GAME_VERSION;
@@ -8955,8 +8999,7 @@ function renderChoices(choices){
 
 // 남은 다시 뽑기 횟수를 버튼에 반영한다. 0 이면 버튼 자체가 사라진다.
 function updateRerollBtn(){
-  // 34단계: 협동은 3택의 주인(pickCat)의 남은 횟수 — World 칸은 늘 1P 것이다
-  var left = (world.cats && world.pickCat >= 0) ? world.cats[world.pickCat].rerollLeft : world.rerollLeft;
+  var left = world.rerollLeft;   // 1인 판만 여기 온다(37단계: 협동은 coopPickRender 가 반쪽마다)
   if (left > 0 && !onlyHealingChoices(world.rolledChoices)){
     rerollBtn.style.display = 'block';
     rerollBtn.textContent = TF('\u{1F3B2} 다시 뽑기 ({n}번 남음)', { n: left });
@@ -8966,6 +9009,7 @@ function updateRerollBtn(){
 }
 
 function showLevelUp(){
+  if (world.cats){ coopPickOpen('lv'); return; }   // 37단계: 협동은 반쪽마다 각자(1인 판은 아래 그대로)
   overlayTitle.textContent = TF('레벨 {n} 달성!', { n: world.level });
   overlayStat.textContent = T('하나를 고르세요');
   overlayBtn.style.display = 'none';
@@ -8974,8 +9018,6 @@ function showLevelUp(){
   // 복원된 3택이 있으면 그대로 쓴다 — 없으면(새 레벨업, 또는 옛 저장) 새로 뽑는다.
   renderChoices(world.rolledChoices || world.rollChoices());
   updateRerollBtn();
-  // 34단계: 협동이면 3택의 주인이 키보드로 고른다(1인 판은 안 부른다 — 화면 · 키가 예전 그대로)
-  if (world.cats) coopPickBegin(world.pickCat >= 0 ? world.pickCat : world.picker());
   overlay.classList.add('on');
   paused = true;
   Sound.levelUp();
@@ -8987,12 +9029,10 @@ rerollBtn.addEventListener('click', function(e){
   if (!cs) return;              // 이미 다 썼다
   renderChoices(cs);
   updateRerollBtn();
-  if (world.cats && coopPickWho >= 0) coopPickRefresh();   // 34단계: 새 카드에 키 안내 · 테두리를 다시(1인 판은 안 부른다)
 });
 
 function pick(c){
   world.applyChoice(c);
-  if (world.cats) coopPickEnd(); // 34단계: 협동 판의 키보드 고르기를 닫는다(1인 판은 안 부른다)
   rerollBtn.style.display = 'none';
   overlay.classList.remove('on');
   paused = false;
@@ -9006,6 +9046,7 @@ function pick(c){
    자리(제목·카드·닫기)를 처음부터 다시 맞춰야 한다.
    카드는 최대 4장이다(무기 슬롯이 4개라 5성이 다섯 개일 수 없다). */
 function showEvolve(){
+  if (world.cats){ coopPickOpen('evo'); return; }   // 37단계: 협동은 5성이 있는 고양이마다 각자
   var ids = world.evolveCandidates();
   if (!ids.length){
     /* 여기 오면 안 된다 — core 는 후보가 있을 때만 pendingEvolve 를 세우고,
@@ -9038,14 +9079,12 @@ function showEvolve(){
       el.className += ' evo';
     })(ids[i]);
   }
-  if (world.cats) coopPickBegin(world.evolveTurn);   // 34단계: 협동이면 진화를 고르는 고양이의 키로
   overlay.classList.add('on');
   paused = true;
 }
 
 function pickEvolve(id){
   world.applyEvolve(id);            // core 가 진화시키고 pendingEvolve 를 내린다
-  if (world.cats) coopPickEnd();    // 34단계: 협동 판의 키보드 고르기를 닫는다(1인 판은 안 부른다)
   Sound.evolve();
   cardsEl.innerHTML = '';           // 진화 카드가 다음에 열리는 화면에 잠깐 비쳐선 안 된다
   overlay.classList.remove('on');
@@ -9054,95 +9093,210 @@ function pickEvolve(id){
   // 레벨업이 같이 밀려 있으면 frame() 이 다음 프레임에 3택을 띄운다.
 }
 
-/* ---------------- 34단계: 협동 카드 키보드 ---------------- */
-/* 협동 판의 레벨업 · 진화 카드 화면에서만 돈다(계획/34-협동-규칙-명세.md 2.3). 1인 판은 coopPickBegin 을
-   안 부르므로 coopPickWho 가 늘 −1 이고, 아래 키 듣개는 아무것도 안 한다(기본 동작도 그대로).
-   1P 가 고르면 A · D 로 옮기고 스페이스로 확정, 2P 가 고르면 ← · → 와 엔터(숫자판 엔터). 키는 자리(e.code)로 읽는다.
-   카드들 → 다시 뽑기(보일 때) → 첫 카드로 돈다. 화면이 뜬 뒤 0.4초 · 자동 반복 · 차례 아닌 고양이의 키는 무시한다
-   — 이동 키를 누른 채 레벨업하므로, 누르고 있던 키로 카드가 넘어가거나 골라지지 않게.
-   카드 화면 동안 이 키들의 기본 동작은 막는다(차례 아닌 키도) — 포커스가 간 버튼이 엔터 · 스페이스로 같이 눌려
-   두 번 골라지지 않게. 이동 키 상태(keys)는 건드리지 않는다 — 다른 듣개가 따로 적으므로 카드가 닫히면 그대로 걷는다. */
+/* ---------------- 37단계: 협동 카드 — 반쪽마다 각자 ---------------- */
+/* 계획/37-협동-각자-카드-명세.md 2.3. 협동 판의 레벨업 · 진화 카드는 #overlay 대신 #coopPick 의 반쪽 둘(왼쪽 1P ·
+   오른쪽 2P)에 뜬다. 둘이 동시에 고르고, 둘 다 끝나야 판이 돈다. 1인 판은 이 코드를 하나도 안 지난다
+   (showLevelUp · showEvolve 가 world.cats 일 때만 이리 온다 — 1인 판의 카드 화면 · 키는 예전 그대로).
+   키는 자리(e.code)로 읽는다: 1P A · D(또는 W · S)로 옮기고 스페이스로 확정, 2P ← · →(또는 ↑ · ↓)와 엔터(숫자판 엔터).
+   카드들 → 다시 뽑기(보일 때) → 첫 카드로 돈다. 그 반쪽 카드가 뜬 뒤 0.4초 · 자동 반복은 무시한다 — 이동 키를 누른 채
+   레벨업하므로 누르고 있던 키로 카드가 넘어가거나 골라지지 않게. 카드가 떠 있는 동안 이 키들의 기본 동작은 막는다 —
+   포커스가 간 버튼이 엔터 · 스페이스로 같이 눌려 두 번 골라지지 않게. 이동 키 상태(keys)는 건드리지 않는다
+   (다른 듣개가 따로 적으므로 카드가 닫히면 그대로 걷는다). 마우스로 그 반쪽 카드를 눌러도 된다. */
 var COOP_PICK_KEYS = [
-  { prev: 'KeyA', next: 'KeyD', ok: 'Space', ok2: 'Space' },
-  { prev: 'ArrowLeft', next: 'ArrowRight', ok: 'Enter', ok2: 'NumpadEnter' }
+  { prev: ['KeyA', 'KeyW'], next: ['KeyD', 'KeyS'], ok: ['Space'] },
+  { prev: ['ArrowLeft', 'ArrowUp'], next: ['ArrowRight', 'ArrowDown'], ok: ['Enter', 'NumpadEnter'] }
 ];
 // 1P 주황 · 2P 밝은 하늘색(35단계 — 흰 고양이에 맞춰. 33·34단계는 회청 #9fb0c8) — 딱지 · 테두리 · 체력바 앞 글자 · 미니맵 점
 var COOP_PICK_COLOR = ['#e8963c', '#8fd0ff'];
 var COOP_PICK_WAIT_MS = 400;
-var coopPickWho = -1;   // 지금 카드를 키보드로 고르는 고양이(−1 = 없음: 1인 판 · 카드 화면이 아님)
-var coopPickAt = 0;     // 카드 화면이 뜬 시각(Date.now)
-var coopPickSel = 0;    // 테두리가 선 자리(카드 순서, 마지막이 다시 뽑기)
+var coopPickEl = document.getElementById('coopPick');
+var coopPickHalf = [coopPickEl.children[0], coopPickEl.children[1]];
+var coopPickKind = '';   // 지금 열린 카드 화면: '' (닫힘) · 'lv'(레벨업) · 'evo'(진화)
+/* 반쪽마다: mode — 지금 고르는 것('' 이면 고를 것이 없다 → 대기 문구) · done — 이번 화면에서 다 골랐다 ·
+   at — 지금 카드가 뜬 시각(Date.now) · sel — 테두리 자리(카드 순서, 마지막이 다시 뽑기) */
+var coopPick = [{ mode: '', done: false, at: 0, sel: 0 }, { mode: '', done: false, at: 0, sel: 0 }];
 var coopPickHeld = Object.create(null);   // 확정에 쓴 키 — 그 keyup 의 기본 동작(스페이스의 버튼 누름)도 막는다
 
-// 키로 옮겨 다닐 자리: 누를 수 있는 카드들, 그다음 다시 뽑기(보일 때만).
-function coopPickTargets(){
-  var out = [], ch = cardsEl.children;
-  for (var i = 0; i < ch.length; i++){
-    var el = ch[i];
-    if (typeof el.className === 'string' && el.className.indexOf('card') === 0 && !el.disabled) out.push(el);
+// 카드 화면을 연다(협동 판에서만). 고를 것이 있는 고양이 반쪽엔 카드, 없는 반쪽엔 대기 문구. 3택은 1P → 2P 순서로 굴린다.
+function coopPickOpen(kind){
+  var any = false;
+  for (var k = 0; k < 2; k++){
+    var st = coopPick[k], c = world.cats[k];
+    st.done = false; st.sel = 0; st.at = Date.now();
+    st.mode = '';
+    if (kind === 'lv' && c.cardsOwed > 0){
+      st.mode = 'lv';
+      if (!world.cats[k].rolledChoices) world.rollChoices(k);
+    } else if (kind === 'evo' && c.evolveOwed !== 0){
+      if (world.evolveCandidates(k).length) st.mode = 'evo';
+      else world.cancelEvolve(k);   // 여기 오면 안 된다(core 는 후보가 있을 때만 세운다) — 판이 멈춘 채 남지 않게
+    }
+    if (st.mode !== '') any = true;
   }
-  if (rerollBtn.style.display === 'block') out.push(rerollBtn);
-  return out;
+  if (!any){ coopPickKind = ''; return; }
+  coopPickKind = kind;
+  var ae = document.activeElement;
+  if (ae && ae !== document.body && ae.blur) ae.blur();
+  coopPickRender(0);
+  coopPickRender(1);
+  coopPickEl.classList.add('on');
+  paused = true;
+  if (kind === 'lv') Sound.levelUp();
 }
-// 키 안내 한 줄을 카드 아래에 붙이고 테두리를 다시 세운다(다시 뽑기로 카드가 바뀐 뒤에도 부른다).
-function coopPickRefresh(){
+// 둘 다 골랐으면 닫고 판을 돌린다. 밀린 것(진화 뒤의 레벨업)은 frame() 이 다음 프레임에 다시 연다.
+function coopPickClose(){
+  coopPickKind = '';
+  coopPick[0].mode = ''; coopPick[1].mode = '';
+  coopPickEl.classList.remove('on');
+  coopPickHalf[0].innerHTML = '';
+  coopPickHalf[1].innerHTML = '';
+  var ae = document.activeElement;
+  if (ae && ae !== document.body && ae.blur) ae.blur();
+  paused = false;
+  lastTime = 0;                 // 정지한 동안 쌓인 시간을 버린다
+}
+function coopPickAfter(k){
+  if (coopPick[0].mode === '' && coopPick[1].mode === ''){ coopPickClose(); return; }
+  coopPickRender(k);
+}
+function coopPickChoose(k, choice){
+  world.applyChoice(choice, k);
+  var st = coopPick[k];
+  if (world.cats[k].cardsOwed > 0){       // 한 번에 여러 레벨 — 이 고양이는 한 장 더
+    world.rollChoices(k);
+    st.sel = 0;
+    st.at = Date.now();
+  } else {
+    st.mode = '';
+    st.done = true;
+  }
+  coopPickAfter(k);
+}
+function coopPickEvolve(k, id){
+  world.applyEvolve(id, k);
+  Sound.evolve();
+  coopPick[k].mode = '';
+  coopPick[k].done = true;
+  coopPickAfter(k);
+}
+function coopPickReroll(k){
+  if (!world.reroll(k)) return;   // 이미 다 썼다
+  coopPickRender(k);
+}
+function coopPickButton(parent, cls, html, fn){
+  var el = document.createElement('button');
+  el.type = 'button';
+  el.className = cls;
+  el.innerHTML = html;
+  el.addEventListener('click', function(){
+    if (Date.now() < 카드잠금까지) return;
+    fn();
+  });
+  parent.appendChild(el);
+  return el;
+}
+// 반쪽 k 를 다시 그린다.
+function coopPickRender(k){
+  var el = coopPickHalf[k], st = coopPick[k], c = world.cats[k], col = COOP_PICK_COLOR[k];
+  var badge = '<span class="coopTurn" style="background:' + col + '">' + (k === 0 ? '1P' : '2P') + '</span>';
+  el.innerHTML = '';
+  if (st.mode === ''){
+    var top = st.done ? '✔ ' + T('골랐어요') : (coopPickKind === 'evo' ? T('5성 무기가 없어요') : '');
+    el.innerHTML = '<div class="cpWait">' + badge + '<br>' +
+                   (top ? '<b style="color:' + col + '">' + escapeHtml(top) + '</b><br>' : '') +
+                   '<span style="color:' + COOP_PICK_COLOR[1 - k] + '">' +
+                   escapeHtml(coopPickKind === 'evo' ? T('친구가 진화를 고르는 중…') : T('친구가 고르는 중…')) + '</span></div>';
+    return;
+  }
+  var head = document.createElement('div');
+  head.style.textAlign = 'center';
+  var choices = st.mode === 'lv' ? c.rolledChoices : null;
+  var healOnly = st.mode === 'lv' && onlyHealingChoices(choices);
+  var stat = st.mode === 'evo' ? T('5성 무기 하나가 다른 것이 됩니다')
+           : T(healOnly ? '회복하고 계속하세요' : '하나를 고르세요');
+  if (st.mode === 'lv' && c.cardsOwed > 1) stat += ' · ' + TF('남은 카드 {n}장', { n: c.cardsOwed });
+  head.innerHTML = badge + '<div class="cpTitle">' +
+                   escapeHtml(st.mode === 'evo' ? T('진화!') : TF('레벨 {n} 달성!', { n: world.level })) + '</div>' +
+                   '<div class="cpStat">' + escapeHtml(stat) + '</div>';
+  el.appendChild(head);
+  var box = document.createElement('div');
+  box.className = 'cpCards';
+  el.appendChild(box);
+  var i;
+  if (st.mode === 'lv'){
+    for (i = 0; i < (healOnly ? 1 : choices.length); i++){
+      (function(ch){
+        var ico = (ch.kind === 'weapon') ? weaponIcoHtml(ch.id, ch.emoji)
+                : (ch.kind === 'passive' && PASSIVE_ICON[ch.id])
+                  ? '<img class="wpnIco" src="' + PASSIVE_ICON[ch.id] + '" alt="">'
+                  : ch.emoji;
+        coopPickButton(box, 'card row', '<div class="ico">' + ico + '</div>' +
+                       '<div class="nm">' + ch.name + (ch.level ? ' <small>Lv.' + ch.level + '</small>' : '') + '</div>' +
+                       '<div class="ds">' + ch.desc + '</div>',
+                       function(){ coopPickChoose(k, ch); });
+      })(choices[i]);
+    }
+    if (c.rerollLeft > 0 && !healOnly)
+      coopPickButton(el, 'cpReroll', escapeHtml(TF('\u{1F3B2} 다시 뽑기 ({n}번 남음)', { n: c.rerollLeft })),
+                     function(){ coopPickReroll(k); });
+  } else {
+    var ids = world.evolveCandidates(k);
+    for (i = 0; i < ids.length; i++){
+      (function(id){
+        var base = CONFIG.weapons[id], evo = CONFIG.evolutions[id];
+        if (!base || !evo) return;
+        var ico = WEAPON_ICON[id] ? '<img class="evoIco" src="' + WEAPON_ICON[id] + '" alt="">' : base.emoji;
+        coopPickButton(box, 'card row', '<div class="ico">' + ico + '</div>' +
+                       '<div class="nm">' + base.emoji + ' ' + base.name + ' → ' + evo.name + '</div>' +
+                       '<div class="ds">' + evo.desc + '</div>',
+                       function(){ coopPickEvolve(k, id); });
+      })(ids[i]);
+    }
+  }
   var hint = document.createElement('div');
   hint.className = 'coopKeys';
-  hint.innerHTML = escapeHtml(coopPickWho === 0 ? T('A · D 로 옮기고 스페이스로 고르기') : T('← · → 로 옮기고 엔터로 고르기'));
-  cardsEl.appendChild(hint);
-  coopPickMark(coopPickTargets());
+  hint.style.flex = '0 0 auto';
+  hint.textContent = k === 0 ? T('A · D 로 옮기고 스페이스로 고르기') : T('← · → 로 옮기고 엔터로 고르기');
+  el.appendChild(hint);
+  coopPickMark(k, coopPickTargets(k));
 }
-// 테두리는 coopPickSel 자리 하나에만(고르는 고양이의 색).
-function coopPickMark(t){
-  if (coopPickSel >= t.length) coopPickSel = 0;
+// 반쪽 k 에서 키로 옮겨 다닐 자리: 카드들, 그다음 다시 뽑기(있으면).
+function coopPickTargets(k){
+  var out = [], bs = coopPickHalf[k].getElementsByTagName('button');
+  for (var i = 0; i < bs.length; i++) if (!bs[i].disabled) out.push(bs[i]);
+  return out;
+}
+// 테두리는 sel 자리 하나에만(그 고양이의 색).
+function coopPickMark(k, t){
+  var st = coopPick[k];
+  if (st.sel >= t.length) st.sel = 0;
   for (var i = 0; i < t.length; i++){
-    t[i].style.outline = i === coopPickSel ? '4px solid ' + COOP_PICK_COLOR[coopPickWho] : '';
-    t[i].style.outlineOffset = i === coopPickSel ? '3px' : '';
+    t[i].style.outline = i === st.sel ? '4px solid ' + COOP_PICK_COLOR[k] : '';
+    t[i].style.outlineOffset = i === st.sel ? '3px' : '';
   }
 }
-// 카드 화면을 연다(협동 판에서만 불린다). who = 고르는 고양이 번호.
-function coopPickBegin(who){
-  coopPickWho = who;
-  coopPickAt = Date.now();
-  coopPickSel = 0;
-  // 마우스로 눌렀던 버튼(특히 남아 있는 다시 뽑기)에 포커스가 있으면 엔터 · 스페이스가 그것을 누른다
-  var ae = document.activeElement;
-  if (ae && ae !== document.body && ae.blur) ae.blur();
-  overlayTitle.innerHTML = '<span class="coopTurn" style="background:' + COOP_PICK_COLOR[who] + '">' +
-                           escapeHtml(who === 0 ? T('1P 차례') : T('2P 차례')) + '</span><br>' +
-                           escapeHtml(overlayTitle.textContent);
-  coopPickRefresh();
-}
-// 카드를 고른 뒤. 1인 판은 아무것도 안 한다.
-function coopPickEnd(){
-  if (coopPickWho < 0) return;
-  coopPickWho = -1;
-  rerollBtn.style.outline = '';          // 다시 뽑기 버튼은 화면마다 다시 쓰이므로 테두리를 지운다
-  rerollBtn.style.outlineOffset = '';
-  var ae = document.activeElement;
-  if (ae && ae !== document.body && ae.blur) ae.blur();
-}
 function coopPickKey(e){
-  if (coopPickWho < 0) return;
+  if (coopPickKind === '') return;
   var code = e.code, owner = -1, role = 0;   // role: −1 앞 · 1 뒤 · 2 확정
   for (var k = 0; k < 2 && owner < 0; k++){
     var m = COOP_PICK_KEYS[k];
-    if (code === m.prev) role = -1;
-    else if (code === m.next) role = 1;
-    else if (code === m.ok || code === m.ok2) role = 2;
+    if (m.prev.indexOf(code) >= 0) role = -1;
+    else if (m.next.indexOf(code) >= 0) role = 1;
+    else if (m.ok.indexOf(code) >= 0) role = 2;
     else continue;
     owner = k;
   }
   if (owner < 0) return;
   e.preventDefault();
   if (role === 2) coopPickHeld[code] = true;
-  if (e.repeat || owner !== coopPickWho || Date.now() - coopPickAt < COOP_PICK_WAIT_MS) return;
-  var t = coopPickTargets();
+  var st = coopPick[owner];
+  if (e.repeat || st.mode === '' || Date.now() - st.at < COOP_PICK_WAIT_MS) return;
+  var t = coopPickTargets(owner);
   if (!t.length) return;
-  if (coopPickSel >= t.length) coopPickSel = 0;
-  if (role === 2){ t[coopPickSel].click(); return; }
-  coopPickSel = (coopPickSel + role + t.length) % t.length;
-  coopPickMark(t);
+  if (st.sel >= t.length) st.sel = 0;
+  if (role === 2){ t[st.sel].click(); return; }
+  st.sel = (st.sel + role + t.length) % t.length;
+  coopPickMark(owner, t);
 }
 function coopPickKeyUp(e){
   if (coopPickHeld[e.code] !== true) return;
@@ -9151,7 +9305,7 @@ function coopPickKeyUp(e){
 }
 window.addEventListener('keydown', coopPickKey);
 window.addEventListener('keyup', coopPickKeyUp);
-/* ---------------- 34단계: 협동 카드 키보드 끝 ---------------- */
+/* ---------------- 37단계: 협동 카드 끝 ---------------- */
 
 var isPauseScreen = false;   // 지금 오버레이가 일시정지 화면인가
 
